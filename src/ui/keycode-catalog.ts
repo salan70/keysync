@@ -154,3 +154,106 @@ export const EXTRA_ROW: readonly PickerEntry[] = [
   key("KC_LANG1"),
   key("KC_LANG2"),
 ];
+
+/** picker のタブ。基本は 26u の物理配列、他は見出し付きの行で列を揃えて並べる。 */
+export const PICKER_TABS = [
+  { id: "basic", label: "基本" },
+  { id: "layer", label: "レイヤー" },
+  { id: "media", label: "メディア・マウス" },
+  { id: "special", label: "特殊" },
+] as const;
+
+export type PickerTabId = (typeof PICKER_TABS)[number]["id"];
+
+/** 基本以外のタブの 1 行。先頭に見出しを置き、keycode は同じ幅で左から並べる。 */
+export interface PickerLabeledRow {
+  readonly label: string;
+  /** 見出しの下に添える、その行の動きの短い説明。 */
+  readonly description?: string;
+  readonly keycodes: readonly string[];
+}
+
+/** 見出しの幅。keycode は見出しの右から並べる。 */
+export const PICKER_LABEL_UNITS = 3;
+
+/** 基本以外のタブの keycode の幅。全行で同じ幅にして列を縦に揃え、長い行は 26u に収まるまで縮める。 */
+export function labeledKeyUnits(rows: readonly PickerLabeledRow[]): number {
+  const longest = Math.max(1, ...rows.map((row) => row.keycodes.length));
+  return Math.min(2, (PICKER_TOTAL_UNITS - PICKER_LABEL_UNITS) / longest);
+}
+
+/** レイヤータブの行。LT は Hold 選択中に MO を押して作る（`applyPick`）。 */
+const LAYER_PICKER_WRAPPERS = [
+  ["MO", "押している間"],
+  ["TG", "オン・オフ切替"],
+  ["TT", "押す間・連打で固定"],
+  ["TO", "その layer へ移る"],
+  ["DF", "既定の layer にする"],
+  ["OSL", "次の 1 打だけ"],
+] as const;
+
+export function layerPickerRows(layers: readonly number[]): readonly PickerLabeledRow[] {
+  return LAYER_PICKER_WRAPPERS.map(([wrapper, description]) => ({
+    label: wrapper,
+    description,
+    keycodes: layers.map((layer) => `${wrapper}(${layer})`),
+  }));
+}
+
+const range = (prefix: string, from: number, to: number): string[] =>
+  Array.from({ length: to - from + 1 }, (_, offset) => `${prefix}${from + offset}`);
+
+export const MEDIA_ROWS: readonly PickerLabeledRow[] = [
+  { label: "音量", keycodes: ["KC_MUTE", "KC_VOLD", "KC_VOLU"] },
+  {
+    label: "再生",
+    keycodes: [
+      "KC_MPRV",
+      "KC_MPLY",
+      "KC_MNXT",
+      "KC_MSTP",
+      "KC_MRWD",
+      "KC_MFFD",
+      "KC_EJCT",
+      "KC_MSEL",
+    ],
+  },
+  {
+    label: "画面",
+    keycodes: ["KC_BRID", "KC_BRIU", "KC_MISSION_CONTROL", "KC_LAUNCHPAD", "KC_ASSISTANT"],
+  },
+  {
+    label: "電源・アプリ",
+    keycodes: ["KC_PWR", "KC_SLEP", "KC_WAKE", "KC_CALC", "KC_MAIL", "KC_MYCM"],
+  },
+  {
+    label: "ブラウザ",
+    keycodes: ["KC_WSCH", "KC_WHOM", "KC_WBAK", "KC_WFWD", "KC_WSTP", "KC_WREF", "KC_WFAV"],
+  },
+  {
+    label: "マウス",
+    keycodes: ["KC_MS_UP", "KC_MS_DOWN", "KC_MS_LEFT", "KC_MS_RIGHT", ...range("KC_BTN", 1, 5)],
+  },
+  {
+    label: "ホイール",
+    keycodes: ["KC_WH_U", "KC_WH_D", "KC_WH_L", "KC_WH_R", ...range("KC_ACL", 0, 2)],
+  },
+];
+
+/**
+ * 特殊タブ。`RESET` / `QK_BOOT` / `EE_CLR` / `DEBUG` は置かない。
+ * 押すだけで bootloader 移行や EEPROM 消去が起きるため、選ぶなら raw keycode で明示させる（ADR 0041）。
+ */
+export const SPECIAL_ROWS: readonly PickerLabeledRow[] = [
+  { label: "F13〜F24", keycodes: range("KC_F", 13, 24) },
+  {
+    label: "機能",
+    keycodes: ["KC_GESC", "CAPS_WORD", "KC_LEAD", "KC_LOCK", "KC_REPEAT", "KC_ALT_REPEAT"],
+  },
+  {
+    label: "Space Cadet",
+    keycodes: ["KC_LSPO", "KC_RSPC", "KC_LCPO", "KC_RCPC", "KC_LAPO", "KC_RAPC", "KC_SFTENT"],
+  },
+  { label: "言語", keycodes: range("KC_LANG", 3, 9) },
+  { label: "国際", keycodes: range("KC_INT", 6, 9) },
+];

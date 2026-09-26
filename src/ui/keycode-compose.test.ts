@@ -6,6 +6,7 @@ import {
   composeKeycode,
   macBehaviorOptions,
   structuredValues,
+  targetValue,
 } from "./keycode-compose.ts";
 
 test("applyPick replaces the whole keycode", () => {
@@ -25,7 +26,7 @@ test("applyPick creates a vial-style mod-tap for Hold", () => {
   assert.equal(applyPick("LT1(KC_SPACE)", "hold", "KC_LSHIFT"), "LSFT_T(KC_SPACE)");
 });
 
-test("hold accepts only the eight modifier keycodes", () => {
+test("hold accepts the eight modifier keycodes and MO(n)", () => {
   for (const keycode of [
     "KC_LCTRL",
     "KC_LSHIFT",
@@ -39,6 +40,8 @@ test("hold accepts only the eight modifier keycodes", () => {
     assert.equal(canPick("hold", keycode), true);
   }
   assert.equal(canPick("hold", "KC_A"), false);
+  assert.equal(canPick("hold", "MO(2)"), true);
+  assert.equal(canPick("hold", "TG(1)"), false);
   assert.equal(canPick("tap", "KC_A"), true);
 });
 
@@ -51,12 +54,32 @@ test("composeKeycode preserves existing modifier and layer forms", () => {
 });
 
 test("Macの動作選択肢は落とせるものだけ。既存の非対応値は残す", () => {
-  assert.deepEqual(macBehaviorOptions("basic"), ["basic", "modTap", "layerSwitch", "none"]);
+  assert.deepEqual(macBehaviorOptions("basic"), [
+    "basic",
+    "modified",
+    "modTap",
+    "layerSwitch",
+    "none",
+  ]);
   assert.deepEqual(macBehaviorOptions("tapDance"), [
     "basic",
+    "modified",
     "modTap",
     "layerSwitch",
     "none",
     "tapDance",
   ]);
+});
+
+test("Hold で MO(n) を選ぶと LTn(tap) になる", () => {
+  assert.equal(applyPick("KC_A", "hold", "MO(2)"), "LT2(KC_A)");
+  assert.equal(applyPick("LT1(KC_B)", "hold", "MO(3)"), "LT3(KC_B)");
+  assert.equal(applyPick("LSFT_T(KC_SPACE)", "hold", "MO(1)"), "LT1(KC_SPACE)");
+  assert.equal(applyPick("KC_A", "hold", "TG(1)"), "KC_A");
+});
+
+test("LT の Hold の現在値は MO(n) として扱う", () => {
+  assert.equal(targetValue("LT2(KC_A)", "hold"), "MO(2)");
+  assert.equal(targetValue("LT2(KC_A)", "tap"), "KC_A");
+  assert.equal(targetValue("LCTL_T(KC_A)", "hold"), "KC_LCTRL");
 });

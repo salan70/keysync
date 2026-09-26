@@ -247,7 +247,7 @@ layer の切替は layer 番号と名前の chip で、番号の順に強調色 
 編集パネルは選択中のキーまたは encoder の位置、keycap、raw keycode、挙動の説明を常設する。
 layer を指す keycode は参照先の layer 名と番号を示し、押すとその layer を開く。
 picker の適用先（キー全体、Tap、Hold）は segmented の radio で、各適用先の現在値を併記する。
-動作 select は既存 keycode の分類を使い、Cornix は `BEHAVIOR_OPTIONS`、Mac は `basic` / `modTap` / `layerSwitch` / `none` に絞る。
+動作 select は既存 keycode の分類を使い、Cornix は `BEHAVIOR_OPTIONS`、Mac は `basic` / `modified` / `modTap` / `layerSwitch` / `none` に絞る。
 raw keycode と表示名は折りたたみの中に置く。
 raw keycode は Enter または「反映」で保存し、Mac では空欄を素通しへ戻す操作として扱う。
 表示名（任意）は raw keycode 式へ完全一致で割り当て、Enter または blur で `keysync/labels.yaml` へ保存し、空欄はその式の表示名を削除する。
@@ -262,18 +262,36 @@ Mac では「割り当てを外す（素通しへ戻す）」を置く。
 
 ## Keycode picker
 
-盤面の下に Vial の ISO/JIS 面に合わせた 6 行の物理配列で keycode を常設表示する。
-全体を 26u の固定座標とし、main は 0〜16u、navigation は 18〜21u、numpad は 22〜26u へ置く。
+盤面の下に keycode picker を常設し、Vial に倣って `基本` `レイヤー` `メディア・マウス` `特殊` のタブで面を切り替える（ADR 0041）。
+既定は `基本` で、タブの状態は picker の中だけで持つ。
+全タブを同じ格子に重ねて描き、表示中以外は `visibility: hidden` と `inert` にする。
+picker の高さは最も高い面で決まり、タブを切り替えても盤面の位置は動かない。
+全タブを 26u の固定座標で描き、キーの位置と幅は 26u に対する百分率で決め、狭い画面でも横スクロールを発生させない。
+
+`基本` は Vial の ISO/JIS 面に合わせた 6 行の物理配列にする。
+main は 0〜16u、navigation は 18〜21u、numpad は 22〜26u へ置く。
 navigation は 3u の逆 T 字、numpad は 4u の cluster とし、numpad 右端を下部 26u ストリップの右端へ揃える。
 ISO Enter の行跨ぎは再現せず、3 段目末尾へ 2.25u で置き、4 段目末尾は spacer にする。
-キーの位置と幅は 26u に対する百分率で決め、狭い画面でも横スクロールを発生させない。
 下部には `KC_NO`、`KC_TRNS`、shift 済み記号、`LANG1` / `LANG2` を並べる 26u のストリップを描く。
+
+`基本` 以外のタブは、先頭 3u に行の見出しを置き、keycode を同じ幅で左から並べて列を縦に揃える。
+keycode の幅は 2u を上限に、最も長い行が 26u に収まるまで縮める。
+行数は `基本` の行数（物理配列 6 行と記号の帯）以内に収める。
+
+`レイヤー` は行を `MO` `TG` `TT` `TO` `DF` `OSL`、列を呼び出し側が渡す layer 番号にし、見出しの下に動きの短い説明を添える。
+Cornix は layer 数、Mac は document に書かれた layer 番号を渡す。
+`メディア・マウス` は音量、再生、画面（輝度・Mission Control など）、電源・アプリ、ブラウザ、マウス、ホイールの行に分ける。
+`特殊` は F13〜F24、Grave Escape、Space Cadet、`CAPS_WORD`、Leader、Repeat、`LANG3` 以降と `INT6` 以降を並べる。
+`RESET` `QK_BOOT` `EE_CLR` `DEBUG` はどのタブにも置かない。
+
 各キーの表示は共通の keycode label 関数から描き、表示名があればそれを主表示にし、raw 式は title で確認できる。
 modifier のキーは mod の色で塗る。
 
-picker の現在値は適用先に合わせて強調し、Hold では modifier keycode だけを有効にして Vial 形式の `X_T(kc)` へ組み立てる。
-無効にした cell は title と読み上げで理由（Hold に選べるのは modifier だけ、Karabiner で表現できない）を示す。
-編集対象が未選択なら grid とストリップを含む picker 全体を無効にする。
+picker の現在値は適用先に合わせて強調する。
+Hold では modifier keycode と `MO(n)` だけを有効にし、modifier は Vial 形式の `X_T(kc)`、`MO(n)` は `LTn(kc)` へ組み立てる。
+Hold の現在値は、`LTn(kc)` のとき `MO(n)` として強調する。
+無効にした cell は title と読み上げで理由（Hold に選べるのは modifier と MO だけ、Karabiner で表現できない）を示す。
+編集対象が未選択なら picker の全 cell を無効にする。
 
 picker は選択中の編集対象が何か（key / encoder / Mac の盤面位置）を知らない。
 現在値の `selectedKeycode` を受け取り、選ばれた keycode を生のまま通知する。

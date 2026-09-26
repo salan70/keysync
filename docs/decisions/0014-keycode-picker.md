@@ -1,6 +1,6 @@
 # ISO/JIS 1 面の keycode picker で Tap / Hold の割り当てを行う
 
-状態: 採用
+状態: 採用（面の数と layer・media / mouse・F13 以降の扱いは ADR 0041 で改訂）
 
 2026-08-20に、盤面編集のraw keycode入力への依存を減らすために決めた。実機操作は行っていない。
 

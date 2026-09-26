@@ -25,7 +25,7 @@ export const BEHAVIOR_OPTIONS = [
 ] as const;
 
 /** Karabiner へ落とせる動作だけ。判定の定義元は `macKeycodeSupport`。 */
-export const MAC_BEHAVIOR_OPTIONS = ["basic", "modTap", "layerSwitch", "none"] as const;
+export const MAC_BEHAVIOR_OPTIONS = ["basic", "modified", "modTap", "layerSwitch", "none"] as const;
 
 export function macBehaviorOptions(current: string): readonly string[] {
   return (MAC_BEHAVIOR_OPTIONS as readonly string[]).includes(current)
@@ -121,13 +121,34 @@ export function applyPick(current: string, target: PickTarget, picked: string): 
     }
   }
 
+  const layer = momentaryLayer(picked);
+  if (layer !== undefined) return composeLayerKeycode("layerTap", layer, tapValue(lexeme, current));
   const modifier = modifierName(picked);
   if (modifier === undefined) return current;
   return `${modifier}_T(${tapValue(lexeme, current)})`;
 }
 
+/** 適用先に応じた現在値。Tap は内側の keycode、Hold は modifier の keycode（LT は `MO(n)`）。 */
+export function targetValue(keycode: string | undefined, target: PickTarget): string | undefined {
+  if (keycode === undefined) return undefined;
+  if (target === "whole") return keycode;
+  const values = structuredValues(keycode);
+  if (target === "tap") return values.tap ?? keycode;
+  return values.action === "layerTap" && values.layer !== undefined
+    ? `MO(${values.layer})`
+    : values.hold;
+}
+
+/** Hold に置けるのは modifier と `MO(n)`。`MO(n)` は `LTn(tap)` になる。 */
 export function canPick(target: PickTarget, picked: string): boolean {
-  return target !== "hold" || modifierName(picked) !== undefined;
+  return (
+    target !== "hold" || modifierName(picked) !== undefined || momentaryLayer(picked) !== undefined
+  );
+}
+
+function momentaryLayer(keycode: string): number | undefined {
+  const lexeme = classifyKeycode(keycode);
+  return lexeme.kind === "layerSwitch" && lexeme.action === "momentary" ? lexeme.layer : undefined;
 }
 
 export function modifierKeycode(modifier: string): string | undefined {

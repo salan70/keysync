@@ -529,6 +529,7 @@ export function App({
                   labels={workspace.labels}
                   pickTarget={cursor.pickTarget}
                   selectedKeycode={cornixKeycode}
+                  layers={[...jumpableLayers]}
                   disabled={selection === undefined}
                   onPick={pick}
                 />
@@ -563,6 +564,7 @@ export function App({
                   labels={macLabels}
                   pickTarget={cursor.pickTarget}
                   selectedKeycode={macKeycode}
+                  layers={[...jumpableLayers]}
                   disabled={selection === undefined}
                   isKeycodeEnabled={(keycode) => macKeycodeSupport(keycode).ok}
                   disabledReason="Karabiner で表現できない"

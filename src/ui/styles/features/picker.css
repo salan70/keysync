@@ -7,9 +7,23 @@
     border-radius: var(--radius-card);
     background: var(--color-surface);
   }
+  .pk-tabs {
+    justify-self: start;
+    width: fit-content;
+    margin-bottom: var(--space-200);
+  }
   .picker {
     display: grid;
+  }
+  /* 全タブを同じ格子の 1 マスに重ね、高さを最も高い面に揃える。 */
+  .pk-panel {
+    display: grid;
+    grid-area: 1 / 1;
+    align-content: start;
     gap: var(--space-50);
+  }
+  .pk-panel.is-inactive {
+    visibility: hidden;
   }
   .picker[aria-disabled="true"] {
     opacity: 0.6;
@@ -36,6 +50,26 @@
     background: var(--key-bg, var(--color-surface));
     color: var(--key-fg, var(--color-on-surface));
     line-height: 1;
+  }
+  .pk-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    height: 100%;
+    padding-inline-end: var(--space-100);
+    line-height: 1.1;
+    overflow: hidden;
+    color: var(--color-on-surface-variant);
+    font-size: var(--font-size-2xs);
+    font-weight: var(--font-weight-bold);
+    white-space: nowrap;
+  }
+  .pk-label-sub {
+    font-weight: var(--font-weight-regular);
   }
   .pk .keycap-main {
     font-size: calc(var(--font-size-2xs) * var(--fit-scale, 1));

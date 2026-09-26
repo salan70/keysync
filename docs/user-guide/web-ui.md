@@ -51,8 +51,11 @@ Karabiner へ適用できるのは、`Mac ANSI` と `Mac JIS` のうちこのマ
 3. 盤面の下の keycode picker から選ぶと、すぐに `keymap.yaml` へ保存されます。
 4. 編集パネルの下と画面下部に `ローカル保存済み` と保存先が表示されることを確認します。
 
-`Hold` では modifier だけを選べます。
-picker にない keycode は、編集パネルの `raw keycode・表示名` を開いて入力し、Enter または `反映` で保存します。
+picker は `基本` `レイヤー` `メディア・マウス` `特殊` のタブで切り替えます。
+`レイヤー` タブでは `MO(n)` `TG(n)` などを layer 番号ごとに選べます。
+`Hold` では modifier と `MO(n)` だけを選べます。
+`Hold` で `MO(n)` を選ぶと、押している間は layer n、タップでは今のキーになる `LTn(…)` になります。
+picker にない keycode（`QK_BOOT` などの危険なキーを含む）は、編集パネルの `raw keycode・表示名` を開いて入力し、Enter または `反映` で保存します。
 raw keycode には任意の表示名を設定できます。
 表示名は `keysync/labels.yaml` に保存され、実機への書き込み内容には影響しません。
 

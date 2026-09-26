@@ -9,6 +9,7 @@ import {
   composeKeycode,
   macBehaviorOptions,
   structuredValues,
+  targetValue,
   type PickTarget,
 } from "../keycode-compose.ts";
 import { keycodeDisplay, kindClass, renderKeycode } from "../keycode-display.tsx";
@@ -16,7 +17,6 @@ import type { IconName } from "../icons.ts";
 import type { SaveState } from "../save-state.ts";
 import { Button } from "./Button.tsx";
 import { Icon } from "./Icon.tsx";
-import { targetValue } from "./Picker.tsx";
 
 const PICK_TARGETS: readonly { readonly id: PickTarget; readonly label: string }[] = [
   { id: "whole", label: "キー全体" },
@@ -175,7 +175,7 @@ export function Inspector({
       </fieldset>
       <p className="hint">
         {pickTarget === "hold"
-          ? "Hold に選べるのは modifier だけ。picker の他のキーは無効になる。"
+          ? "Hold に選べるのは modifier と MO だけ。MO(n) は LTn になる。picker の他のキーは無効になる。"
           : "下の picker から選ぶと、すぐに保存する。"}
       </p>
 
