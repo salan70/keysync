@@ -1,0 +1,4 @@
+# Chrome / Chromium から Vial 対応キーボード（Cornix LP）へ WebHID で接続するための udev rule。
+# Vial の公式手順の rule から GROUP 指定を外し、ログイン中のユーザーへ uaccess で権限を与える。
+# /etc/udev/rules.d/ へ置き、udevadm で読み直す（docs/user-guide/linux.md）。
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{serial}=="*vial:f64c2b3c*", MODE="0660", TAG+="uaccess"

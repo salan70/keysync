@@ -14,6 +14,10 @@ Web UI は clone したリポジトリで `just ui` を実行して起動しま�
 - Chrome または Chromium
 - Vial protocol に対応した Cornix LP
 
+Linux（Omarchy）でも使えます。
+準備と内蔵キーボードの扱いは [Linux（Omarchy）で使う](./linux.md) を参照してください。
+Linux での動作は実機で確認中です。
+
 Edge や Brave でも動作しますが、確認済み環境には含めません。
 Safari と Firefox は WebHID に非対応のため、実機接続を利用できません。
 Web UI と CLI はどちらも、リポジトリを clone した Nix 環境から実行します。
@@ -72,6 +76,7 @@ export KEYSYNC_WORKSPACE="$HOME/dotfiles/config/keysync"
 | ---------------------------------------------- | ------------------------------------------------------ |
 | [Web UI の使い方](./web-ui.md)                 | 画面構成、各タブの編集機能、VIL や画像の入出力         |
 | [CLI の使い方](./cli.md)                       | 検証、到達性解析、差分確認、Mac 内蔵キーボード管理     |
+| [Linux（Omarchy）で使う](./linux.md)           | udev rule、keyd による内蔵キーボードの設定と適用       |
 | [Safe Apply と復旧](./safe-apply.md)           | 実機書き込み手順、エラーと警告の基準、バックアップ復元 |
 | [workspace と用語](./workspace-and-terms.md)   | ファイル配置、Git 管理対象、重要用語の一覧             |
 | [トラブルシューティング](./troubleshooting.md) | 接続失敗、保存不可、権限エラーなどの対処手順           |

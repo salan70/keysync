@@ -8,7 +8,7 @@
 
 Web UI は clone したリポジトリから `just ui` で起動し、<http://127.0.0.1:5178/> で開きます。
 
-- **動作環境**: macOS 上の Chrome または Chromium。
+- **動作環境**: macOS 上の Chrome または Chromium。Linux（Omarchy）は [利用者ガイド](./docs/user-guide/linux.md) を参照。
 - **非対応環境**: Safari と Firefox は WebHID に非対応のため実機接続不可。
 - **クイックスタート**: [利用者ガイドの導入手順](./docs/user-guide/README.md#クイックスタート) を参照。
 
@@ -43,17 +43,18 @@ just ui          # Web UI をビルドして起動（http://127.0.0.1:5178/）
 
 ### 日常の検証・運用コマンド
 
-| コマンド               | 用途                                      |
-| ---------------------- | ----------------------------------------- |
-| `just test`            | 単体テストの実行（Vitest）                |
-| `just typecheck`       | TypeScript の型検査                       |
-| `just lint`            | pre-commit による全ファイル検査           |
-| `just lint-md`         | Markdown の構文・スタイル検査             |
-| `just format`          | oxfmt によるコード整形                    |
-| `just docbridge-check` | コードと仕様書（docs/specs/）のリンク検証 |
-| `just mac`             | MacBook 内蔵キーボードの設定を適用        |
-| `just ui`              | Web UI のビルドと起動                     |
-| `just dev`             | 開発サーバーの起動（UI 開発用）           |
+| コマンド               | 用途                                       |
+| ---------------------- | ------------------------------------------ |
+| `just test`            | 単体テストの実行（Vitest）                 |
+| `just typecheck`       | TypeScript の型検査                        |
+| `just lint`            | pre-commit による全ファイル検査            |
+| `just lint-md`         | Markdown の構文・スタイル検査              |
+| `just format`          | oxfmt によるコード整形                     |
+| `just docbridge-check` | コードと仕様書（docs/specs/）のリンク検証  |
+| `just mac`             | MacBook 内蔵キーボードの設定を適用         |
+| `just linux`           | Linux の内蔵キーボードの設定を keyd へ適用 |
+| `just ui`              | Web UI のビルドと起動                      |
+| `just dev`             | 開発サーバーの起動（UI 開発用）            |
 
 ## 設計・運用方針
 

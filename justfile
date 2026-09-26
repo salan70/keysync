@@ -55,6 +55,12 @@ keysync *ARGS:
 mac *ARGS:
     pnpm run keysync -- mac "$@"
 
+# Linux で使う Apple 製キーボードの設定を扱う（例: just linux apply）
+# 適用は keyd へ行い、書き込みと reload で sudo のパスワードを求める（ADR 0042）。
+[positional-arguments]
+linux *ARGS:
+    pnpm run keysync -- linux "$@"
+
 # コードを整形する
 # .claude / .agents は正本からコピーした vendor 資産のため整形しない。
 # 整形すると正本との差分が生まれ、再同期のたびに衝突する。

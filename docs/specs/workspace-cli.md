@@ -8,6 +8,7 @@ mtimeだけでなく読み出したcontent hashを優先する。
 
 <!-- @code src/workspace/layout.ts#WORKSPACE_LAYOUT -->
 <!-- @code src/workspace/layout.ts#macKeymapPath -->
+<!-- @code src/workspace/layout.ts#linuxKeymapPath -->
 <!-- @code src/workspace/layout.ts#LEGACY_WORKSPACE_LAYOUT -->
 
 ## 配置
@@ -15,6 +16,7 @@ mtimeだけでなく読み出したcontent hashを優先する。
 ```text
 keymap.yaml
 mac-keyboard.<layout>.yaml
+linux-keyboard.<layout>.yaml
 keysync/
   definitions/<digest-prefix>.json
   labels.yaml
@@ -39,6 +41,9 @@ documentである（ADR 0022）。仕様は`mac-keymap.md`にある。片方だ�
 ADR 0027より前の`mac-keyboard.yaml`は読み込み時の後方互換として残る。どの配列のものかは
 中の`layout`宣言で決まり、宣言が求めた配列と違えば「その配列の設定は無い」として扱う。
 
+`linux-keyboard.<layout>.yaml`（`linuxKeymapPath`）はLinuxで使うApple製キーボードのdesired stateで、
+Macの設定とは独立に編集する（ADR 0042）。仕様は`linux-keymap.md`にある。旧名は無い。
+
 <!-- @code src/workspace/default-root.ts#defaultWorkspaceRoot -->
 
 ## defaultWorkspaceRoot
@@ -60,6 +65,12 @@ Git管理されない場所へ設定が黙って書かれます。keysyncリポ�
 指定した配列の設定を読みます。新しい名前を先に見て、無ければ旧名を`layout`宣言で
 解決します。`src/core/mac-keymap/`はfilesystemに触らないため、名前の解決はworkspace層が
 持ちます。
+
+<!-- @code src/workspace/linux-keymap-file.ts#readLinuxKeymapFor -->
+
+## readLinuxKeymapFor
+
+指定した配列のLinux設定を読みます。ファイル名と中の`layout`宣言が食い違っていたら落とします。
 
 ## 表示用labels
 
@@ -154,6 +165,13 @@ MacBook内蔵キーボードは`keysync mac generate|diff|apply|devices`で扱�
 lint、構造diff、fingerprintを出して終わり、人間が同じfingerprintを渡したときだけ
 `karabiner.json`を書く。手順は`mac-keymap.md`の「適用の境界」にある。error diagnosticが
 1件でもあれば適用せず、lintが落ちても書き込まない。
+
+Linuxで使うApple製キーボードは`keysync linux devices|generate|diff|apply`で扱う（ADR 0042）。
+仕様は`linux-keymap.md`にある。`mac`と同じくworkspaceを読み込む手前で分岐する。
+配列は検出できないため、`--layout`か、workspaceに`linux-keyboard.*.yaml`が1つだけあることで決める。
+`linux devices --add <vendor>:<product>`は設定が無ければ作る。
+`linux apply`は`--confirm`が無いうちは生成と`keyd check`、差分、fingerprintを出して終わる。
+`--config <path>`の既定は`/etc/keyd/keysync.conf`。
 
 `--no-select`を渡すとprofileの選択を行わない。診断が変わるのでfingerprintも変わり、
 確認文字列はフラグを含む形で返る（ADR 0028）。

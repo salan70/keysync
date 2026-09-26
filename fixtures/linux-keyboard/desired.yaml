@@ -1,0 +1,28 @@
+schema: keysync/linux-keymap@1
+layout: jis
+devices:
+  - { vendor_id: 1452, product_id: 638 }
+layers:
+  0:
+    "caps_lock": "LCTL_T(KC_ESC)"
+    "japanese_eisuu": "MO(2)"
+    "japanese_kana": "LT1(KC_LANG1)"
+    "right_command": "TG(3)"
+  1:
+    "a": "KC_HOME"
+    "d": "KC_DEL"
+    "e": "KC_END"
+    "h": "KC_LEFT"
+    "j": "KC_DOWN"
+    "k": "KC_UP"
+    "l": "KC_RGHT"
+  2:
+    "1": "KC_F1"
+    "2": "KC_F2"
+    "caps_lock": "LCTL_T(KC_ESC)"
+    "q": "KC_NO"
+    "w": "KC_TRNS"
+  3:
+    "i": "KC_8"
+    "o": "KC_9"
+    "u": "KC_7"

@@ -53,6 +53,15 @@ export function macKeymapPath(layout: MacKeyboardLayout): string {
   return `mac-keyboard.${layout}.yaml`;
 }
 
+/**
+ * 物理配列ごとの Linux 設定ファイル。Mac の設定とは独立に編集する（ADR 0042）。
+ *
+ * @doc docs/specs/workspace-cli.md#配置
+ */
+export function linuxKeymapPath(layout: MacKeyboardLayout): string {
+  return `linux-keyboard.${layout}.yaml`;
+}
+
 export function definitionPath(digest: string): string {
   if (!/^[0-9a-f]{64}$/i.test(digest)) {
     throw new Error(`definition digest が SHA-256 ではない: ${digest}`);

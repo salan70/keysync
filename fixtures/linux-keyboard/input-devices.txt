@@ -1,0 +1,29 @@
+I: Bus=0019 Vendor=0000 Product=0001 Version=0000
+N: Name="Power Button"
+P: Phys=LNXPWRBN/button/input0
+H: Handlers=kbd event0
+B: EV=3
+
+I: Bus=0003 Vendor=05ac Product=027e Version=0673
+N: Name="Apple Inc. Apple Internal Keyboard / Trackpad"
+P: Phys=usb-0000:00:14.0-8/input0
+H: Handlers=sysrq kbd leds event3
+B: EV=120013
+
+I: Bus=0003 Vendor=05ac Product=027e Version=0673
+N: Name="Apple Inc. Apple Internal Keyboard / Trackpad"
+P: Phys=usb-0000:00:14.0-8/input3
+H: Handlers=mouse0 event4
+B: EV=1b
+
+I: Bus=0003 Vendor=05ac Product=027e Version=0673
+N: Name="Apple Inc. Apple Internal Keyboard / Trackpad"
+P: Phys=usb-0000:00:14.0-8/input2
+H: Handlers=sysrq kbd leds event5
+B: EV=120013
+
+I: Bus=0005 Vendor=4653 Product=0001 Version=0001
+N: Name="Cornix LP Keyboard"
+P: Phys=aa:bb:cc:dd:ee:ff
+H: Handlers=sysrq kbd leds event7
+B: EV=12001f

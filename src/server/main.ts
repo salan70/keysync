@@ -82,8 +82,13 @@ async function main(): Promise<void> {
     console.log(`keysync ui: ${UI_ORIGIN}/ で起動した（Ctrl+C で終了）`);
     console.log(`keysync ui: workspace は ${root}`);
     // 対象ブラウザは Chromium 系だけ（ADR 0004）。既定ブラウザが Safari でも Chrome で開く。
+    // Linux は既定ブラウザで開く（Omarchy の既定は Chromium。ADR 0042）。
     // 開けなければ URL の表示だけで済ませる。
-    execFile("/usr/bin/open", ["-a", "Google Chrome", `${UI_ORIGIN}/`], () => undefined);
+    if (process.platform === "linux") {
+      execFile("xdg-open", [`${UI_ORIGIN}/`], () => undefined);
+    } else {
+      execFile("/usr/bin/open", ["-a", "Google Chrome", `${UI_ORIGIN}/`], () => undefined);
+    }
   });
 }
 

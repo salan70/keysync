@@ -28,12 +28,22 @@ import {
   readObservedKeyboards,
   type KarabinerCli,
 } from "../karabiner/node.ts";
+import { planLinuxApply } from "../core/linux-keymap/apply.ts";
+import { addLinuxDevice, initialLinuxKeymap } from "../core/linux-keymap/edit.ts";
+import { serializeLinuxKeymapYaml } from "../core/linux-keymap/serialize.ts";
+import type { LinuxKeymapDocument } from "../core/linux-keymap/types.ts";
+import { validateLinuxKeymap } from "../core/linux-keymap/validate.ts";
+import { applyLinuxPlan, KEYD_GENERATED, planLinuxApplyAt } from "../linux/apply-service.ts";
+import { INPUT_DEVICES_PATH, readLinuxKeyboards } from "../linux/input-devices.ts";
+import { createKeydHost, KEYD_CONFIG_PATH, type KeydHost } from "../linux/keyd.ts";
+import { readLinuxKeymapFor } from "../workspace/linux-keymap-file.ts";
 import { renderPdf, renderSvg } from "../render/keyboard.ts";
 import {
   definitionDigest,
   definitionPath,
   generatedPath,
   LEGACY_WORKSPACE_LAYOUT,
+  linuxKeymapPath,
   macKeymapPath,
   readDefinitionBinding,
   WORKSPACE_LAYOUT,
@@ -43,9 +53,10 @@ import { parseLabelsYaml, EMPTY_LABELS } from "../workspace/labels.ts";
 import { CORNIX_LP_V112_SETTINGS } from "../workspace/settings.ts";
 import { NodeWorkspaceStore } from "../workspace/node.ts";
 
-/** テストから実物の `karabiner_cli` を外すための注入口。 */
+/** テストから実物の `karabiner_cli` と keyd / sudo を外すための注入口。 */
 interface CliDeps {
   readonly karabinerCli?: KarabinerCli;
+  readonly keydHost?: KeydHost;
 }
 
 /** 読み込んだ Mac の desired state と、どのファイルから来たか。 */
@@ -89,6 +100,7 @@ export async function main(argv = process.argv.slice(2), deps: CliDeps = {}): Pr
       return await importVil(root, String(args._[1] ?? ""), args);
     // mac 系は keymap.yaml も definition も要らない。loadWorkspace の手前で分ける（ADR 0022）。
     if (command === "mac") return await mac(root, args, deps);
+    if (command === "linux") return await linux(root, args, deps);
     // 改名前の `cornix/` を指す workspace は loadWorkspace が読めない。その手前で移す（ADR 0036）。
     if (command === "migrate") return await migrate(root);
     const workspace = await loadWorkspace(root);
@@ -539,6 +551,226 @@ async function macApply(
   return applied.selected !== null && !applied.selected.ok ? 1 : 0;
 }
 
+/** 読み込んだ Linux の desired state と、どのファイルから来たか。 */
+interface LoadedLinuxKeymap {
+  readonly path: string;
+  readonly document: LinuxKeymapDocument;
+}
+
+/**
+ * Linux で使う Apple 製キーボードの一覧・生成・差分・適用（ADR 0042）。
+ *
+ * 適用は CLI だけが行う。`/etc/keyd/` への書き込みと `keyd reload` は `sudo` を通し、
+ * パスワードは端末で入力する。
+ */
+async function linux(root: string, args: ParsedArgs, deps: CliDeps): Promise<number> {
+  const sub = args._[0];
+  const host = deps.keydHost ?? createKeydHost();
+  const store = new NodeWorkspaceStore(root);
+  const layout = await linuxLayout(store, args);
+  const file = await readLinuxKeymapFor(store, layout);
+  if (sub === "devices") return await linuxDevices(root, layout, file, args);
+  if (sub !== "generate" && sub !== "diff" && sub !== "apply") {
+    throw new Error("keysync linux devices|generate|diff|apply が必要");
+  }
+  if (file === undefined) {
+    throw new Error(
+      `${linuxKeymapPath(layout)} が見つからない。keysync linux devices --layout ${layout} --add <vendor>:<product> で作る`,
+    );
+  }
+  const target = {
+    root,
+    path: file.path,
+    document: file.document,
+    config: args.config === undefined ? KEYD_CONFIG_PATH : resolve(String(args.config)),
+    host,
+  };
+  if (sub === "generate") return await linuxGenerate(root, file);
+  if (sub === "diff") return await linuxApply(target, undefined);
+  return await linuxApply(target, args.confirm === undefined ? undefined : String(args.confirm));
+}
+
+/**
+ * どの配列の設定を使うか。Linux では内蔵キーボードの配列を検出する手段が無い（ADR 0042）。
+ *
+ * `--layout` があればそれを使う。無ければ workspace にある `linux-keyboard.*.yaml` が
+ * 1 つだけのときに限りそれを使う。どちらでもなければ明示を求めて止める。黙って既定の
+ * 配列へ倒さないのは Mac 側（ADR 0027）と同じ理由。
+ */
+async function linuxLayout(
+  store: NodeWorkspaceStore,
+  args: ParsedArgs,
+): Promise<MacKeyboardLayout> {
+  const explicit = layoutArg(args);
+  if (explicit !== undefined) return explicit;
+  const present: MacKeyboardLayout[] = [];
+  for (const layout of ["ansi", "jis"] as const) {
+    if ((await store.readText(linuxKeymapPath(layout))) !== undefined) present.push(layout);
+  }
+  if (present.length === 1 && present[0] !== undefined) return present[0];
+  throw new Error("Linux の設定の配列を決められない。--layout ansi|jis を指定する");
+}
+
+/** `--add` が受ける `<vendor>:<product>`。`/proc/bus/input/devices` と同じ 16 進 4 桁。 */
+function parseHexDeviceArg(value: string): {
+  readonly vendorId: number;
+  readonly productId: number;
+} {
+  const match = /^([0-9a-fA-F]{4}):([0-9a-fA-F]{4})$/.exec(value);
+  if (match?.[1] === undefined || match[2] === undefined) {
+    throw new Error(`--add は 16 進 4 桁の <vendor>:<product> の形（${value} が渡された）`);
+  }
+  return { vendorId: Number.parseInt(match[1], 16), productId: Number.parseInt(match[2], 16) };
+}
+
+function hexId(vendorId: number, productId: number): string {
+  const hex = (value: number) => value.toString(16).padStart(4, "0");
+  return `${hex(vendorId)}:${hex(productId)}`;
+}
+
+/**
+ * 適用先デバイスの一覧と登録。
+ *
+ * `--add` が無ければ観測されたキーボードを出して終わる。見てから明示的に指定したときだけ
+ * 書き込む。設定がまだ無ければ `--add` で作る。Cornix LP もここに並ぶので、登録すると
+ * firmware keymap と二重に効く（ADR 0022 の隔離）。
+ */
+async function linuxDevices(
+  root: string,
+  layout: MacKeyboardLayout,
+  file: LoadedLinuxKeymap | undefined,
+  args: ParsedArgs,
+): Promise<number> {
+  const path = file?.path ?? linuxKeymapPath(layout);
+  const document = file?.document ?? initialLinuxKeymap(layout);
+  if (args.add !== undefined) {
+    const next = addLinuxDevice(document, parseHexDeviceArg(String(args.add)));
+    await new NodeWorkspaceStore(root).writeText(path, serializeLinuxKeymapYaml(next));
+    console.log(
+      JSON.stringify(
+        { workspace: root, path, layout, created: file === undefined, devices: next.devices },
+        null,
+        2,
+      ),
+    );
+    return 0;
+  }
+
+  const source = args.devices === undefined ? INPUT_DEVICES_PATH : String(args.devices);
+  const observed = await readLinuxKeyboards(source);
+  const registered = new Set(document.devices.map((one) => hexId(one.vendorId, one.productId)));
+  console.log(
+    JSON.stringify(
+      {
+        workspace: root,
+        source: observed === undefined ? null : source,
+        layout,
+        path,
+        exists: file !== undefined,
+        devices: document.devices,
+        observed: (observed ?? []).map((keyboard) => {
+          const id = hexId(keyboard.vendorId, keyboard.productId);
+          return {
+            name: keyboard.name,
+            identifier: id,
+            registered: registered.has(id),
+            add: `keysync linux devices --layout ${layout} --add ${id}`,
+          };
+        }),
+      },
+      null,
+      2,
+    ),
+  );
+  return 0;
+}
+
+/** keyd の設定を workspace の `keysync/generated/` へ書き出す。`/etc/keyd/` には触らない。 */
+async function linuxGenerate(root: string, file: LoadedLinuxKeymap): Promise<number> {
+  const result = validateLinuxKeymap(file.document);
+  if (result.summary.error === 0) {
+    const plan = planLinuxApply(undefined, file.document, file.path);
+    await new NodeWorkspaceStore(root).writeText(KEYD_GENERATED, plan.text);
+  }
+  console.log(
+    JSON.stringify(
+      {
+        workspace: root,
+        source: file.path,
+        output: result.summary.error === 0 ? KEYD_GENERATED : null,
+        summary: result.summary,
+        diagnostics: result.diagnostics,
+      },
+      null,
+      2,
+    ),
+  );
+  return result.summary.error > 0 ? 1 : 0;
+}
+
+/**
+ * `/etc/keyd/keysync.conf` を置き換えて keyd を reload する。`confirmed` が無ければ計画だけ出す。
+ *
+ * 手順は ADR 0042 の Apply フロー。error が 1 件でもあれば生成の手前で止め、
+ * `keyd check` が落ちても、keyd が入っていなくても書き込まない。
+ */
+async function linuxApply(
+  target: Parameters<typeof planLinuxApplyAt>[0],
+  confirmed: string | undefined,
+): Promise<number> {
+  const planning = await planLinuxApplyAt(target);
+  const { plan } = planning;
+  const header = { workspace: target.root, source: target.path, config: target.config };
+  if (planning.kind === "invalid") {
+    console.log(
+      JSON.stringify(
+        { ...header, summary: plan.validation.summary, diagnostics: plan.diagnostics },
+        null,
+        2,
+      ),
+    );
+    throw new Error("error のある desired state は適用しない");
+  }
+
+  if (confirmed === undefined) {
+    console.log(
+      JSON.stringify(
+        {
+          ...header,
+          diagnostics: plan.diagnostics,
+          present: plan.present,
+          changed: plan.changed,
+          diff: plan.entries,
+          generated: planning.generated,
+          check: planning.check ?? null,
+          fingerprint: plan.fingerprint,
+          confirm: `keysync linux apply --confirm ${plan.fingerprint}`,
+        },
+        null,
+        2,
+      ),
+    );
+    return 0;
+  }
+  if (confirmed !== plan.fingerprint) {
+    throw new Error(`fingerprint が一致しない: expected=${plan.fingerprint} actual=${confirmed}`);
+  }
+  if (planning.check === undefined) {
+    throw new Error("keyd が見つからない。keyd を入れて systemctl enable --now keyd を実行する");
+  }
+  if (!planning.check.ok) throw new Error(`keyd check が通らない: ${planning.check.output}`);
+
+  const applied = await applyLinuxPlan(target, planning);
+  console.log(
+    JSON.stringify(
+      { ...header, diagnostics: plan.diagnostics, generated: planning.generated, ...applied },
+      null,
+      2,
+    ),
+  );
+  return applied.install.ok && applied.reload?.ok === true && applied.verify ? 0 : 1;
+}
+
 /** `--no-select` を受ける。既定は選択する（ADR 0028）。 */
 function selectProfileArg(args: ParsedArgs): boolean {
   return args["no-select"] === undefined;
@@ -605,7 +837,7 @@ function mapReplacer(_key: string, value: unknown): unknown {
 }
 function printHelp(): void {
   console.log(
-    `keysync validate|analyze|diff|render|export vil\n  --workspace <dir>\n  diff --against <file.vil>\n  render --format svg|pdf --out <file> --layer <n>\n  import vil <file.vil> --definition <definition.json>\n  migrate （改名前の cornix/ を keysync/ へ移す）\n  mac generate --out <file>\n  mac diff --karabiner <karabiner.json>\n  mac apply --karabiner <karabiner.json> --confirm <fingerprint> [--no-select]\n  mac devices [--devices <observed.json>] [--add <vendor_id>:<product_id>]\n  mac ... --layout ansi|jis （既定は実行中のMacの内蔵配列を検出）\n  --workspace の既定は $KEYSYNC_WORKSPACE（未設定ならエラー）`,
+    `keysync validate|analyze|diff|render|export vil\n  --workspace <dir>\n  diff --against <file.vil>\n  render --format svg|pdf --out <file> --layer <n>\n  import vil <file.vil> --definition <definition.json>\n  migrate （改名前の cornix/ を keysync/ へ移す）\n  mac generate --out <file>\n  mac diff --karabiner <karabiner.json>\n  mac apply --karabiner <karabiner.json> --confirm <fingerprint> [--no-select]\n  mac devices [--devices <observed.json>] [--add <vendor_id>:<product_id>]\n  mac ... --layout ansi|jis （既定は実行中のMacの内蔵配列を検出）\n  linux devices [--devices <file>] [--add <vendor>:<product>]\n  linux generate|diff\n  linux apply [--confirm <fingerprint>] [--config <keysync.conf>]\n  linux ... --layout ansi|jis （linux-keyboard.*.yaml が 1 つだけなら省略可）\n  --workspace の既定は $KEYSYNC_WORKSPACE（未設定ならエラー）`,
   );
 }
 

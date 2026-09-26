@@ -3,19 +3,20 @@
 CLI は Web UI と同じ Core を共有します。
 設定の検証、解析、差分計算、ファイル生成を行います。
 CLI には Cornix LP への実機書き込み機能はありません。
-MacBook 内蔵キーボードの設定のみ、CLI から差分確認と適用を行えます。
+MacBook 内蔵キーボードの設定のみ、CLI から差分確認と適用を行えます（macOS は Karabiner、Linux は keyd）。
 
 ## サブコマンド一覧
 
-| コマンド     | 対象      | 主な用途                                              |
-| ------------ | --------- | ----------------------------------------------------- |
-| `validate`   | Cornix LP | workspace 設定の構文や整合性を検証します。            |
-| `analyze`    | Cornix LP | レイヤーの到達性や未参照の項目を解析します。          |
-| `diff`       | Cornix LP | 指定した `.vil` と workspace の意味差分を表示します。 |
-| `render`     | Cornix LP | レイヤー図面を SVG または PDF 形式で書き出します。    |
-| `import vil` | Cornix LP | `.vil` と定義から workspace を新規生成します。        |
-| `export vil` | Cornix LP | workspace の設定を `.vil` 形式で書き出します。        |
-| `mac`        | Mac 内蔵  | Karabiner 設定の生成、差分確認、適用を行います。      |
+| コマンド     | 対象       | 主な用途                                              |
+| ------------ | ---------- | ----------------------------------------------------- |
+| `validate`   | Cornix LP  | workspace 設定の構文や整合性を検証します。            |
+| `analyze`    | Cornix LP  | レイヤーの到達性や未参照の項目を解析します。          |
+| `diff`       | Cornix LP  | 指定した `.vil` と workspace の意味差分を表示します。 |
+| `render`     | Cornix LP  | レイヤー図面を SVG または PDF 形式で書き出します。    |
+| `import vil` | Cornix LP  | `.vil` と定義から workspace を新規生成します。        |
+| `export vil` | Cornix LP  | workspace の設定を `.vil` 形式で書き出します。        |
+| `mac`        | Mac 内蔵   | Karabiner 設定の生成、差分確認、適用を行います。      |
+| `linux`      | Linux 内蔵 | keyd 設定の生成、差分確認、適用を行います。           |
 
 ## セットアップ
 
@@ -206,6 +207,11 @@ karabiner_cli --select-profile "Default profile"
 `karabiner_cli` は `/Library/Application Support/org.pqrs/Karabiner-Elements/bin/` にあります。
 設定ファイルごと戻す場合は、`keysync/backups/karabiner-<時刻>.json` を
 `~/.config/karabiner/karabiner.json` へコピーします。
+
+## Linux の内蔵キーボード管理（linux）
+
+Linux（Omarchy）では、内蔵キーボードの設定を keyd へ適用します。
+`just linux devices|generate|diff|apply` の使い方は [Linux（Omarchy）で使う](./linux.md) を参照してください。
 
 ## ツール本体の更新
 

@@ -23,6 +23,14 @@ import { generateKarabinerRules } from "./generate.ts";
 import { KARABINER_POSITIONS, LAYOUT_MISSING_POSITIONS } from "./key-codes.ts";
 import type { MacKeymapDocument } from "./types.ts";
 
+/**
+ * 位置と layer の検証が見る範囲。Linux の設定（ADR 0042）も同じ語彙なので共有する。
+ */
+export type KeymapBody = Pick<MacKeymapDocument, "layout" | "layers">;
+
+/** 診断 code の接頭辞。Mac と Linux で分ける。 */
+export type DiagnosticNamespace = "mac-keymap" | "linux-keymap";
+
 /** 検証の結果。 */
 export interface MacValidationResult {
   readonly diagnostics: readonly Diagnostic[];
@@ -66,14 +74,17 @@ function emptyDevices(document: MacKeymapDocument): readonly Diagnostic[] {
 }
 
 /** Karabiner の `key_code` として存在しない位置。lint を通らないので error。 */
-function unknownPositions(document: MacKeymapDocument): readonly Diagnostic[] {
+export function unknownPositions(
+  document: KeymapBody,
+  namespace: DiagnosticNamespace = "mac-keymap",
+): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   for (const [layer, assignments] of [...document.layers.entries()].sort(([a], [b]) => a - b)) {
     for (const keyCode of [...assignments.keys()].sort()) {
       if (KARABINER_POSITIONS.has(keyCode)) continue;
       diagnostics.push(
         createDiagnostic(
-          "mac-keymap/unknown-position",
+          `${namespace}/unknown-position`,
           "error",
           { kind: "macKey", layer, keyCode },
           `${keyCode} は Karabiner の key_code に無い`,
@@ -91,7 +102,10 @@ function unknownPositions(document: MacKeymapDocument): readonly Diagnostic[] {
  * warning（ADR 0024）。`KARABINER_POSITIONS` に無いものは `unknown-position` が error で
  * 報告済みなので見ない（`LAYOUT_MISSING_POSITIONS` は部分集合）。
  */
-function positionsNotOnLayout(document: MacKeymapDocument): readonly Diagnostic[] {
+export function positionsNotOnLayout(
+  document: KeymapBody,
+  namespace: DiagnosticNamespace = "mac-keymap",
+): readonly Diagnostic[] {
   const missing = LAYOUT_MISSING_POSITIONS.get(document.layout);
   if (missing === undefined || missing.size === 0) return [];
   const diagnostics: Diagnostic[] = [];
@@ -100,7 +114,7 @@ function positionsNotOnLayout(document: MacKeymapDocument): readonly Diagnostic[
       if (!missing.has(keyCode)) continue;
       diagnostics.push(
         createDiagnostic(
-          "mac-keymap/position-not-on-layout",
+          `${namespace}/position-not-on-layout`,
           "warning",
           { kind: "macKey", layer, keyCode },
           `${keyCode} は ${document.layout} 配列の内蔵キーボードに無い`,
@@ -113,7 +127,10 @@ function positionsNotOnLayout(document: MacKeymapDocument): readonly Diagnostic[
 }
 
 /** 書かれていない layer を指す `MO` / `LT` / `TG`。変数は立つが読む manipulator が無い。 */
-function unknownLayers(document: MacKeymapDocument): readonly Diagnostic[] {
+export function unknownLayers(
+  document: KeymapBody,
+  namespace: DiagnosticNamespace = "mac-keymap",
+): readonly Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   for (const [layer, assignments] of [...document.layers.entries()].sort(([a], [b]) => a - b)) {
     for (const keyCode of [...assignments.keys()].sort()) {
@@ -123,7 +140,7 @@ function unknownLayers(document: MacKeymapDocument): readonly Diagnostic[] {
       if (lexeme.kind !== "layerSwitch" || document.layers.has(lexeme.layer)) continue;
       diagnostics.push(
         createDiagnostic(
-          "mac-keymap/unknown-layer",
+          `${namespace}/unknown-layer`,
           "warning",
           { kind: "macKey", layer, keyCode },
           `${keycode} が指す layer ${lexeme.layer} は書かれていない`,
@@ -145,7 +162,10 @@ function unknownLayers(document: MacKeymapDocument): readonly Diagnostic[] {
  * 変数の状態に関わらず常に効くため、`TG(n)` を置いたキーが上の layer で潰されていない限り
  * 出口は必ずある。
  */
-function unreachableLayers(document: MacKeymapDocument): readonly Diagnostic[] {
+export function unreachableLayers(
+  document: KeymapBody,
+  namespace: DiagnosticNamespace = "mac-keymap",
+): readonly Diagnostic[] {
   const graph = analyzeLayerGraph(
     new Map(
       [...document.layers.entries()].map(([layer, assignments]) => [
@@ -160,7 +180,7 @@ function unreachableLayers(document: MacKeymapDocument): readonly Diagnostic[] {
     if (layer === 0 || graph.reachable.has(layer) || empty.has(layer)) continue;
     diagnostics.push(
       createDiagnostic(
-        "mac-keymap/unreachable-layer",
+        `${namespace}/unreachable-layer`,
         "information",
         { kind: "layer", layer },
         `layer ${layer} に割り当てがあるが、layer 0 から辿り着く keycode が無い`,
