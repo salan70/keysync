@@ -11,7 +11,9 @@
  *
  */
 
+import { baseOf } from "../keycode/shifted.ts";
 import { canonicalKeycode } from "../validation/keycode-vocabulary.ts";
+import type { KarabinerKeyEvent } from "./karabiner.ts";
 import type { MacKeyboardLayout } from "./types.ts";
 
 /** `from`〜`to` の連番を `KC_<prefix>n` → `<karabiner>n` の対に展開する。 */
@@ -44,21 +46,53 @@ const KEYPAD_DIGITS: [string, string][] = [..."1234567890"].map((digit) => [
 
 const INTERNATIONAL = numbered("KC_INT", "international", 1, 9);
 
+const LCTL = "left_control";
+const LSFT = "left_shift";
+const LALT = "left_option";
+const LGUI = "left_command";
+const RCTL = "right_control";
+const RSFT = "right_shift";
+const RALT = "right_option";
+const RGUI = "right_command";
+
 /**
- * modifier の keycode → Karabiner の `key_code`。
+ * modifier の wrapper 名 → Karabiner の modifier の `key_code` 列。
  *
- * mod-tap の hold 側にも使うため、`KARABINER_KEY_CODES` とは別に持つ。
- * `<MOD>_T(kc)` の `<MOD>` は `LCTL` のように `KC_` が付かないので、そちらの表記で引く。
+ * `LSFT(kc)` の修飾と `<MOD>_T(kc)` の hold 側の両方で引く（ADR 0043）。
+ * `<MOD>` は `LCTL` のように `KC_` が付かないので、そちらの表記で持つ。
+ * 複合の構成は QMK の定義どおり。`classifyKeycode` の `MODIFIER_WRAPPERS` と同じ集合を覆う。
  */
-export const KARABINER_MODIFIERS: ReadonlyMap<string, string> = new Map<string, string>([
-  ["LCTL", "left_control"],
-  ["LSFT", "left_shift"],
-  ["LALT", "left_option"],
-  ["LGUI", "left_command"],
-  ["RCTL", "right_control"],
-  ["RSFT", "right_shift"],
-  ["RALT", "right_option"],
-  ["RGUI", "right_command"],
+export const KARABINER_MODIFIERS: ReadonlyMap<string, readonly string[]> = new Map<
+  string,
+  readonly string[]
+>([
+  ["LCTL", [LCTL]],
+  ["LSFT", [LSFT]],
+  ["LALT", [LALT]],
+  ["LGUI", [LGUI]],
+  ["RCTL", [RCTL]],
+  ["RSFT", [RSFT]],
+  ["RALT", [RALT]],
+  ["RGUI", [RGUI]],
+  ["HYPR", [LCTL, LSFT, LALT, LGUI]],
+  ["ALL", [LCTL, LSFT, LALT, LGUI]],
+  ["MEH", [LCTL, LSFT, LALT]],
+  ["LCAG", [LCTL, LALT, LGUI]],
+  ["RCAG", [RCTL, RALT, RGUI]],
+  ["SGUI", [LSFT, LGUI]],
+  ["SCMD", [LSFT, LGUI]],
+  ["SWIN", [LSFT, LGUI]],
+  ["RSG", [RSFT, RGUI]],
+  ["RCS", [RCTL, RSFT]],
+  ["LCS", [LCTL, LSFT]],
+  ["C_S", [LCTL, LSFT]],
+  ["LCA", [LCTL, LALT]],
+  ["LSA", [LSFT, LALT]],
+  ["RSA", [RSFT, RALT]],
+  ["LCG", [LCTL, LGUI]],
+  ["RCG", [RCTL, RGUI]],
+  ["LAG", [LALT, LGUI]],
+  ["RAG", [RALT, RGUI]],
 ]);
 
 /** QMK 表記（canonical）→ Karabiner の `key_code`。 */
@@ -214,4 +248,21 @@ export const LAYOUT_MISSING_POSITIONS: ReadonlyMap<
  */
 export function karabinerKeyCode(keycode: string): string | undefined {
   return KARABINER_KEY_CODES.get(canonicalKeycode(keycode));
+}
+
+/**
+ * QMK 表記を Karabiner の `to` イベント 1 個へ写す。無ければ `undefined`。
+ *
+ * `KC_EXLM` のような shift 済み keycode は base の `key_code` に `left_shift` を付けて表す。
+ * Karabiner に `!` 単体の `key_code` は無いため（ADR 0043）。
+ *
+ * @doc docs/specs/mac-keymap.md#karabinerkeycode
+ */
+export function karabinerKeyEvent(keycode: string): KarabinerKeyEvent | undefined {
+  const canonical = canonicalKeycode(keycode);
+  const direct = KARABINER_KEY_CODES.get(canonical);
+  if (direct !== undefined) return { key_code: direct };
+  const base = baseOf(canonical);
+  const shifted = base === undefined ? undefined : KARABINER_KEY_CODES.get(base);
+  return shifted === undefined ? undefined : { key_code: shifted, modifiers: [LSFT] };
 }

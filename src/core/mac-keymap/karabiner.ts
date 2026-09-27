@@ -13,9 +13,16 @@ export type KarabinerCondition =
   | { readonly type: "variable_if"; readonly name: string; readonly value: number }
   | { readonly type: "variable_unless"; readonly name: string; readonly value: number };
 
+/** キーを送る `to` イベント。`modifiers` は同時に押す修飾キー（ADR 0043）。 */
+export interface KarabinerKeyEvent {
+  readonly key_code: string;
+  readonly modifiers?: readonly string[];
+  readonly lazy?: true;
+}
+
 /** manipulator の `to` に置く 1 イベント。 */
 export type KarabinerToEvent =
-  | { readonly key_code: string; readonly lazy?: true }
+  | KarabinerKeyEvent
   | { readonly set_variable: { readonly name: string; readonly value: number } };
 
 /** `from` の指定。修飾キーは素通しさせる。 */

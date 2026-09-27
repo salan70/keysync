@@ -105,6 +105,7 @@ schemaは`keysync/mac-keymap@1`のほか、改名前の`cornix-bonsai/mac-keymap
 `to`を持たないmanipulatorは**イベントを捨てます**。`KC_NO`はこれで表します。
 
 <!-- @code src/core/mac-keymap/key-codes.ts#karabinerKeyCode -->
+<!-- @code src/core/mac-keymap/key-codes.ts#karabinerKeyEvent -->
 
 ## karabinerKeyCode
 
@@ -115,6 +116,11 @@ QMK表記をKarabinerの`key_code`へ写します。表のkeyは`canonicalKeycod
 **この表は閉じています。** 載っていない表記は`mac-keymap/unsupported-keycode`（error）に
 なります。Vial側の`reference/unknown-keycode`がwarningなのは実機が解釈するからで、
 Karabinerは生成器が落とせなければ機能そのものが無くなるためseverityが違います（ADR 0023）。
+
+生成器が`to`イベントを組むときは`karabinerKeyEvent`を使います。表に無い`KC_EXLM`のような
+shift済みkeycodeを、baseの`key_code`に`left_shift`を付けたイベントへ写します。
+Karabinerに`!`単体の`key_code`が無いためです（ADR 0043）。
+修飾の`modifiers`は`KARABINER_MODIFIERS`がwrapper名から引き、複合modifierはQMKの定義どおりに展開します。
 
 位置として書ける`key_code`名は`KARABINER_POSITIONS`です。表の値に、QMK側へ対応の無い
 MacBookの`fn`を足したものです。
@@ -182,7 +188,8 @@ ADR 0023です。`classifyKeycode`が返す`KeycodeLexeme`から直接写しま�
 | --------------------------- | ------------------------------------------------------------ |
 | `transparent`               | manipulatorを出さない                                        |
 | `none`                      | `to`を持たないmanipulator                                    |
-| `basic`                     | `to: [{ key_code }]`                                         |
+| `basic`                     | `to: [{ key_code }]`。shift済みkeycodeは`modifiers`付き      |
+| `modified`                  | `to: [{ key_code, modifiers }]`                              |
 | `layerSwitch` / `momentary` | `set_variable 1` + `to_after_key_up`で`set_variable 0`       |
 | `layerSwitch` / `layerTap`  | 上記 + `to_if_alone`                                         |
 | `layerSwitch` / `toggle`    | `variable_if` / `variable_unless`で分岐した2本               |
@@ -197,6 +204,8 @@ ADR 0023です。`classifyKeycode`が返す`KeycodeLexeme`から直接写しま�
 - **manipulatorを出さないのは2つだけです。** `KC_TRNS`と、layer 0と同値のキー。
   Karabinerは書かれていないキーを素通しするため、出さないことがそのまま正しい挙動です
 - mod-tapの`to`には`lazy`を付けます。付けないとhold側のmodifierが単独で発火します
+- 複合modifier（`SGUI_T`など）のmod-tapは、先頭を`key_code`、残りを`modifiers`に置きます。
+  単独modifierには`modifiers`を付けません（ADR 0043）
 - 全manipulatorの`conditions[0]`は`device_if`で、identifiersは`document.devices`から組みます。
   identifiersはORなので1条件で複数デバイスを指せます。内部表現からKarabinerの語彙への写像は
   `generate.ts`の`deviceCondition`だけが持ちます（ADR 0026）

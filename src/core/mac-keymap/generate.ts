@@ -12,11 +12,12 @@
 
 import { classifyKeycode } from "../validation/keycode-vocabulary.ts";
 import { createDiagnostic, type Diagnostic } from "../validation/types.ts";
-import { KARABINER_MODIFIERS, karabinerKeyCode } from "./key-codes.ts";
+import { KARABINER_MODIFIERS, karabinerKeyEvent } from "./key-codes.ts";
 import type {
   KarabinerAsset,
   KarabinerCondition,
   KarabinerFrom,
+  KarabinerKeyEvent,
   KarabinerManipulator,
   KarabinerProfile,
   KarabinerRule,
@@ -166,6 +167,17 @@ function fromKey(keyCode: string): KarabinerFrom {
   return { key_code: keyCode, modifiers: { optional: ["any"] } };
 }
 
+/**
+ * 修飾キーの組を `to` イベント 1 個にする。先頭を `key_code`、残りを `modifiers` に置く。
+ *
+ * 単独の修飾キーは `modifiers` を付けない。付けると ADR 0043 以前の出力から差分が出る。
+ */
+function modifierEvent(modifiers: readonly string[]): KarabinerKeyEvent {
+  const [first, ...rest] = modifiers;
+  if (first === undefined) throw new Error("modifier の組が空");
+  return rest.length === 0 ? { key_code: first } : { key_code: first, modifiers: rest };
+}
+
 function unsupported(
   code: string,
   layer: number,
@@ -206,7 +218,7 @@ function manipulatorsForKey(
       return [{ type: "basic", from, conditions }];
 
     case "basic": {
-      const to = karabinerKeyCode(lexeme.name);
+      const to = karabinerKeyEvent(lexeme.name);
       if (to === undefined) {
         diagnostics.push(
           unsupported(
@@ -219,7 +231,7 @@ function manipulatorsForKey(
         );
         return [];
       }
-      return [{ type: "basic", from, to: [{ key_code: to }], conditions }];
+      return [{ type: "basic", from, to: [to], conditions }];
     }
 
     case "layerSwitch": {
@@ -236,7 +248,7 @@ function manipulatorsForKey(
         ];
       }
       if (lexeme.action === "layerTap") {
-        const inner = lexeme.inner === undefined ? undefined : karabinerKeyCode(lexeme.inner);
+        const inner = lexeme.inner === undefined ? undefined : karabinerKeyEvent(lexeme.inner);
         if (inner === undefined) {
           diagnostics.push(
             unsupported(
@@ -255,7 +267,7 @@ function manipulatorsForKey(
             from,
             to: [{ set_variable: { name: variable, value: 1 } }],
             to_after_key_up: [{ set_variable: { name: variable, value: 0 } }],
-            to_if_alone: [{ key_code: inner }],
+            to_if_alone: [inner],
             conditions,
           },
         ];
@@ -291,9 +303,9 @@ function manipulatorsForKey(
     }
 
     case "modTap": {
-      const modifier = KARABINER_MODIFIERS.get(lexeme.modifier);
-      const inner = karabinerKeyCode(lexeme.inner);
-      if (modifier === undefined || inner === undefined) {
+      const modifiers = KARABINER_MODIFIERS.get(lexeme.modifier);
+      const inner = karabinerKeyEvent(lexeme.inner);
+      if (modifiers === undefined || inner === undefined) {
         diagnostics.push(
           unsupported(
             "mac-keymap/unsupported-mod-tap",
@@ -310,14 +322,35 @@ function manipulatorsForKey(
           type: "basic",
           from,
           // lazy を付けないと hold 側の modifier が単独で発火する。
-          to: [{ key_code: modifier, lazy: true }],
-          to_if_alone: [{ key_code: inner }],
+          to: [{ ...modifierEvent(modifiers), lazy: true }],
+          to_if_alone: [inner],
           conditions,
         },
       ];
     }
 
-    case "modified":
+    case "modified": {
+      const modifiers = KARABINER_MODIFIERS.get(lexeme.modifier);
+      const inner = karabinerKeyEvent(lexeme.inner);
+      if (modifiers === undefined || inner === undefined) {
+        diagnostics.push(
+          unsupported(
+            "mac-keymap/unsupported-keycode",
+            layer,
+            keyCode,
+            keycode,
+            `${keycode} は Karabiner へ落とせない`,
+          ),
+        );
+        return [];
+      }
+      // `LCTL(KC_EXLM)` のように inner 側が shift を持つ場合は両方を足す。
+      const all = [...new Set([...modifiers, ...(inner.modifiers ?? [])])];
+      return [
+        { type: "basic", from, to: [{ key_code: inner.key_code, modifiers: all }], conditions },
+      ];
+    }
+
     case "oneShotMod":
     case "tapDance":
     case "macro":

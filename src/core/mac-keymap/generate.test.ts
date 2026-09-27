@@ -135,7 +135,7 @@ test("修飾キーは素通しさせる", () => {
 });
 
 test("落とせない keycode は黙って消えず error になる", () => {
-  const broken = documentOf([{ z: "TD(0)", x: "LT1(TD(1))", c: "LCTL_T(M(0))", v: "LSFT(KC_1)" }]);
+  const broken = documentOf([{ z: "TD(0)", x: "LT1(TD(1))", c: "LCTL_T(M(0))", v: "LSFT(M(0))" }]);
   const { rules, diagnostics } = generateKarabinerRules(broken);
   deepStrictEqual(rules, []);
   deepStrictEqual(
@@ -149,6 +149,43 @@ test("落とせない keycode は黙って消えず error になる", () => {
     ],
   );
   for (const diagnostic of diagnostics) strictEqual(diagnostic.severity, "error");
+});
+
+test("修飾付きキーは key_code に modifiers を付けて送る", () => {
+  deepStrictEqual(
+    manipulators(documentOf([{ a: "LSFT(KC_1)", b: "RCG(KC_2)" }])).map((one) => one.to),
+    [
+      [{ key_code: "1", modifiers: ["left_shift"] }],
+      [{ key_code: "2", modifiers: ["right_control", "right_command"] }],
+    ],
+  );
+});
+
+test("shift 済み keycode は base の key_code に left_shift を付ける", () => {
+  // Karabiner に `!` 単体の key_code は無い（ADR 0043）。
+  deepStrictEqual(manipulators(documentOf([{ a: "KC_EXLM" }]))[0]?.to, [
+    { key_code: "1", modifiers: ["left_shift"] },
+  ]);
+});
+
+test("修飾と shift 済み keycode を重ねても modifiers は重複しない", () => {
+  deepStrictEqual(manipulators(documentOf([{ a: "LSFT(KC_EXLM)" }]))[0]?.to, [
+    { key_code: "1", modifiers: ["left_shift"] },
+  ]);
+});
+
+test("複合 modifier の mod-tap は先頭を key_code、残りを modifiers にする", () => {
+  const [manipulator] = manipulators(documentOf([{ s: "SGUI_T(KC_S)" }]));
+  deepStrictEqual(manipulator?.to, [
+    { key_code: "left_shift", modifiers: ["left_command"], lazy: true },
+  ]);
+  deepStrictEqual(manipulator?.to_if_alone, [{ key_code: "s" }]);
+});
+
+test("単独 modifier の mod-tap には modifiers を付けない", () => {
+  deepStrictEqual(manipulators(documentOf([{ f: "LGUI_T(KC_F)" }]))[0]?.to, [
+    { key_code: "left_command", lazy: true },
+  ]);
 });
 
 test("diagnostic は layer と key_code を指す", () => {
@@ -242,6 +279,9 @@ test("macKeycodeSupport は落とせる keycode を ok にする", () => {
     "TG(2)",
     "LT1(KC_SPACE)",
     "LCTL_T(KC_TAB)",
+    "LSFT(KC_1)",
+    "KC_EXLM",
+    "SGUI_T(KC_S)",
   ]) {
     strictEqual(macKeycodeSupport(keycode).ok, true, keycode);
   }
@@ -249,7 +289,7 @@ test("macKeycodeSupport は落とせる keycode を ok にする", () => {
 
 test("macKeycodeSupport は落とせない keycode に診断の code を付ける", () => {
   const cases: readonly (readonly [string, string])[] = [
-    ["LSFT(KC_1)", "mac-keymap/unsupported-keycode"],
+    ["LSFT(M(0))", "mac-keymap/unsupported-keycode"],
     ["TD(0)", "mac-keymap/unsupported-keycode"],
     ["M(0)", "mac-keymap/unsupported-keycode"],
     ["USER00", "mac-keymap/unsupported-keycode"],
@@ -274,6 +314,9 @@ test("macKeycodeSupport と生成器の判定はずれない", () => {
     "LT1(KC_SPACE)",
     "LCTL_T(KC_TAB)",
     "LSFT(KC_1)",
+    "LSFT(M(0))",
+    "KC_EXLM",
+    "SGUI_T(KC_S)",
     "TD(0)",
     "M(0)",
     "USER00",

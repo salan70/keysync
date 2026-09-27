@@ -59,7 +59,7 @@ test("picker groups use fixed 26u coordinates", () => {
 });
 
 test("EXTRA_ROWのshift済み記号はmacKeycodeSupportが受け付ける", () => {
-  // shift 済み keycode は base の key_code + left_shift で落ちる（ADR 0042）。
+  // shift 済み keycode は base の key_code + left_shift で落ちる（ADR 0043）。
   const unsupported = EXTRA_ROW.flatMap((entry) =>
     "keycode" in entry && !macKeycodeSupport(entry.keycode).ok ? [entry.keycode] : [],
   );
