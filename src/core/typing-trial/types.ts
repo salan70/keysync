@@ -59,6 +59,10 @@ export type TypingTask =
   | {
       readonly kind: "text";
       readonly id: string;
+      /** 課題の名前。選択肢に出す。 */
+      readonly title: string;
+      /** この課題で何を確かめるか。自由入力では空。 */
+      readonly focus: string;
       readonly text: string;
       readonly expected: readonly TrialToken[];
     }

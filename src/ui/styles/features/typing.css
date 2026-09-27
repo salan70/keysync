@@ -21,6 +21,13 @@
     font-size: var(--font-size-lg);
     overflow-wrap: anywhere;
   }
+  /* 課題を替えても入力欄の位置を動かさない。 */
+  .typing-focus {
+    display: grid;
+    align-content: start;
+    gap: var(--space-50);
+    min-height: calc(2lh + var(--space-50));
+  }
   /* 高さを固定し、打った量でパネルが伸び縮みしないようにする。 */
   .typing-capture {
     height: calc(var(--font-size-lg) * 4.5);

@@ -1,7 +1,7 @@
 import { deepStrictEqual, strictEqual } from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_MAC_DEVICES, type MacKeymapDocument } from "../mac-keymap/types.ts";
-import { HOLD_REPEAT, holdTasksFor, ROLL_TASKS } from "./tasks.ts";
+import { customTask, HOLD_REPEAT, holdTasksFor, modTapPositionsIn, ROLL_TASKS } from "./tasks.ts";
 
 const NONE = { meta: false, ctrl: false, alt: false, shift: false };
 
@@ -14,6 +14,48 @@ function documentOf(layer0: Record<string, string>): MacKeymapDocument {
     layers: new Map([[0, new Map(Object.entries(layer0))]]),
   };
 }
+
+test("既定のロール集は id が重ならず、名前と確かめることを持ち、英字と空白だけでできている", () => {
+  const ids = ROLL_TASKS.map((task) => task.id);
+  strictEqual(new Set(ids).size, ids.length);
+  for (const task of ROLL_TASKS) {
+    if (task.kind !== "text") throw new Error("text 課題のはず");
+    strictEqual(task.title !== "" && task.focus !== "", true, task.id);
+    strictEqual(/^[A-Za-z ]+$/.test(task.text), true, task.id);
+  }
+});
+
+test("利用者型のホームロウ mod では、どのロール課題も mod-tap を含む", () => {
+  const document = documentOf({
+    s: "SGUI_T(KC_S)",
+    d: "LALT_T(KC_D)",
+    f: "LGUI_T(KC_F)",
+    g: "LCTL_T(KC_G)",
+    h: "RCTL_T(KC_H)",
+    j: "RGUI_T(KC_J)",
+    k: "RALT_T(KC_K)",
+    l: "SGUI_T(KC_L)",
+    spacebar: "LGUI_T(KC_SPACE)",
+    left_shift: "LSFT_T(KC_LANG1)",
+  });
+  for (const task of ROLL_TASKS) {
+    strictEqual(modTapPositionsIn(task, document).length > 0, true, task.id);
+  }
+});
+
+test("modTapPositionsIn は英字・空白・大文字の Shift を mod-tap の位置へ写す", () => {
+  const document = documentOf({
+    k: "RALT_T(KC_K)",
+    a: "KC_B",
+    spacebar: "LGUI_T(KC_SPACE)",
+    left_shift: "LSFT_T(KC_LANG1)",
+  });
+  deepStrictEqual(modTapPositionsIn(customTask("Ka ka"), document), [
+    "k",
+    "left_shift",
+    "spacebar",
+  ]);
+});
 
 test("既定のロール集は期待が本文の 1 文字ずつ", () => {
   for (const task of ROLL_TASKS) {

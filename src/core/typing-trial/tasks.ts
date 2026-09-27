@@ -8,23 +8,94 @@ import type { MacKeymapDocument } from "../mac-keymap/types.ts";
 import { classifyKeycode } from "../validation/keycode-vocabulary.ts";
 import type { ModifierSet, TrialToken, TypingTask } from "./types.ts";
 
-function textTask(id: string, text: string): TypingTask {
-  return { kind: "text", id, text, expected: [...text].map((char) => ({ kind: "char", char })) };
+function textTask(id: string, title: string, focus: string, text: string): TypingTask {
+  return {
+    kind: "text",
+    id,
+    title,
+    focus,
+    text,
+    expected: [...text].map((char) => ({ kind: "char", char })),
+  };
 }
 
 /**
- * 既定のロール集。前のキーを離す前に次のキーを押しやすい並びを集めた。
+ * 既定のロール集。誤爆の起き方ごとに分けてある。
  *
- * ホームロウ mod の誤爆はローマ字の子音 → 母音で起きやすいため、`k` `h` `j` `s` `d` `g`
- * の行を並べる。mod-tap 同士の重なり（`df` など）で文字が消える事例も含める（ADR 0044）。
+ * mod-tap は「押している間に次のキーが押された」ときに判定が割れる（ADR 0044）。
+ * 次の場面を 1 課題ずつ切り出し、どこで崩れるかを課題の単位で比べられるようにする。
+ *
+ * - ローマ字の子音 → 母音（利用者の主な入力。`k` `s` `d` `g` `h` `j` が子音になる）
+ * - 拗音と促音（`sh` `ky` `j` の連続、同じキーの連打）
+ * - スペースの前後（spacebar も mod-tap なので、語の頭が chord になりうる）
+ * - 同じ手の mod-tap 同士の重なり（`sdf` `jkl` の内向き・外向き）
+ * - 左右交互（反対の手の mod-tap が同時に押し下げられている）
+ * - 大文字（Shift も mod-tap で、tap は かな / 英数）
+ * - 英単語（ローマ字と違う指の並び）
  *
  * @doc docs/specs/typing-trial.md#roll-tasks
  */
 export const ROLL_TASKS: readonly TypingTask[] = [
-  textTask("roll-kahaja", "kakikukeko hahihuheho jajijujejo"),
-  textTask("roll-sadaga", "sasisuseso dadidudedo gagigugego"),
-  textTask("roll-words", "flask dash glad self jog kiss"),
-  textTask("roll-pairs", "df fd jk kj sd ds kl lk fg gh"),
+  textTask(
+    "romaji-kg",
+    "ローマ字: か行・が行",
+    "k と g が修飾キーになり、次の母音と chord にならないか",
+    "kakikukeko gagigugego kokoro kagami kangaeru kaigi",
+  ),
+  textTask(
+    "romaji-sdh",
+    "ローマ字: さ行・だ行・は行",
+    "s・d・h の子音が母音と重なっても文字で出るか",
+    "sasisuseso dadidudedo hahihuheho sukoshi hajimete dekiru",
+  ),
+  textTask(
+    "romaji-youon",
+    "ローマ字: 拗音・じゃ行",
+    "sh・ky・j など子音が続く並びで、mod-tap 同士が重なっても消えないか",
+    "jajijujejo shigoto kyoukasho daijoubu shukudai jikan",
+  ),
+  textTask(
+    "romaji-sokuon",
+    "ローマ字: 促音（同じキーの連打）",
+    "同じ mod-tap を素早く 2 回叩いたとき、2 文字とも出るか",
+    "gakkou kitto zasshi hokkaidou issho kekkou",
+  ),
+  textTask(
+    "romaji-sentence",
+    "ローマ字: 文（スペースを挟む）",
+    "語の終わり → スペース → 次の語の頭が続けて押されても、⌘ 付きにならないか",
+    "ashita ha kaisha de kaigi ga aru node hayaku deru",
+  ),
+  textTask(
+    "space-short",
+    "短い語とスペース",
+    "スペースの mod-tap と直後の文字の重なりを集中して起こす",
+    "a ha ga ni de to ka mo so ja ne yo sa hi",
+  ),
+  textTask(
+    "same-hand",
+    "同じ手の mod-tap 同士",
+    "隣り合う mod-tap を内向き・外向きに転がしたとき、前の文字が消えないか",
+    "sd ds df fd fg gf sdf fds hj jh jk kj kl lk jkl lkj",
+  ),
+  textTask(
+    "cross-hand",
+    "左右交互",
+    "反対の手の mod-tap が押されたままでも、互いに修飾しないか",
+    "fj jf dk kd sl ls gh hg fjdk slgh",
+  ),
+  textTask(
+    "capitals",
+    "大文字（Shift の mod-tap）",
+    "Shift を押し続けて大文字が出るか。短すぎると tap（かな / 英数）になり IME が切り替わる",
+    "Tokyo Osaka Kyoto Sapporo Hakata Kobe",
+  ),
+  textTask(
+    "english",
+    "英単語",
+    "ローマ字と違う指の並び（sk・sh・lf・ld）で崩れないか",
+    "desk ask dish shelf flask glad folks skills held",
+  ),
 ];
 
 /**
@@ -33,7 +104,40 @@ export const ROLL_TASKS: readonly TypingTask[] = [
  * @doc docs/specs/typing-trial.md#roll-tasks
  */
 export function customTask(text: string): TypingTask {
-  return textTask("custom", text);
+  return textTask("custom", "自由入力", "", text);
+}
+
+/**
+ * 文章課題が押す mod-tap の位置。layer 0 で mod-tap が割り当てられた位置だけを返す。
+ *
+ * 英字は同名の位置、空白は `spacebar`、大文字は左右の Shift を押すとみなす。
+ * 利用者の keymap で、その課題が何を試しているかを示すのに使う。
+ *
+ * @doc docs/specs/typing-trial.md#roll-tasks
+ */
+export function modTapPositionsIn(
+  task: TypingTask,
+  document: MacKeymapDocument,
+): readonly string[] {
+  if (task.kind !== "text") return [];
+  const base = document.layers.get(0);
+  if (base === undefined) return [];
+  const pressed = new Set<string>();
+  for (const char of task.text) {
+    if (char === " ") pressed.add("spacebar");
+    else if (/^[a-z]$/.test(char)) pressed.add(char);
+    else if (/^[A-Z]$/.test(char)) {
+      pressed.add(char.toLowerCase());
+      pressed.add("left_shift");
+      pressed.add("right_shift");
+    }
+  }
+  return [...pressed]
+    .filter((keyCode) => {
+      const keycode = base.get(keyCode);
+      return keycode !== undefined && classifyKeycode(keycode).kind === "modTap";
+    })
+    .sort();
 }
 
 /**

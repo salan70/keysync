@@ -10,6 +10,7 @@ import {
   customTask,
   HOLD_REPEAT,
   holdTasksFor,
+  modTapPositionsIn,
   ROLL_TASKS,
 } from "../../../core/typing-trial/tasks.ts";
 import type {
@@ -194,7 +195,7 @@ export function TypingPanel({
               <optgroup label="ロール（文字が出るか）">
                 {ROLL_TASKS.map((one) => (
                   <option key={one.id} value={one.id}>
-                    {one.kind === "text" ? one.text : one.id}
+                    {one.kind === "text" ? one.title : one.id}
                   </option>
                 ))}
               </optgroup>
@@ -210,21 +211,21 @@ export function TypingPanel({
               <option value={CUSTOM}>自由入力</option>
             </select>
           </div>
-          {taskId === CUSTOM ? (
-            <div className="field">
-              <label htmlFor="typing-custom">打つ文</label>
-              <input
-                id="typing-custom"
-                value={customText}
-                spellCheck={false}
-                autoComplete="off"
-                onChange={(event) => {
-                  setCustomText(event.target.value);
-                  reset();
-                }}
-              />
-            </div>
-          ) : null}
+          {/* 自由入力を選んでいないときも欄を残し、選び替えでカードの高さを変えない。 */}
+          <div className="field">
+            <label htmlFor="typing-custom">自由入力の文</label>
+            <input
+              id="typing-custom"
+              value={customText}
+              disabled={taskId !== CUSTOM}
+              spellCheck={false}
+              autoComplete="off"
+              onChange={(event) => {
+                setCustomText(event.target.value);
+                reset();
+              }}
+            />
+          </div>
           <p className="hint">
             IME は英数にして打つ。⌘Space や ⌘Tab など OS が先に取る組み合わせは止められない。
           </p>
@@ -236,6 +237,7 @@ export function TypingPanel({
           <span className="step-no">3</span> 打って採点する
         </h3>
         <p className="typing-prompt">{taskInstruction(task, document) || "打つ文を入れる。"}</p>
+        <TaskFocus task={task} document={document} />
         <div
           className="typing-capture"
           role="textbox"
@@ -342,6 +344,29 @@ const MARK_CLASS = {
   swapped: "typing-mark",
 } as const;
 
+/** 課題で確かめることと、この keymap で押す mod-tap。課題を替えても高さを変えない。 */
+function TaskFocus({
+  task,
+  document,
+}: {
+  readonly task: TypingTask;
+  readonly document: MacKeymapDocument;
+}): React.JSX.Element {
+  const positions = modTapPositionsIn(task, document);
+  return (
+    <div className="typing-focus">
+      {task.kind === "text" && task.focus !== "" ? <p>{task.focus}</p> : null}
+      {task.kind !== "text" ? null : (
+        <p className="hint">
+          {positions.length === 0
+            ? "この keymap の mod-tap を含まない。"
+            : `含む mod-tap: ${positions.map((keyCode) => holdKeyLabel(keyCode, document)).join("・")}`}
+        </p>
+      )}
+    </div>
+  );
+}
+
 const ENTRY_LABEL = {
   ok: "正",
   misfire: "誤爆",
@@ -364,7 +389,8 @@ function TrialResult({ grade }: { readonly grade: TrialGrade | undefined }): Rea
     return (
       <div className="typing-result">
         <p className="error-text">
-          IME の変換中の入力が混ざったため採点していない。英数にして打ち直す。
+          IME の変換中の入力が混ざったため採点していない。英数にして打ち直す。Shift を短く押すと
+          tap（かな）になり、IME が切り替わることがある。
         </p>
       </div>
     );

@@ -29,11 +29,38 @@ Option で文字が化けても（`å`）、配列が変わっても、同じ ch
 
 <!-- @code src/core/typing-trial/tasks.ts#ROLL_TASKS -->
 <!-- @code src/core/typing-trial/tasks.ts#customTask -->
+<!-- @code src/core/typing-trial/tasks.ts#modTapPositionsIn -->
 
 ## Roll tasks
 
-既定のロール集は、前のキーを離す前に次のキーを押しやすい並びを集めたものです。
-ローマ字の子音 → 母音（`ka` `ha` `ja` `sa` `da` `ga` の行）、英単語、ホームロウ同士の隣接ペア（`df` `jk` など）を含みます。
+既定のロール集は、mod-tap の判定が割れる場面を 1 課題ずつ切り出したものです。
+mod-tap は「押している間に次のキーが押された」ときに判定が割れます（ADR 0044）。
+課題を場面ごとに分けると、どこで崩れるかを課題の単位で比べられます。
+文章課題は名前（`title`）と、何を確かめるか（`focus`）を持ちます。
+
+| id                | 場面                                                                  |
+| ----------------- | --------------------------------------------------------------------- |
+| `romaji-kg`       | ローマ字のか行・が行。`k` `g` の子音 → 母音                           |
+| `romaji-sdh`      | ローマ字のさ行・だ行・は行                                            |
+| `romaji-youon`    | 拗音とじゃ行。`sh` `ky` `j` のように mod-tap 同士が続く               |
+| `romaji-sokuon`   | 促音。同じ mod-tap の連打（`kk` `ss`）                                |
+| `romaji-sentence` | ローマ字の文。語の終わり → スペース → 次の語の頭                      |
+| `space-short`     | 短い語とスペース。スペースの mod-tap と直後の文字の重なりを集中させる |
+| `same-hand`       | 同じ手の隣り合う mod-tap を内向き・外向きに転がす                     |
+| `cross-hand`      | 左右交互。反対の手の mod-tap が押されたままになる                     |
+| `capitals`        | 大文字。Shift の mod-tap を押し続けられるか                           |
+| `english`         | 英単語。ローマ字と違う指の並び（`sk` `sh` `lf` `ld`）                 |
+
+本文は英字と空白だけで書きます。
+記号は配列によって位置が変わり、mod-tap と関係のない誤りが混ざるためです。
+
+大文字の課題では、Shift を短く押しすぎると tap 側（利用者の keymap では かな / 英数）が出ます。
+IME が切り替わると採点は `ime` になるため、UI はその可能性を案内します。
+
+`modTapPositionsIn` は、文章課題が押す位置のうち layer 0 で mod-tap が割り当てられたものを返します。
+英字は同名の位置、空白は `spacebar`、大文字は左右の Shift を押すとみなします。
+UI は、課題がその keymap で何を試しているかの表示に使います。
+
 自由入力の課題は、入力した文の 1 文字ずつを期待にします。
 
 <!-- @code src/core/typing-trial/tasks.ts#holdTasksFor -->
