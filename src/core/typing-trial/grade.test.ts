@@ -70,6 +70,20 @@ test("途中の脱落は末尾の未入力と区別して数える", () => {
   strictEqual(summary.unfinished, 1);
 });
 
+test("打ち終える前の組の誤爆は、先頭の組に整列する（遠くの同じ母音へずらさない）", () => {
+  const { summary } = graded(
+    gradeTypingTrial(customTask("kakikukeko gagigugego"), [
+      ...typed("k"),
+      chord("a", { alt: true }),
+      ...typed("ki"),
+    ]),
+  );
+  strictEqual(summary.ok, 3);
+  strictEqual(summary.misfire, 1);
+  strictEqual(summary.dropped, 0);
+  strictEqual(summary.unfinished, 17);
+});
+
 test("余分な出力は extra", () => {
   const { summary } = graded(gradeTypingTrial(customTask("df"), typed("dff")));
   strictEqual(summary.extra, 1);

@@ -171,12 +171,12 @@ function steps(
       cost: 1,
     });
   }
+  if (e0 !== undefined) {
+    result.push({ entry: { kind: "dropped", expected: [e0], output: [] }, di: 1, dj: 0, cost: 1 });
+  }
   if (e0 !== undefined && o0 !== undefined && !sameToken(e0, o0)) {
     const kind = e0.kind === "char" && o0.kind === "chord" ? "misfire" : "wrong";
     result.push({ entry: { kind, expected: [e0], output: [o0] }, di: 1, dj: 1, cost: 1 });
-  }
-  if (e0 !== undefined) {
-    result.push({ entry: { kind: "dropped", expected: [e0], output: [] }, di: 1, dj: 0, cost: 1 });
   }
   if (o0 !== undefined) {
     result.push({ entry: { kind: "extra", expected: [], output: [o0] }, di: 0, dj: 1, cost: 1 });
@@ -184,14 +184,19 @@ function steps(
   return result;
 }
 
-/** 期待と出力を最小コストで整列する。後ろから表を埋め、前から優先順位どおりに辿る。 */
+/**
+ * 期待と出力を最小コストで整列する。後ろから表を埋め、前から優先順位どおりに辿る。
+ *
+ * 出力を使い切った後に残る期待は、打ち終える前に採点しただけなのでコスト 0 にする。
+ * コストを付けると、期待を 2 個消費する組の誤爆を後ろへずらすほど得になり、
+ * `ka` の誤爆が遠くの `ga` に整列される。
+ */
 function align(expected: readonly TrialToken[], output: readonly TrialToken[]): TrialEntry[] {
   const width = output.length + 1;
   const table = Array.from({ length: (expected.length + 1) * width }, () => 0);
   const at = (i: number, j: number) => table[i * width + j] ?? 0;
   for (let i = expected.length; i >= 0; i -= 1) {
-    for (let j = output.length; j >= 0; j -= 1) {
-      if (i === expected.length && j === output.length) continue;
+    for (let j = output.length - 1; j >= 0; j -= 1) {
       table[i * width + j] = Math.min(
         ...steps(expected, output, i, j).map((step) => step.cost + at(i + step.di, j + step.dj)),
       );
@@ -201,7 +206,7 @@ function align(expected: readonly TrialToken[], output: readonly TrialToken[]): 
   const entries: TrialEntry[] = [];
   let i = 0;
   let j = 0;
-  while (i < expected.length || j < output.length) {
+  while (j < output.length) {
     const best = steps(expected, output, i, j).find(
       (step) => step.cost + at(i + step.di, j + step.dj) === at(i, j),
     );
@@ -209,6 +214,10 @@ function align(expected: readonly TrialToken[], output: readonly TrialToken[]): 
     entries.push(best.entry);
     i += best.di;
     j += best.dj;
+  }
+  // 残りは未入力。呼び出し側が末尾の脱落として数えずに外す。
+  for (const token of expected.slice(i)) {
+    entries.push({ kind: "dropped", expected: [token], output: [] });
   }
   return entries;
 }
