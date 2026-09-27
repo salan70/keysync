@@ -22,7 +22,11 @@ import type {
   KarabinerProfile,
   KarabinerRule,
 } from "./karabiner.ts";
-import type { MacDeviceIdentifier, MacKeymapDocument } from "./types.ts";
+import {
+  DEFAULT_MAC_TAPPING_TERM_MS,
+  type MacDeviceIdentifier,
+  type MacKeymapDocument,
+} from "./types.ts";
 
 /** layer 変数の名前空間。Karabiner の変数は global なので接頭辞で隔離する。 */
 const LAYER_VARIABLE_PREFIX = "keysync_layer_";
@@ -75,7 +79,9 @@ export function generateKarabinerRules(document: MacKeymapDocument): GeneratedRu
       if (keycode === undefined) continue;
       // layer 0 と同値なら出さない。出しても素通しと同じ結果にしかならない。
       if (layer > 0 && base?.get(keyCode) === keycode) continue;
-      manipulators.push(...manipulatorsForKey(keyCode, keycode, layer, device, diagnostics));
+      manipulators.push(
+        ...manipulatorsForKey(keyCode, keycode, layer, device, document.tappingTermMs, diagnostics),
+      );
     }
     if (manipulators.length === 0) continue;
     rules.push({ description: `${document.profile} layer ${layer}`, manipulators });
@@ -125,7 +131,7 @@ export type MacKeycodeSupport =
   | { readonly ok: true }
   | { readonly ok: false; readonly code: string; readonly message: string };
 
-/** probe 用の位置と device。`manipulatorsForKey` はどちらも判定に使わない。 */
+/** probe 用の位置・device・閾値。`manipulatorsForKey` はどれも判定に使わない。 */
 const PROBE_POSITION = "spacebar";
 const PROBE_DEVICE = deviceCondition([{ builtIn: true }]);
 
@@ -144,7 +150,14 @@ const PROBE_DEVICE = deviceCondition([{ builtIn: true }]);
  */
 export function macKeycodeSupport(keycode: string): MacKeycodeSupport {
   const diagnostics: Diagnostic[] = [];
-  manipulatorsForKey(PROBE_POSITION, keycode, 0, PROBE_DEVICE, diagnostics);
+  manipulatorsForKey(
+    PROBE_POSITION,
+    keycode,
+    0,
+    PROBE_DEVICE,
+    DEFAULT_MAC_TAPPING_TERM_MS,
+    diagnostics,
+  );
   const first = diagnostics[0];
   return first === undefined
     ? { ok: true }
@@ -165,6 +178,22 @@ function conditionsFor(layer: number, device: KarabinerCondition): readonly Kara
 /** どの layer の manipulator も修飾キーは素通しさせる。 */
 function fromKey(keyCode: string): KarabinerFrom {
   return { key_code: keyCode, modifiers: { optional: ["any"] } };
+}
+
+/**
+ * mod-tap の tap / hold を閾値で分ける 3 つの timer。すべて from の key down から数える。
+ *
+ * 3 つを同じ値にそろえることで「閾値の前に離す・次のキーを押す = tap、閾値まで押し続ける
+ * = hold」の 2 択になる（ADR 0044）。delayed action だけ長いと、hold が確定したあとに
+ * 次のキーを押したとき `to_if_canceled` が tap 側の文字を送ってしまう。alone だけ長いと、
+ * hold で離したときに文字も出る。
+ */
+function tapHoldParameters(tappingTermMs: number): Readonly<Record<string, number>> {
+  return {
+    "basic.to_if_alone_timeout_milliseconds": tappingTermMs,
+    "basic.to_if_held_down_threshold_milliseconds": tappingTermMs,
+    "basic.to_delayed_action_delay_milliseconds": tappingTermMs,
+  };
 }
 
 /**
@@ -203,6 +232,7 @@ function manipulatorsForKey(
   keycode: string,
   layer: number,
   device: KarabinerCondition,
+  tappingTermMs: number,
   diagnostics: Diagnostic[],
 ): readonly KarabinerManipulator[] {
   const lexeme = classifyKeycode(keycode);
@@ -317,13 +347,16 @@ function manipulatorsForKey(
         );
         return [];
       }
+      // 閾値より前に次のキーを押したら tap 側を送る。`to` に lazy な modifier を置く形は
+      // 押していた時間に関係なく modifier が掛かり、ロール打鍵で誤爆する（ADR 0044）。
       return [
         {
           type: "basic",
           from,
-          // lazy を付けないと hold 側の modifier が単独で発火する。
-          to: [{ ...modifierEvent(modifiers), lazy: true }],
-          to_if_alone: [inner],
+          to_if_alone: [{ ...inner, halt: true }],
+          to_if_held_down: [modifierEvent(modifiers)],
+          to_delayed_action: { to_if_canceled: [inner] },
+          parameters: tapHoldParameters(tappingTermMs),
           conditions,
         },
       ];

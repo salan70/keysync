@@ -8,7 +8,13 @@
  * 疎な map なので「範囲外」という概念が無く、無い layer への書き込みは layer を作る。
  */
 
-import type { MacDeviceIdentifier, MacKeymapDocument, MacLayerAssignments } from "./types.ts";
+import {
+  isMacTappingTerm,
+  MAC_TAPPING_TERM_RANGE,
+  type MacDeviceIdentifier,
+  type MacKeymapDocument,
+  type MacLayerAssignments,
+} from "./types.ts";
 
 /** 編集操作の入力が成立しないときに投げる。 */
 export class MacKeymapEditError extends Error {}
@@ -115,4 +121,22 @@ export function addMacDevice(
   }
   if (document.devices.some((existing) => sameDevice(existing, device))) return document;
   return { ...document, devices: [...document.devices, device] };
+}
+
+/**
+ * mod-tap の tap と hold を分ける閾値（ms）を変える。範囲外は拒む（ADR 0044）。
+ *
+ * @doc docs/specs/mac-keymap.md#mac-edit
+ */
+export function setMacTappingTerm(
+  document: MacKeymapDocument,
+  tappingTermMs: number,
+): MacKeymapDocument {
+  if (!isMacTappingTerm(tappingTermMs)) {
+    throw new MacKeymapEditError(
+      `tapping term は ${MAC_TAPPING_TERM_RANGE.min}〜${MAC_TAPPING_TERM_RANGE.max} ms の整数（${tappingTermMs} が渡された）`,
+    );
+  }
+  if (document.tappingTermMs === tappingTermMs) return document;
+  return { ...document, tappingTermMs };
 }

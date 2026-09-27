@@ -42,6 +42,10 @@ desired stateの内容です。schema識別子は`keysync/mac-keymap@1`で、
 product idを申告しないため`is_built_in_keyboard`でしか指せません。`layout`と同じく
 YAMLでは省略でき、省略時は内蔵キーボードだけ（`DEFAULT_MAC_DEVICES`）です。
 
+`tappingTermMs`はmod-tapのtapとholdを分ける閾値（ms）です。全mod-tapで共通の1値で、
+50〜1000の整数です（ADR 0044）。YAMLでは`tapping_term_ms`と書き、省略時は200
+（`DEFAULT_MAC_TAPPING_TERM_MS`）です。
+
 <!-- @code src/core/mac-keymap/serialize.ts#serializeMacKeymapYaml -->
 
 ## serializeMacKeymapYaml
@@ -54,6 +58,7 @@ layout: jis
 devices:
   - { built_in: true }
   - { vendor_id: 1452, product_id: 630 }
+tapping_term_ms: 200
 profile: "KeySync"
 layers:
   0:
@@ -70,8 +75,8 @@ layers:
 並び順はlayer昇順・`key_code`名昇順で固定します。生成器がmanipulatorを並べる規則と
 同じにして、手で並べ替えてもdiffが動かないようにします。
 
-`layout`行と`devices`は省略時の既定があっても**常に**書き出します。正規形は明示です
-（ADR 0024・0026）。`devices`の各項目は1行のflow mappingで置きます。疎なmapを1行ずつ
+`layout`行、`devices`、`tapping_term_ms`行は省略時の既定があっても**常に**書き出します。
+正規形は明示です（ADR 0024・0026・0044）。`devices`の各項目は1行のflow mappingで置きます。疎なmapを1行ずつ
 置くこのファイルの方針に合わせたもので、block mappingへは展開しません。
 
 <!-- @code src/core/mac-keymap/parse.ts#parseMacKeymapYaml -->
@@ -88,6 +93,7 @@ layers:
 `layout`は省略なら`jis`、`ansi` / `jis`以外の値なら落とします（ADR 0024）。
 `devices`が受け付けるのは`- { built_in: true }`と`- { vendor_id: N, product_id: N }`を
 2スペース字下げした2形だけで、省略なら内蔵キーボードだけ、2回書けば落とします（ADR 0026）。
+`tapping_term_ms`は省略なら200、50〜1000の整数でなければ落とします（ADR 0044）。
 
 schemaは`keysync/mac-keymap@1`のほか、改名前の`cornix-bonsai/mac-keymap@1`も受け付けます（ADR 0036）。
 書き出すのは常に`keysync/mac-keymap@1`で、開いただけではファイルを書き換えません。
@@ -142,6 +148,7 @@ Inferenceです（ADR 0024・0025）。
 <!-- @code src/core/mac-keymap/edit.ts#clearMacAssignment -->
 <!-- @code src/core/mac-keymap/edit.ts#addMacLayer -->
 <!-- @code src/core/mac-keymap/edit.ts#addMacDevice -->
+<!-- @code src/core/mac-keymap/edit.ts#setMacTappingTerm -->
 
 ## Mac edit
 
@@ -157,6 +164,9 @@ Vial側と違いlayersは疎なmapなので「範囲外」という概念が無�
 `addMacDevice`は適用先デバイスを末尾へ足します。既にあるデバイスは足しません。順序は
 追加順のまま保ちます。`device_if`のidentifiersはORなので意味は順序に依存しませんが、
 並べ替えるとdiffが動きます。
+
+`setMacTappingTerm`はmod-tapの閾値を差し替えます。50〜1000の整数でなければ
+`MacKeymapEditError`で拒みます。同じ値なら元のdocumentをそのまま返します（ADR 0044）。
 
 <!-- @code src/core/mac-keymap/physical-layout.ts#MacPhysicalKey -->
 <!-- @code src/core/mac-keymap/physical-layout.ts#macPhysicalLayout -->
@@ -184,17 +194,17 @@ fixtureの全from位置を被覆する。座標と幅はApple公開の製品画�
 desired stateからKarabinerのrulesを組み立てます。展開規則はADR 0022、構文層の出どころは
 ADR 0023です。`classifyKeycode`が返す`KeycodeLexeme`から直接写します。
 
-| `KeycodeLexeme`             | Karabiner                                                    |
-| --------------------------- | ------------------------------------------------------------ |
-| `transparent`               | manipulatorを出さない                                        |
-| `none`                      | `to`を持たないmanipulator                                    |
-| `basic`                     | `to: [{ key_code }]`。shift済みkeycodeは`modifiers`付き      |
-| `modified`                  | `to: [{ key_code, modifiers }]`                              |
-| `layerSwitch` / `momentary` | `set_variable 1` + `to_after_key_up`で`set_variable 0`       |
-| `layerSwitch` / `layerTap`  | 上記 + `to_if_alone`                                         |
-| `layerSwitch` / `toggle`    | `variable_if` / `variable_unless`で分岐した2本               |
-| `modTap`                    | `to: [{ key_code: <modifier>, lazy: true }]` + `to_if_alone` |
-| それ以外                    | error diagnostic                                             |
+| `KeycodeLexeme`             | Karabiner                                               |
+| --------------------------- | ------------------------------------------------------- |
+| `transparent`               | manipulatorを出さない                                   |
+| `none`                      | `to`を持たないmanipulator                               |
+| `basic`                     | `to: [{ key_code }]`。shift済みkeycodeは`modifiers`付き |
+| `modified`                  | `to: [{ key_code, modifiers }]`                         |
+| `layerSwitch` / `momentary` | `set_variable 1` + `to_after_key_up`で`set_variable 0`  |
+| `layerSwitch` / `layerTap`  | 上記 + `to_if_alone`                                    |
+| `layerSwitch` / `toggle`    | `variable_if` / `variable_unless`で分岐した2本          |
+| `modTap`                    | `to_if_alone` + `to_if_held_down` + `to_delayed_action` |
+| それ以外                    | error diagnostic                                        |
 
 規則のうち、順序と省略が意味を持つものは以下です。
 
@@ -203,9 +213,17 @@ ADR 0023です。`classifyKeycode`が返す`KeycodeLexeme`から直接写しま�
 - **`TG(n)`は倒す側を先に置きます。** 順序を逆にすると押した直後に立て直します
 - **manipulatorを出さないのは2つだけです。** `KC_TRNS`と、layer 0と同値のキー。
   Karabinerは書かれていないキーを素通しするため、出さないことがそのまま正しい挙動です
-- mod-tapの`to`には`lazy`を付けます。付けないとhold側のmodifierが単独で発火します
-- 複合modifier（`SGUI_T`など）のmod-tapは、先頭を`key_code`、残りを`modifiers`に置きます。
-  単独modifierには`modifiers`を付けません（ADR 0043）
+- mod-tapは`tappingTermMs`の閾値でtapとholdを分けます（ADR 0044）。`to`は持たず、
+  holdのmodifierは`to_if_held_down`、tap側は`to_if_alone`と`to_delayed_action`の
+  `to_if_canceled`に置きます。閾値より前に次のキーを押すか離せばtap、閾値まで押し続ければ
+  holdです
+- mod-tapの`parameters`は`to_if_alone`・`to_if_held_down`・`to_delayed_action`の3つの閾値を
+  すべて`tappingTermMs`にそろえます。delayed actionだけ長いと、holdが確定したあとに押した
+  キーの前へtap側の文字が出ます
+- mod-tapの`to_if_alone`には`halt`を付けます。付けないと、tapして離したあと閾値の前に
+  次のキーを押したとき、`to_if_canceled`が同じ文字をもう一度送ります
+- 複合modifier（`SGUI_T`など）のmod-tapは、holdの先頭を`key_code`、残りを`modifiers`に
+  置きます。単独modifierには`modifiers`を付けません（ADR 0043）
 - 全manipulatorの`conditions[0]`は`device_if`で、identifiersは`document.devices`から組みます。
   identifiersはORなので1条件で複数デバイスを指せます。内部表現からKarabinerの語彙への写像は
   `generate.ts`の`deviceCondition`だけが持ちます（ADR 0026）

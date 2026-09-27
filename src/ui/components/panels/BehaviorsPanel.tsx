@@ -162,7 +162,11 @@ export function BehaviorsPanel({
   );
 }
 
-function ValueField({
+/**
+ * 数値や keycode を 1 つ編集する欄。Enter か focus を外したときに `onCommit` へ渡し、
+ * 理由が返れば保存せずに欄の下へ出す。
+ */
+export function ValueField({
   id,
   label,
   value,

@@ -93,7 +93,7 @@ test("diff は所有 profile の manipulator 単位で出る", () => {
   const changed = diff.entries.filter((entry) => entry.change === "changed");
   strictEqual(changed.length, 1);
   strictEqual(changed[0]?.keyCode, "caps_lock");
-  deepStrictEqual(changed[0]?.after?.to, [{ key_code: "left_control", lazy: true }]);
+  deepStrictEqual(changed[0]?.after?.to_if_held_down, [{ key_code: "left_control" }]);
 });
 
 test("同じ desired を 2 回適用しても差分は出ない", () => {

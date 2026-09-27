@@ -10,6 +10,7 @@ function document(): MacKeymapDocument {
   return {
     layout: "jis",
     devices: DEFAULT_MAC_DEVICES,
+    tappingTermMs: 200,
     profile: "KeySync",
     layers: new Map([
       [0, new Map([["caps_lock", "LCTL_T(KC_ESC)"]])],

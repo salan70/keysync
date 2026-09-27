@@ -1,5 +1,5 @@
 import type { DiffEntry } from "../../../core/diff/diff.ts";
-import type { MacKeyboardLayout } from "../../../core/mac-keymap/types.ts";
+import { MAC_TAPPING_TERM_RANGE, type MacKeyboardLayout } from "../../../core/mac-keymap/types.ts";
 import type { Diagnostic } from "../../../core/validation/types.ts";
 import type { RoundTripProgress } from "../../../device/protocol.ts";
 import { macKeymapPath, WORKSPACE_LAYOUT } from "../../../workspace/layout.ts";
@@ -8,6 +8,7 @@ import { describeDevices, deviceIfText } from "../../mac-references.ts";
 import type { MacWorkspaceState } from "../../mac-workspace.ts";
 import { Button } from "../Button.tsx";
 import { Icon } from "../Icon.tsx";
+import { ValueField } from "./BehaviorsPanel.tsx";
 
 export interface DeviceIdentity {
   readonly deviceUid: string;
@@ -224,12 +225,15 @@ export function MacDevicePanel({
   mac,
   applyBlockedReason,
   onApply,
+  onTappingTerm,
   onExportKarabiner,
 }: {
   readonly layout: MacKeyboardLayout;
   readonly mac: MacWorkspaceState;
   readonly applyBlockedReason: string | undefined;
   readonly onApply: () => void;
+  /** 保存できなければ理由を返す。 */
+  readonly onTappingTerm: (value: string) => string | undefined;
   readonly onExportKarabiner: () => void;
 }): React.JSX.Element {
   const path = mac.kind === "ready" ? mac.path : macKeymapPath(layout);
@@ -258,6 +262,25 @@ export function MacDevicePanel({
           <p className="muted">{path} を読み込めていない。</p>
         )}
         <p className="hint">適用先を増やすときは CLI の keysync mac devices を使う。</p>
+      </section>
+      <section className="step">
+        <h3 className="section-title">mod-tap の閾値</h3>
+        {mac.kind === "ready" ? (
+          <ValueField
+            id="mac-tapping-term"
+            label={`tapping term（ms、${MAC_TAPPING_TERM_RANGE.min}〜${MAC_TAPPING_TERM_RANGE.max}）`}
+            value={String(mac.document.tappingTermMs)}
+            numeric
+            hint={undefined}
+            onCommit={onTappingTerm}
+          />
+        ) : (
+          <p className="muted">{path} を読み込めていない。</p>
+        )}
+        <p className="hint">
+          これより前に離すか次のキーを押すと文字、押し続けると修飾キー。Karabiner
+          への適用で反映する。
+        </p>
       </section>
       <section className="step">
         <h3 className="section-title">Karabiner asset</h3>

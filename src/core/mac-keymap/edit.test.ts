@@ -7,6 +7,7 @@ import {
   clearMacAssignment,
   MacKeymapEditError,
   setMacAssignment,
+  setMacTappingTerm,
 } from "./edit.ts";
 import { parseMacKeymapYaml } from "./parse.ts";
 import { serializeMacKeymapYaml } from "./serialize.ts";
@@ -16,6 +17,7 @@ function baseDocument(): MacKeymapDocument {
   return {
     layout: "jis",
     devices: DEFAULT_MAC_DEVICES,
+    tappingTermMs: 200,
     profile: "KeySync",
     layers: new Map([[0, new Map([["caps_lock", "LCTL_T(KC_ESC)"]])]]),
   };
@@ -101,4 +103,18 @@ test("addMacDevice は同じデバイスを二重に足さない", () => {
 test("addMacDevice は整数でない id を拒む", () => {
   throws(() => addMacDevice(baseDocument(), { vendorId: 1.5, productId: 1 }), MacKeymapEditError);
   throws(() => addMacDevice(baseDocument(), { vendorId: -1, productId: 1 }), MacKeymapEditError);
+});
+
+test("setMacTappingTerm は閾値を差し替え、元の document を壊さない", () => {
+  const before = baseDocument();
+  const after = setMacTappingTerm(before, 250);
+  strictEqual(after.tappingTermMs, 250);
+  strictEqual(before.tappingTermMs, 200, "入力は変えない");
+  strictEqual(setMacTappingTerm(after, 250), after, "同じ値なら同じ document を返す");
+});
+
+test("setMacTappingTerm は範囲外と整数でない値を拒む", () => {
+  for (const value of [49, 1001, 150.5, Number.NaN]) {
+    throws(() => setMacTappingTerm(baseDocument(), value), MacKeymapEditError, String(value));
+  }
 });

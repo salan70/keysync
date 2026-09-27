@@ -28,6 +28,7 @@ function documentOf(
   return {
     layout,
     devices: DEFAULT_MAC_DEVICES,
+    tappingTermMs: 200,
     profile: "KeySync",
     layers: new Map(
       layers.map((assignments, layer) => [layer, new Map(Object.entries(assignments))]),
@@ -69,11 +70,34 @@ test("LT n(kc) は momentary に to_if_alone を足したもの", () => {
   deepStrictEqual(manipulator?.to_if_alone, [{ key_code: "japanese_kana" }]);
 });
 
-test("mod-tap は lazy な modifier と to_if_alone になる", () => {
-  // lazy を付けないと hold 側の modifier が単独で発火する。
+test("mod-tap は閾値で tap と hold を分ける", () => {
+  // lazy な modifier を to に置く形は、押していた時間に関係なく次のキーへ modifier が掛かる。
+  // ロール打鍵で誤爆するため、閾値まで押し続けたときだけ hold にする（ADR 0044）。
   const [manipulator] = byKey(DESIRED, "caps_lock");
-  deepStrictEqual(manipulator?.to, [{ key_code: "left_control", lazy: true }]);
-  deepStrictEqual(manipulator?.to_if_alone, [{ key_code: "escape" }]);
+  strictEqual(manipulator?.to, undefined);
+  deepStrictEqual(manipulator?.to_if_alone, [{ key_code: "escape", halt: true }]);
+  deepStrictEqual(manipulator?.to_if_held_down, [{ key_code: "left_control" }]);
+  // 閾値より前に次のキーが押されたら tap 側を送る。
+  deepStrictEqual(manipulator?.to_delayed_action, { to_if_canceled: [{ key_code: "escape" }] });
+});
+
+test("mod-tap の 3 つの timer は document の閾値にそろう", () => {
+  // delayed action だけ長いと、hold 確定後に押したキーの前へ tap 側の文字が出る。
+  const [manipulator] = manipulators({
+    ...documentOf([{ f: "LGUI_T(KC_F)" }]),
+    tappingTermMs: 180,
+  });
+  deepStrictEqual(manipulator?.parameters, {
+    "basic.to_if_alone_timeout_milliseconds": 180,
+    "basic.to_if_held_down_threshold_milliseconds": 180,
+    "basic.to_delayed_action_delay_milliseconds": 180,
+  });
+});
+
+test("閾値は mod-tap 以外の manipulator に付かない", () => {
+  for (const manipulator of manipulators(documentOf([{ a: "KC_B", b: "LT1(KC_B)" }, {}]))) {
+    strictEqual(manipulator.parameters, undefined, manipulator.from.key_code);
+  }
 });
 
 test("TG(n) は 2 本に展開され、倒す側が先に来る", () => {
@@ -176,15 +200,15 @@ test("修飾と shift 済み keycode を重ねても modifiers は重複しな�
 
 test("複合 modifier の mod-tap は先頭を key_code、残りを modifiers にする", () => {
   const [manipulator] = manipulators(documentOf([{ s: "SGUI_T(KC_S)" }]));
-  deepStrictEqual(manipulator?.to, [
-    { key_code: "left_shift", modifiers: ["left_command"], lazy: true },
+  deepStrictEqual(manipulator?.to_if_held_down, [
+    { key_code: "left_shift", modifiers: ["left_command"] },
   ]);
-  deepStrictEqual(manipulator?.to_if_alone, [{ key_code: "s" }]);
+  deepStrictEqual(manipulator?.to_if_alone, [{ key_code: "s", halt: true }]);
 });
 
 test("単独 modifier の mod-tap には modifiers を付けない", () => {
-  deepStrictEqual(manipulators(documentOf([{ f: "LGUI_T(KC_F)" }]))[0]?.to, [
-    { key_code: "left_command", lazy: true },
+  deepStrictEqual(manipulators(documentOf([{ f: "LGUI_T(KC_F)" }]))[0]?.to_if_held_down, [
+    { key_code: "left_command" },
   ]);
 });
 
@@ -240,6 +264,7 @@ test("device_if の identifiers は document の devices から組む", () => {
   const document: MacKeymapDocument = {
     layout: "ansi",
     devices: [{ builtIn: true }, { vendorId: 1452, productId: 630 }],
+    tappingTermMs: 200,
     profile: "KeySync",
     layers: new Map([[0, new Map([["caps_lock", "KC_ESCAPE"]])]]),
   };
@@ -256,6 +281,7 @@ test("layer 1 以上でも device 条件は先頭に残る", () => {
   const document: MacKeymapDocument = {
     layout: "ansi",
     devices: [{ vendorId: 1452, productId: 630 }],
+    tappingTermMs: 200,
     profile: "KeySync",
     layers: new Map([
       [0, new Map([["caps_lock", "MO(1)"]])],

@@ -13,6 +13,9 @@
 import {
   DEFAULT_MAC_DEVICES,
   DEFAULT_MAC_LAYOUT,
+  DEFAULT_MAC_TAPPING_TERM_MS,
+  isMacTappingTerm,
+  MAC_TAPPING_TERM_RANGE,
   LEGACY_MAC_KEYMAP_SCHEMA,
   MAC_KEYMAP_SCHEMA,
   MacKeymapParseError,
@@ -31,6 +34,7 @@ export function parseMacKeymapYaml(text: string): MacKeymapDocument {
   let layout: MacKeyboardLayout | undefined;
   let profile: string | undefined;
   let devices: MacDeviceIdentifier[] | undefined;
+  let tappingTermMs: number | undefined;
   let sawLayers = false;
   let current: Map<string, string> | undefined;
   const layers = new Map<number, ReadonlyMap<string, string>>();
@@ -53,6 +57,17 @@ export function parseMacKeymapYaml(text: string): MacKeymapDocument {
         throw new MacKeymapParseError(`mac-keyboard.yaml の layout が未対応: ${value}`);
       }
       layout = value;
+      continue;
+    }
+    if (line.startsWith("tapping_term_ms:")) {
+      const value = line.slice("tapping_term_ms:".length).trim();
+      const parsed = /^[0-9]+$/.test(value) ? Number(value) : Number.NaN;
+      if (!isMacTappingTerm(parsed)) {
+        throw new MacKeymapParseError(
+          `tapping_term_ms は ${MAC_TAPPING_TERM_RANGE.min}〜${MAC_TAPPING_TERM_RANGE.max} の整数: ${value}`,
+        );
+      }
+      tappingTermMs = parsed;
       continue;
     }
     if (line.startsWith("profile:")) {
@@ -113,6 +128,7 @@ export function parseMacKeymapYaml(text: string): MacKeymapDocument {
   return {
     layout: layout ?? DEFAULT_MAC_LAYOUT,
     devices: devices ?? DEFAULT_MAC_DEVICES,
+    tappingTermMs: tappingTermMs ?? DEFAULT_MAC_TAPPING_TERM_MS,
     profile,
     layers,
   };

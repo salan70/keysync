@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createKeycodeTable } from "../core/keycode/table.ts";
-import { addMacLayer, clearMacAssignment, setMacAssignment } from "../core/mac-keymap/edit.ts";
+import {
+  addMacLayer,
+  clearMacAssignment,
+  setMacAssignment,
+  setMacTappingTerm,
+} from "../core/mac-keymap/edit.ts";
 import { macKeycodeSupport } from "../core/mac-keymap/generate.ts";
+import { isMacTappingTerm, MAC_TAPPING_TERM_RANGE } from "../core/mac-keymap/types.ts";
 import { validateMacKeymap } from "../core/mac-keymap/validate.ts";
 import { setEncoderAssignment, setKeyAssignment } from "../core/model/edit.ts";
 import { buildKeymapView } from "../core/model/keymap-view.ts";
@@ -696,6 +702,15 @@ export function App({
                   mac={macState}
                   applyBlockedReason={macBlockedReason}
                   onApply={() => closePanel(startMacApply)}
+                  onTappingTerm={(value) => {
+                    if (macState.kind !== "ready") return undefined;
+                    const ms = /^[0-9]+$/.test(value) ? Number(value) : Number.NaN;
+                    if (!isMacTappingTerm(ms)) {
+                      return `${MAC_TAPPING_TERM_RANGE.min}〜${MAC_TAPPING_TERM_RANGE.max}の整数が必要`;
+                    }
+                    ws.updateMac(macLayout, (document) => setMacTappingTerm(document, ms));
+                    return undefined;
+                  }}
                   onExportKarabiner={() => void ws.exportKarabiner(macLayout)}
                 />
               ) : null

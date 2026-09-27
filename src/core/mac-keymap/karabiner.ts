@@ -17,7 +17,8 @@ export type KarabinerCondition =
 export interface KarabinerKeyEvent {
   readonly key_code: string;
   readonly modifiers?: readonly string[];
-  readonly lazy?: true;
+  /** `to_if_alone` で送ったあと `to_delayed_action` を打ち切る（ADR 0044）。 */
+  readonly halt?: true;
 }
 
 /** manipulator の `to` に置く 1 イベント。 */
@@ -43,6 +44,13 @@ export interface KarabinerManipulator {
   readonly to?: readonly KarabinerToEvent[];
   readonly to_after_key_up?: readonly KarabinerToEvent[];
   readonly to_if_alone?: readonly KarabinerToEvent[];
+  readonly to_if_held_down?: readonly KarabinerToEvent[];
+  readonly to_delayed_action?: {
+    readonly to_if_invoked?: readonly KarabinerToEvent[];
+    readonly to_if_canceled?: readonly KarabinerToEvent[];
+  };
+  /** manipulator 単位で上書きする `basic.*` の閾値（ms）。 */
+  readonly parameters?: Readonly<Record<string, number>>;
   readonly conditions: readonly KarabinerCondition[];
 }
 

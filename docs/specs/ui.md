@@ -443,7 +443,9 @@ Apply の入口を押すとパネルを閉じてから Apply の modal を開く
 「backup から復元」は `keysync/backups/latest.vil` を目標状態へ読み込むだけで、実機にも `keymap.yaml` にも書き込まず、通常の差分確認と Apply へ戻す。
 Cornix が ready でなければ復元を無効にする。
 
-Mac の実機パネルは「Karabiner へ適用…」の入口と押せない理由、`just mac apply` でも適用できること、適用先、Karabiner asset の書出を置く。
+Mac の実機パネルは「Karabiner へ適用…」の入口と押せない理由、`just mac apply` でも適用できること、適用先、mod-tap の閾値、Karabiner asset の書出を置く。
+mod-tap の閾値は Enter か focus を外したときに保存し、50〜1000 の整数でなければ保存せずに欄の下へ理由を出す（ADR 0044）。
+保存は `mac-keyboard.<layout>.yaml` までで、Karabiner への反映には適用が要る。
 
 <!-- @code src/ui/components/index.ts#OverviewPanel -->
 <!-- @code src/ui/overview-model.ts#buildOverviewModel -->

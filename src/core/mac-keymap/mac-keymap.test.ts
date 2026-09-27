@@ -4,7 +4,12 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { parseMacKeymapYaml } from "./parse.ts";
 import { serializeMacKeymapYaml } from "./serialize.ts";
-import { DEFAULT_MAC_DEVICES, MacKeymapParseError, type MacKeymapDocument } from "./types.ts";
+import {
+  DEFAULT_MAC_DEVICES,
+  DEFAULT_MAC_TAPPING_TERM_MS,
+  MacKeymapParseError,
+  type MacKeymapDocument,
+} from "./types.ts";
 
 const FIXTURES = join(import.meta.dirname, "../../../fixtures/mac-keyboard");
 const readFixture = (name: string) => readFileSync(join(FIXTURES, name), "utf8");
@@ -59,6 +64,7 @@ test("serialize は layer 昇順・key_code 名昇順で並べる", () => {
   const text = serializeMacKeymapYaml({
     layout: "jis",
     devices: DEFAULT_MAC_DEVICES,
+    tappingTermMs: 200,
     profile: "KeySync",
     layers: new Map([
       [2, new Map([["z", "KC_Z"]])],
@@ -78,6 +84,7 @@ test("serialize は layer 昇順・key_code 名昇順で並べる", () => {
       "layout: jis",
       "devices:",
       "  - { built_in: true }",
+      "tapping_term_ms: 200",
       'profile: "KeySync"',
       "layers:",
       "  0:",
@@ -202,10 +209,53 @@ test("devices を省略した設定は内蔵キーボードだけを対象にす
   deepStrictEqual(document.devices, DEFAULT_MAC_DEVICES);
 });
 
+test("tapping_term_ms を省略すると既定の閾値になる", () => {
+  const document = parseMacKeymapYaml(
+    ["schema: keysync/mac-keymap@1", 'profile: "x"', "layers:", "  0:"].join("\n"),
+  );
+  strictEqual(document.tappingTermMs, DEFAULT_MAC_TAPPING_TERM_MS);
+});
+
+test("tapping_term_ms は round-trip する", () => {
+  const text = [
+    "schema: keysync/mac-keymap@1",
+    "layout: ansi",
+    "devices:",
+    "  - { built_in: true }",
+    "tapping_term_ms: 180",
+    'profile: "KeySync"',
+    "layers:",
+    "  0:",
+    "",
+  ].join("\n");
+  const document = parseMacKeymapYaml(text);
+  strictEqual(document.tappingTermMs, 180);
+  strictEqual(serializeMacKeymapYaml(document), text);
+});
+
+test("範囲外や整数でない tapping_term_ms は読まずに落ちる", () => {
+  for (const value of ["49", "1001", "200.5", "abc", ""]) {
+    throws(
+      () =>
+        parseMacKeymapYaml(
+          [
+            "schema: keysync/mac-keymap@1",
+            `tapping_term_ms: ${value}`,
+            'profile: "x"',
+            "layers:",
+          ].join("\n"),
+        ),
+      MacKeymapParseError,
+      value,
+    );
+  }
+});
+
 test("内蔵と外付けを並べた devices が round-trip する", () => {
   const document: MacKeymapDocument = {
     layout: "ansi",
     devices: [{ builtIn: true }, { vendorId: 1452, productId: 630 }],
+    tappingTermMs: 200,
     profile: "KeySync",
     layers: new Map([[0, new Map([["a", "KC_A"]])]]),
   };

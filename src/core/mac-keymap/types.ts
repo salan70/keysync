@@ -37,6 +37,25 @@ export const KEYSYNC_PROFILE_NAME = "KeySync";
 export const LEGACY_PROFILE_NAME = "Cornix Bonsai";
 
 /**
+ * mod-tap の tap と hold を分ける閾値（ms）の既定。YAML で省略したときに parse が埋める。
+ *
+ * これより短く押して離すか、これより前に次のキーを押せば tap になる（ADR 0044）。
+ */
+export const DEFAULT_MAC_TAPPING_TERM_MS = 200;
+
+/** tapping term として受け付ける範囲（ms、両端を含む）。 */
+export const MAC_TAPPING_TERM_RANGE = { min: 50, max: 1000 } as const;
+
+/** tapping term として受け付ける値か。 */
+export function isMacTappingTerm(value: number): boolean {
+  return (
+    Number.isInteger(value) &&
+    value >= MAC_TAPPING_TERM_RANGE.min &&
+    value <= MAC_TAPPING_TERM_RANGE.max
+  );
+}
+
+/**
  * この設定を適用するデバイス 1 個の識別子。
  *
  * Karabiner の `device_if` の identifiers と同じ語彙で、写像は `generate.ts` の
@@ -79,6 +98,11 @@ export interface MacKeymapDocument {
    * `DEFAULT_MAC_DEVICES` を埋める（ADR 0026）。
    */
   readonly devices: readonly MacDeviceIdentifier[];
+  /**
+   * mod-tap の tap と hold を分ける閾値（ms）。全 mod-tap で共通。YAML で省略された場合は
+   * parse が `DEFAULT_MAC_TAPPING_TERM_MS` を埋める（ADR 0044）。
+   */
+  readonly tappingTermMs: number;
   /** 所有する Karabiner profile の名前。通常は `KEYSYNC_PROFILE_NAME`。 */
   readonly profile: string;
   /** layer 番号 → 割り当て。layer 番号も疎で、連続している必要は無い。 */

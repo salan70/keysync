@@ -105,6 +105,7 @@ test("適用先ラベルはdevicesから組む", () => {
       document: {
         ...base,
         devices: [{ builtIn: true }, { vendorId: 1452, productId: 630 }],
+        tappingTermMs: 200,
       },
       path: macKeymapPath("ansi"),
       token: undefined,
