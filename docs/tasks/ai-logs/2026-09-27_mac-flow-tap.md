@@ -34,3 +34,11 @@ ADR 0047 に記録した。
 - Fact: 16.3.0 の `karabiner_cli --lint-complex-modifications` は、Flow Tap を含む生成物を `ok` とした。
 - Fact: `just mac diff` は差分なしで、KeySync profile の mod-tap は閾値 180ms、`expression_if` は 9 個だった。
 - 実機の連続打鍵での効き具合は、利用者の確認待ちである。
+
+## 追記: 第 2 段階（Shift）
+
+- 利用者は、Flow Tap の適用後に割り当て全般、ロール打鍵で誤爆しないこと、間を空けた home mod のショートカットを確かめた。Shift の反応は変わらなかった。
+- Fact: Karabiner のソースを読み、`to_if_other_key_pressed` が key down だけで判定することと、処理済みのイベントが後ろの manipulator で invalid になることを確かめた。
+- Karabiner では Permissive Hold を作れないと判断した（Inference）。利用者は、Shift だけ次のキーを押した時点で hold にする案を選んだ。
+- Fact: 生成物は 16.3.0 の lint を通った。Shift の manipulator は先頭の rule に移り、右 Shift には layer 3 の `variable_unless` が付いた。
+- 判断は ADR 0048 に記録した。実機での確認は利用者の適用待ちである。

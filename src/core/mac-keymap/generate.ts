@@ -19,6 +19,7 @@ import type {
   KarabinerFrom,
   KarabinerKeyEvent,
   KarabinerManipulator,
+  KarabinerOtherKey,
   KarabinerProfile,
   KarabinerRule,
   KarabinerToEvent,
@@ -96,6 +97,9 @@ export interface GeneratedRules {
 export function generateKarabinerRules(document: MacKeymapDocument): GeneratedRules {
   const diagnostics: Diagnostic[] = [];
   const rules: KarabinerRule[] = [];
+  const hoisted: KarabinerManipulator[] = [];
+  /** layer ごとに manipulator を出したキー。前へ移した manipulator が上の layer を食わないようにする。 */
+  const emitted = new Map<number, Set<string>>();
   const base = document.layers.get(0);
   const layers = [...document.layers.keys()].sort((a, b) => b - a);
   const device = deviceCondition(document.devices);
@@ -113,10 +117,43 @@ export function generateKarabinerRules(document: MacKeymapDocument): GeneratedRu
       if (keycode === undefined) continue;
       // layer 0 と同値なら出さない。出しても素通しと同じ結果にしかならない。
       if (layer > 0 && base?.get(keyCode) === keycode) continue;
-      manipulators.push(...manipulatorsForKey(keyCode, keycode, layer, device, terms, diagnostics));
+      const generated = manipulatorsForKey(keyCode, keycode, layer, device, terms, diagnostics);
+      if (generated.length > 0) emitted.set(layer, (emitted.get(layer) ?? new Set()).add(keyCode));
+      for (const manipulator of generated) {
+        if (manipulator.to_if_other_key_pressed === undefined) {
+          manipulators.push(manipulator);
+          continue;
+        }
+        // 上の layer が同じキーに割り当てを持つときは、その layer では当たらないようにする。
+        // layer は降順に回るので、上の layer の emitted はここまでに埋まっている。
+        const shadowed = layers.filter(
+          (upper) => upper > layer && (emitted.get(upper)?.has(keyCode) ?? false),
+        );
+        hoisted.push({
+          ...manipulator,
+          conditions: [
+            ...manipulator.conditions,
+            ...shadowed.map(
+              (upper): KarabinerCondition => ({
+                type: "variable_unless",
+                name: layerVariable(upper),
+                value: 1,
+              }),
+            ),
+          ],
+        });
+      }
     }
     if (manipulators.length === 0) continue;
     rules.push({ description: `${document.profile} layer ${layer}`, manipulators });
+  }
+
+  // 前へ移した manipulator は、どの layer の rule よりも前に置く（ADR 0048）。
+  if (hoisted.length > 0) {
+    rules.unshift({
+      description: `${document.profile} hold on other key press`,
+      manipulators: hoisted,
+    });
   }
 
   if (terms.flowTapTermMs > 0) {
@@ -310,6 +347,22 @@ function flowTapPassThrough(
     }));
 }
 
+/** `to_if_other_key_pressed` で「どのキーでも」を表す。クリックも Shift+クリックに含める。 */
+const ANY_OTHER_KEYS: readonly KarabinerOtherKey[] = [
+  { any: "key_code", modifiers: { optional: ["any"] } },
+  { any: "pointing_button", modifiers: { optional: ["any"] } },
+];
+
+/**
+ * hold 側が Shift だけの mod-tap か。これだけは、押している間に別のキーを押した時点で hold にする
+ * （QMK の Hold On Other Key Press、ADR 0048）。
+ */
+function holdsOnOtherKeyPress(modifiers: readonly string[]): boolean {
+  return (
+    modifiers.length === 1 && (modifiers[0] === "left_shift" || modifiers[0] === "right_shift")
+  );
+}
+
 /**
  * 修飾キーの組を `to` イベント 1 個にする。先頭を `key_code`、残りを `modifiers` に置く。
  *
@@ -471,6 +524,31 @@ function manipulatorsForKey(
       // 押していた時間に関係なく modifier が掛かり、ロール打鍵で誤爆する（ADR 0044）。
       // 文字を打っている最中なら、閾値を待たずに tap 側を送る（ADR 0047）。
       const mark = flowTapMark(terms, isFlowTapKey(inner));
+      if (holdsOnOtherKeyPress(modifiers)) {
+        // Shift は閾値を待たず、次のキーを押した時点で hold にする。Karabiner は押した時点で
+        // 出力を決めるため、QMK の Permissive Hold（離した順で分ける）は作れない（ADR 0048）。
+        // `to_delayed_action` は持たない。持つと次のキーを押したとき tap 側の文字が出る。
+        // 他のキーより前に置く必要があり、generateKarabinerRules が前へ移す。後ろにあると、
+        // 先に当たった manipulator が処理したキーを見られない。
+        return [
+          ...flowTapManipulators(from, inner, conditions, terms),
+          {
+            type: "basic",
+            from,
+            ...(mark.length === 0 ? {} : { to: mark }),
+            to_if_alone: [inner],
+            to_if_held_down: [modifierEvent(modifiers)],
+            to_if_other_key_pressed: [
+              { other_keys: ANY_OTHER_KEYS, to: [modifierEvent(modifiers)] },
+            ],
+            parameters: {
+              "basic.to_if_alone_timeout_milliseconds": terms.tappingTermMs,
+              "basic.to_if_held_down_threshold_milliseconds": terms.tappingTermMs,
+            },
+            conditions,
+          },
+        ];
+      }
       return [
         ...flowTapManipulators(from, inner, conditions, terms),
         {

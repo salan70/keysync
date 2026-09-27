@@ -36,6 +36,12 @@ export interface KarabinerFrom {
   readonly modifiers: { readonly optional: readonly string[] };
 }
 
+/** `to_if_other_key_pressed` の `other_keys` に置く 1 個。`any` で種類ごとに全キーを指す。 */
+export interface KarabinerOtherKey {
+  readonly any: "key_code" | "pointing_button";
+  readonly modifiers: { readonly optional: readonly string[] };
+}
+
 /**
  * manipulator 1 個。
  *
@@ -49,6 +55,14 @@ export interface KarabinerManipulator {
   readonly to_after_key_up?: readonly KarabinerToEvent[];
   readonly to_if_alone?: readonly KarabinerToEvent[];
   readonly to_if_held_down?: readonly KarabinerToEvent[];
+  /**
+   * 押している間に `other_keys` のどれかが押されたら、`to` を離して`to_if_other_key_pressed.to`
+   * を押す。Karabiner 16.0.0 以降（ADR 0048）。
+   */
+  readonly to_if_other_key_pressed?: readonly {
+    readonly other_keys: readonly KarabinerOtherKey[];
+    readonly to: readonly KarabinerToEvent[];
+  }[];
   readonly to_delayed_action?: {
     readonly to_if_invoked?: readonly KarabinerToEvent[];
     readonly to_if_canceled?: readonly KarabinerToEvent[];

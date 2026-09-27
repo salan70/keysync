@@ -435,3 +435,73 @@ test("Flow Tap は割り当ての無い文字キーを、時刻を記録して�
   ]);
   strictEqual(passThrough.length, 30);
 });
+
+test("Shift の mod-tap は次のキーを押した時点で hold になり、tap 側を遅れて送らない", () => {
+  const [manipulator] = byKey(
+    documentOf([{ left_shift: "LSFT_T(KC_LANG1)" }], "ansi"),
+    "left_shift",
+  );
+  deepStrictEqual(manipulator?.to_if_other_key_pressed, [
+    {
+      other_keys: [
+        { any: "key_code", modifiers: { optional: ["any"] } },
+        { any: "pointing_button", modifiers: { optional: ["any"] } },
+      ],
+      to: [{ key_code: "left_shift" }],
+    },
+  ]);
+  deepStrictEqual(manipulator?.to_if_alone, [{ key_code: "japanese_kana" }]);
+  deepStrictEqual(manipulator?.to_if_held_down, [{ key_code: "left_shift" }]);
+  // to_delayed_action があると、次のキーを押したとき to_if_canceled が かな を送る。
+  strictEqual(manipulator?.to_delayed_action, undefined);
+  deepStrictEqual(manipulator?.parameters, {
+    "basic.to_if_alone_timeout_milliseconds": 200,
+    "basic.to_if_held_down_threshold_milliseconds": 200,
+  });
+});
+
+test("Shift 以外を含む mod-tap は閾値で tap と hold を分ける形のまま", () => {
+  for (const keycode of ["LCTL_T(KC_A)", "SGUI_T(KC_A)"]) {
+    const [manipulator] = byKey(documentOf([{ a: keycode }], "ansi"), "a");
+    strictEqual(manipulator?.to_if_other_key_pressed, undefined, keycode);
+    strictEqual(manipulator?.to_delayed_action !== undefined, true, keycode);
+  }
+});
+
+test("Shift の mod-tap はどの layer の rule よりも前に置く", () => {
+  // Karabiner は先に当たった manipulator が処理したキーを後ろの manipulator へ渡さない。
+  // 後ろにあると、割り当てのあるキーを押しても Shift にならない。
+  const { rules } = generateKarabinerRules(
+    documentOf([{ a: "KC_B", right_shift: "RSFT_T(KC_LANG2)" }, { a: "KC_C" }], "ansi"),
+  );
+  deepStrictEqual(
+    rules.map((rule) => rule.description),
+    ["KeySync hold on other key press", "KeySync layer 1", "KeySync layer 0"],
+  );
+  deepStrictEqual(
+    rules[0]?.manipulators.map((one) => one.from.key_code),
+    ["right_shift"],
+  );
+  strictEqual(
+    rules[2]?.manipulators.some((one) => one.from.key_code === "right_shift"),
+    false,
+  );
+});
+
+test("前へ移した Shift の mod-tap は、同じキーに割り当てのある上の layer では当たらない", () => {
+  const { rules } = generateKarabinerRules(
+    documentOf(
+      [
+        { right_shift: "RSFT_T(KC_LANG2)" },
+        {},
+        { right_shift: "KC_TRNS" },
+        { right_shift: "KC_BSLASH" },
+      ],
+      "ansi",
+    ),
+  );
+  const [hoisted] = rules[0]?.manipulators ?? [];
+  deepStrictEqual(hoisted?.conditions.slice(1), [
+    { type: "variable_unless", name: "keysync_layer_3", value: 1 },
+  ]);
+});

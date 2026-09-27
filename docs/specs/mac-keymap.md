@@ -218,9 +218,17 @@ ADR 0023です。`classifyKeycode`が返す`KeycodeLexeme`から直接写しま�
 
 - **ruleはlayer降順に出します。** ruleは上から評価され最初にマッチしたものが勝つため、
   逆順にするとlayer 0の割り当てが上のlayerを食います
+- **hold側がShiftだけのmod-tapは、どのlayerのruleよりも前の`<profile> hold on other key press` ruleへ移します**（ADR 0048）。
+  Karabinerは先に当たったmanipulatorが処理したキーを後ろのmanipulatorへ渡さないため、後ろにあると
+  割り当てのあるキーを押したときにShiftになりません。同じキーに割り当てを持つ上のlayerがあれば、
+  そのlayerの`variable_unless`を条件へ足し、上のlayerの割り当てを食わないようにします
 - **`TG(n)`は倒す側を先に置きます。** 順序を逆にすると押した直後に立て直します
 - **manipulatorを出さないのは2つだけです。** `KC_TRNS`と、layer 0と同値のキー。
   Karabinerは書かれていないキーを素通しするため、出さないことがそのまま正しい挙動です
+- hold側がShiftだけのmod-tap（`LSFT_T` / `RSFT_T`）は、押している間に別のキーかポインティングボタンを
+  押した時点でholdにします（ADR 0048）。`to_if_other_key_pressed`でShiftを押し、他のキーだけで離せば
+  `to_if_alone`でtap側、`tappingTermMs`まで押し続ければ`to_if_held_down`でShiftです。
+  `to_delayed_action`は持ちません。以下のmod-tapの規則はそれ以外のmod-tapに当てはまります
 - mod-tapは`tappingTermMs`の閾値でtapとholdを分けます（ADR 0044）。`to`は持たず、
   holdのmodifierは`to_if_held_down`、tap側は`to_if_alone`と`to_delayed_action`の
   `to_if_canceled`に置きます。閾値より前に次のキーを押すか離せばtap、閾値まで押し続ければ
@@ -248,7 +256,7 @@ ADR 0023です。`classifyKeycode`が返す`KeycodeLexeme`から直接写しま�
   `generate.ts`の`deviceCondition`だけが持ちます（ADR 0026）
 - `from`には`modifiers: { optional: ["any"] }`を付け、修飾キーを素通しさせます
 - manipulatorが1つも出ないlayerはruleごと省略します
-- `expression_if`と`set_variable.expression`はKarabiner 15.6.0以降でしか読めません
+- `expression_if`と`set_variable.expression`はKarabiner 15.6.0以降、`to_if_other_key_pressed`は16.0.0以降でしか読めません
 
 `key_code`名の昇順で並べます。生成物が入力の書き順に依存しないようにするためです。
 

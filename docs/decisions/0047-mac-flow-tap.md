@@ -69,5 +69,5 @@ Flow Tap が無効なら、生成物は本 ADR より前と同じである。
 - 割り当ての無い文字以外のキー（数字、矢印など）は記録を 0 に戻さない。数字の直後に 130ms 未満で押した mod-tap は tap になり、QMK と差が出る
 - manipulator が増える。割り当てのあるキーには `set_variable` が 1 個加わり、割り当ての無い文字キーには素通しの manipulator が加わる
 - Shift の反応の悪さはこの ADR では直らない。Shift の tap 側は文字キーではないため、Flow Tap の対象外である
-- Open Question: Permissive Hold と Chordal Hold（反対の手のキーを押して離したら閾値の前でも hold）を Karabiner で作れるか。第 2 段階として Spike で確かめる。作れなければ案 2 を再検討する
+- 解決済み（2026-09-27）: Permissive Hold は Karabiner では作れないと判断した。Shift の扱いは ADR 0048 で決めた
 - 解決済み（2026-09-27）: Karabiner 16.3.0 へ更新して適用した。利用者が実機で打ち、割り当て全般、ロール打鍵で誤爆しないこと、間を空けた home mod のショートカットを確かめた。Shift の反応は変わらなかった（想定どおり）
