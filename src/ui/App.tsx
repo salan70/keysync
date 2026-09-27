@@ -8,6 +8,7 @@ import {
   setMacTappingTerm,
 } from "../core/mac-keymap/edit.ts";
 import { macKeycodeSupport } from "../core/mac-keymap/generate.ts";
+import { passthroughKeycode } from "../core/mac-keymap/key-codes.ts";
 import {
   isMacFlowTapTerm,
   isMacTappingTerm,
@@ -233,6 +234,11 @@ export function App({
       ? macReady.document.layers.get(layer)?.get(selection.keyCode)
       : undefined;
   const currentKeycode = isCornix ? cornixKeycode : macKeycode;
+  /** 素通しのキーが送る keycode。Hold や動作を足すときの Tap の初期値にする。 */
+  const passthrough =
+    !isCornix && selection?.kind === "macKey" && macKeycode === undefined
+      ? passthroughKeycode(selection.keyCode)
+      : undefined;
 
   function editSelected(keycode: string): void {
     if (isCornix) {
@@ -263,7 +269,7 @@ export function App({
 
   function pick(picked: string): void {
     if (selection === undefined) return;
-    const current = currentKeycode ?? "KC_NO";
+    const current = currentKeycode ?? passthrough ?? "KC_NO";
     const next = applyPick(current, cursor.pickTarget, picked);
     if (next === currentKeycode) return;
     editSelected(next);
@@ -655,6 +661,7 @@ export function App({
           mode={isCornix ? "cornix" : "mac"}
           position={position}
           keycode={currentKeycode}
+          passthroughKeycode={passthrough}
           table={isCornix ? table : undefined}
           labels={isCornix ? workspace.labels : macLabels}
           pickTarget={cursor.pickTarget}

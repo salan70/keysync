@@ -118,6 +118,7 @@ schemaは`keysync/mac-keymap@1`のほか、改名前の`cornix-bonsai/mac-keymap
 
 <!-- @code src/core/mac-keymap/key-codes.ts#karabinerKeyCode -->
 <!-- @code src/core/mac-keymap/key-codes.ts#karabinerKeyEvent -->
+<!-- @code src/core/mac-keymap/key-codes.ts#passthroughKeycode -->
 
 ## karabinerKeyCode
 
@@ -133,6 +134,8 @@ Karabinerは生成器が落とせなければ機能そのものが無くなる�
 shift済みkeycodeを、baseの`key_code`に`left_shift`を付けたイベントへ写します。
 Karabinerに`!`単体の`key_code`が無いためです（ADR 0043）。
 修飾の`modifiers`は`KARABINER_MODIFIERS`がwrapper名から引き、複合modifierはQMKの定義どおりに展開します。
+逆向きの`passthroughKeycode`は、割り当ての無い位置が素通しで送るQMK表記を返します。
+UIが素通しのキーへHold や動作を足すとき、Tapの初期値に使います。
 
 位置として書ける`key_code`名は`KARABINER_POSITIONS`です。表の値に、QMK側へ対応の無い
 MacBookの`fn`を足したものです。

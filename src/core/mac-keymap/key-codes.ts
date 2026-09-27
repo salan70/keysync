@@ -250,6 +250,19 @@ export function karabinerKeyCode(keycode: string): string | undefined {
   return KARABINER_KEY_CODES.get(canonicalKeycode(keycode));
 }
 
+const QMK_KEYCODES_BY_POSITION: ReadonlyMap<string, string> = new Map(
+  [...KARABINER_KEY_CODES].map(([keycode, keyCode]) => [keyCode, keycode]),
+);
+
+/**
+ * 位置（Karabiner の `key_code`）が素通しで送る QMK 表記。`fn` のように対応が無ければ `undefined`。
+ *
+ * @doc docs/specs/mac-keymap.md#karabinerkeycode
+ */
+export function passthroughKeycode(keyCode: string): string | undefined {
+  return QMK_KEYCODES_BY_POSITION.get(keyCode);
+}
+
 /**
  * QMK 表記を Karabiner の `to` イベント 1 個へ写す。無ければ `undefined`。
  *

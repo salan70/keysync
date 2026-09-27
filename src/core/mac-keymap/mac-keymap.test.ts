@@ -2,6 +2,7 @@ import { deepStrictEqual, strictEqual, throws } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
+import { passthroughKeycode } from "./key-codes.ts";
 import { parseMacKeymapYaml } from "./parse.ts";
 import { serializeMacKeymapYaml } from "./serialize.ts";
 import {
@@ -321,4 +322,12 @@ test("解釈できない devices の行は落ちる", () => {
     "layers:",
   ].join("\n");
   throws(() => parseMacKeymapYaml(text), MacKeymapParseError);
+});
+
+test("passthroughKeycode は素通しの位置が送る QMK 表記を返す", () => {
+  strictEqual(passthroughKeycode("a"), "KC_A");
+  strictEqual(passthroughKeycode("spacebar"), "KC_SPACE");
+  strictEqual(passthroughKeycode("japanese_eisuu"), "KC_LANG2");
+  // QMK に対応の無い fn は初期値を持たない。
+  strictEqual(passthroughKeycode("fn"), undefined);
 });

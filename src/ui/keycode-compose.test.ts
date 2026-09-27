@@ -8,6 +8,7 @@ import {
   structuredValues,
   targetValue,
 } from "./keycode-compose.ts";
+import { passthroughKeycode } from "../core/mac-keymap/key-codes.ts";
 
 test("applyPick replaces the whole keycode", () => {
   assert.equal(applyPick("LSFT_T(KC_SPACE)", "whole", "KC_ENTER"), "KC_ENTER");
@@ -82,4 +83,11 @@ test("LT の Hold の現在値は MO(n) として扱う", () => {
   assert.equal(targetValue("LT2(KC_A)", "hold"), "MO(2)");
   assert.equal(targetValue("LT2(KC_A)", "tap"), "KC_A");
   assert.equal(targetValue("LCTL_T(KC_A)", "hold"), "KC_LCTRL");
+});
+
+test("素通しのキーへ Hold や動作を足すと、物理キーが Tap に残る", () => {
+  const passthrough = passthroughKeycode("a") ?? "KC_NO";
+  assert.equal(applyPick(passthrough, "hold", "KC_LSHIFT"), "LSFT_T(KC_A)");
+  assert.equal(applyPick(passthrough, "hold", "MO(1)"), "LT1(KC_A)");
+  assert.equal(composeKeycode("modTap", structuredValues(passthrough)), "LSFT_T(KC_A)");
 });

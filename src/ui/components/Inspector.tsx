@@ -41,6 +41,7 @@ export function Inspector({
   mode,
   position,
   keycode,
+  passthroughKeycode,
   table,
   labels,
   pickTarget,
@@ -61,6 +62,8 @@ export function Inspector({
   readonly position: string | undefined;
   /** 現在値。Mac の素通しは `undefined`。 */
   readonly keycode: string | undefined;
+  /** 素通しのキーが送る keycode。動作を足すときの Tap の初期値。 */
+  readonly passthroughKeycode?: string | undefined;
   readonly table: ReturnType<typeof createKeycodeTable> | undefined;
   readonly labels: WorkspaceLabels;
   readonly pickTarget: PickTarget;
@@ -116,7 +119,8 @@ export function Inspector({
   const display =
     keycode === undefined ? undefined : keycodeDisplay(keycode, labels, table, { compact: true });
   const lexeme = keycode === undefined ? undefined : classifyKeycode(keycode);
-  const structured = keycode === undefined ? undefined : structuredValues(keycode);
+  const base = keycode ?? passthroughKeycode;
+  const structured = base === undefined ? undefined : structuredValues(base);
   const behavior = keycode === undefined ? "none" : behaviorKind(lexeme);
   const options =
     mode === "mac" ? macBehaviorOptions(behavior) : [...new Set([behavior, ...BEHAVIOR_OPTIONS])];

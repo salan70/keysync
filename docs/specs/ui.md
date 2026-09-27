@@ -328,6 +328,7 @@ entry は `macBoardEntries` が物理配列を正として組む。
 layer の切替は疎な layer 番号をそのまま並べ、「+ layer N を追加」を置く。
 
 keycode の選択は同じ picker を使い、`applyPick` の合成と `setMacAssignment` での保存は `App` が持つ。
+素通しのキーへ Hold や動作を足すときは、そのキーが素通しで送る keycode（`passthroughKeycode`）を Tap の初期値にする。
 keycode 表示は Vial と同じ label 関数を使うが、layer 名は剥がして渡し、`createKeycodeTable` は呼ばない。
 診断は `validateMacKeymap` の結果を Vial 側と分けて持ち、盤面の印、検証パネル、status bar の件数はすべて Mac の診断で描く。
 Karabiner への適用はローカルサーバーが行い、Web UI は差分を見せて承認を送るだけである（ADR 0034）。
