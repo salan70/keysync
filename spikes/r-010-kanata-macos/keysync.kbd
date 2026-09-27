@@ -1,0 +1,152 @@
+;; R-010 Spike: MacBook 内蔵キーボード（ANSI）を kanata で Cornix LP と同じ判定にする。
+;;
+;; 利用者の mac-keyboard.ansi.yaml（2026-09-27 時点）を手で写した。生成器は無い。
+;; Cornix の Vial settings: Tapping Term 180ms、Permissive Hold、Chordal Hold、Flow Tap 130ms。
+
+(defcfg
+  process-unmapped-keys yes
+  ;; 内蔵キーボードだけを掴む。Cornix LP などの外付けは触らない。
+  macos-dev-names-include ("Apple Internal Keyboard / Trackpad")
+  ;; Flow Tap: 直前のキーから 130ms 未満で押した tap-hold は tap にする。
+  tap-hold-require-prior-idle 130
+)
+
+(defsrc)
+
+;; Chordal Hold の手の割り当て。Cornix で同じ役割のキーと同じ手にする（spacebar は左の親指）。
+(defhands
+  (left  grv 1 2 3 4 5 tab q w e r t caps a s d f g lsft z x c v b lctl lalt lmet spc)
+  (right 6 7 8 9 0 - = bspc y u i o p [ ] \ h j k l ; ' ret n m , . / rsft rmet ralt
+         left right up down))
+
+(defvar tt 180)
+
+(defalias
+  ;; home mod: 閾値の前でも、反対の手のキーを押して離せば hold（Permissive + Chordal）。
+  ;; 同じ手のキーなら tap。閾値を過ぎたら hold（QMK と同じ）。
+  hd (tap-hold-opposite-hand-release $tt d lalt (timeout hold))
+  hf (tap-hold-opposite-hand-release $tt f lmet (timeout hold))
+  hg (tap-hold-opposite-hand-release $tt g lctl (timeout hold))
+  hs (tap-hold-opposite-hand-release $tt s (multi lsft lmet) (timeout hold))
+  hh (tap-hold-opposite-hand-release $tt h rctl (timeout hold))
+  hj (tap-hold-opposite-hand-release $tt j rmet (timeout hold))
+  hk (tap-hold-opposite-hand-release $tt k ralt (timeout hold))
+  hl (tap-hold-opposite-hand-release $tt l (multi lsft lmet) (timeout hold))
+  hsp (tap-hold-opposite-hand-release $tt spc lmet (timeout hold))
+  ;; Enter は QMK の Flow Tap の対象外（tap 側が文字でない）。
+  hret (tap-hold-opposite-hand-release $tt ret rmet (timeout hold) (require-prior-idle 0))
+  ;; Shift は小指で同じ手の文字とも組むため、手を問わない Permissive Hold にする。
+  ;; かな・英数は Flow Tap の対象外。
+  sl (tap-hold-release 0 $tt kana lsft (require-prior-idle 0))
+  sr (tap-hold-release 0 $tt eisu rsft (require-prior-idle 0))
+  l1 (layer-while-held l1)
+  l2 (layer-while-held l2)
+  l3 (layer-while-held l3)
+  l4 (layer-while-held l4)
+)
+
+(deflayermap (base)
+  caps @l2
+  d @hd
+  f @hf
+  g @hg
+  grv esc
+  h @hh
+  j @hj
+  k @hk
+  l @hl
+  lmet @l3
+  lctl @l4
+  lsft @sl
+  [ bspc
+  ' S-1
+  ret @hret
+  rmet @l1
+  rsft @sr
+  s @hs
+  ; -
+  spc @hsp
+)
+
+(deflayermap (l1)
+  a kp1
+  , kp,
+  d kp3
+  e S-5
+  f kp4
+  g kp5
+  h kp6
+  j kp7
+  k kp8
+  l kp9
+  n S-'
+  [ NumpadEqual
+  p kp+
+  . kp.
+  r S-6
+  s kp2
+  ; kp0
+  / kp/
+  t S-7
+  w S-4
+  ___ _
+)
+
+(deflayermap (l2)
+  b left
+  f right
+  h C-a
+  i C-S-tab
+  j C-e
+  k M-[
+  l M-]
+  n down
+  o C-tab
+  p up
+  ___ _
+)
+
+(deflayermap (l3)
+  , ]
+  d S-2
+  e S-5
+  f S-3
+  g S-grv
+  h '
+  i S-]
+  j S-9
+  k S-0
+  l S-;
+  m [
+  n S-'
+  [ NumpadEqual
+  p kp+
+  . S-,
+  ' S-\
+  r S-6
+  rsft \
+  s S-8
+  ; ;
+  / S-.
+  t S-7
+  u S-[
+  w S-4
+  y grv
+  ___ _
+)
+
+(deflayermap (l4)
+  h f6
+  i f3
+  j f7
+  k f8
+  l f9
+  o f4
+  p f5
+  ret f11
+  rmet f12
+  ; f10
+  u f2
+  y f1
+  ___ _
+)
