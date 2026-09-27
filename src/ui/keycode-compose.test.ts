@@ -5,6 +5,7 @@ import {
   canPick,
   composeKeycode,
   macBehaviorOptions,
+  removeHold,
   structuredValues,
   targetValue,
 } from "./keycode-compose.ts";
@@ -90,4 +91,12 @@ test("素通しのキーへ Hold や動作を足すと、物理キーが Tap に
   assert.equal(applyPick(passthrough, "hold", "KC_LSHIFT"), "LSFT_T(KC_A)");
   assert.equal(applyPick(passthrough, "hold", "MO(1)"), "LT1(KC_A)");
   assert.equal(composeKeycode("modTap", structuredValues(passthrough)), "LSFT_T(KC_A)");
+});
+
+test("removeHold は mod-tap と layer-tap を Tap だけに戻す", () => {
+  assert.equal(removeHold("LSFT_T(KC_A)"), "KC_A");
+  assert.equal(removeHold("LT1(KC_SPACE)"), "KC_SPACE");
+  assert.equal(removeHold("KC_A"), undefined);
+  assert.equal(removeHold("LSFT(KC_A)"), undefined);
+  assert.equal(removeHold("MO(1)"), undefined);
 });

@@ -135,8 +135,12 @@
     border-radius: var(--radius-control);
     background: var(--color-surface);
   }
-  .field-row input {
+  .field-row input,
+  .field-row select {
     flex: 1;
+  }
+  .field-row > .button {
+    flex: none;
   }
   .details summary {
     font-weight: var(--font-weight-bold);

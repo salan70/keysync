@@ -15,3 +15,12 @@ Inspector も素通しでは `structuredValues` を持たず、`composeKeycode` 
 
 `passthroughKeycode` で位置（Karabiner の `key_code`）から素通しで送る QMK 表記を逆引きし、Tap の初期値にした。
 `fn` は QMK に対応が無いため従来どおり `KC_NO` になる。
+
+## Hold を外す操作
+
+設定した Hold を外す手段が、動作 select で `basic` を選ぶことしか無く、見つけにくかった。
+動作 select の横に「Hold を外す」を常設し、mod-tap と layer-tap を Tap だけへ戻すようにした（`removeHold`）。
+Hold が無いときは無効にし、ボタンの有無で高さが変わらないようにした。
+最初は適用先のヒントの横へ置いたが、ヒントの折り返しが適用先ごとに 2〜3 行で揺れたため、動作 select の横へ移した。
+Mac で戻した keycode が素通しで送るキーと同じなら、`KC_A` を書かずに割り当てを外し、素通しへ戻す。
+表示は Vite で Inspector だけを描き、headless Chrome で 4 状態を撮って確かめた。

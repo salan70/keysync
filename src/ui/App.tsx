@@ -234,11 +234,9 @@ export function App({
       ? macReady.document.layers.get(layer)?.get(selection.keyCode)
       : undefined;
   const currentKeycode = isCornix ? cornixKeycode : macKeycode;
-  /** 素通しのキーが送る keycode。Hold や動作を足すときの Tap の初期値にする。 */
+  /** 選択中の Mac のキーが素通しで送る keycode。Hold や動作を足すときの Tap の初期値にする。 */
   const passthrough =
-    !isCornix && selection?.kind === "macKey" && macKeycode === undefined
-      ? passthroughKeycode(selection.keyCode)
-      : undefined;
+    !isCornix && selection?.kind === "macKey" ? passthroughKeycode(selection.keyCode) : undefined;
 
   function editSelected(keycode: string): void {
     if (isCornix) {

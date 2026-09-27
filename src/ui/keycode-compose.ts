@@ -128,6 +128,15 @@ export function applyPick(current: string, target: PickTarget, picked: string): 
   return `${modifier}_T(${tapValue(lexeme, current)})`;
 }
 
+/** Hold を外した keycode。mod-tap と layer-tap は Tap だけに戻す。Hold が無ければ `undefined`。 */
+/** @doc docs/specs/ui.md#side-panel-editing-controls */
+export function removeHold(keycode: string): string | undefined {
+  const lexeme = classifyKeycode(keycode);
+  if (lexeme.kind === "modTap") return lexeme.inner;
+  if (lexeme.kind === "layerSwitch" && lexeme.action === "layerTap") return lexeme.inner;
+  return undefined;
+}
+
 /** 適用先に応じた現在値。Tap は内側の keycode、Hold は modifier の keycode（LT は `MO(n)`）。 */
 export function targetValue(keycode: string | undefined, target: PickTarget): string | undefined {
   if (keycode === undefined) return undefined;

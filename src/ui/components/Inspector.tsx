@@ -1,13 +1,14 @@
 import { useEffect, useState, type RefObject } from "react";
 import { describeKeycode } from "../../core/diff/describe.ts";
 import type { createKeycodeTable } from "../../core/keycode/table.ts";
-import { classifyKeycode } from "../../core/validation/keycode-vocabulary.ts";
+import { canonicalKeycode, classifyKeycode } from "../../core/validation/keycode-vocabulary.ts";
 import { keycodeLabel, layerLabel, type WorkspaceLabels } from "../../workspace/labels.ts";
 import {
   BEHAVIOR_OPTIONS,
   behaviorKind,
   composeKeycode,
   macBehaviorOptions,
+  removeHold,
   structuredValues,
   targetValue,
   type PickTarget,
@@ -62,7 +63,7 @@ export function Inspector({
   readonly position: string | undefined;
   /** 現在値。Mac の素通しは `undefined`。 */
   readonly keycode: string | undefined;
-  /** 素通しのキーが送る keycode。動作を足すときの Tap の初期値。 */
+  /** Mac のキーが素通しで送る keycode。動作を足すときの Tap の初期値。Hold を外してこれに戻るなら素通しへ戻す。 */
   readonly passthroughKeycode?: string | undefined;
   readonly table: ReturnType<typeof createKeycodeTable> | undefined;
   readonly labels: WorkspaceLabels;
@@ -124,6 +125,16 @@ export function Inspector({
   const behavior = keycode === undefined ? "none" : behaviorKind(lexeme);
   const options =
     mode === "mac" ? macBehaviorOptions(behavior) : [...new Set([behavior, ...BEHAVIOR_OPTIONS])];
+  const withoutHold = keycode === undefined ? undefined : removeHold(keycode);
+  function onRemoveHold(): void {
+    if (withoutHold === undefined) return;
+    const backToPassthrough =
+      mode === "mac" &&
+      passthroughKeycode !== undefined &&
+      canonicalKeycode(withoutHold) === canonicalKeycode(passthroughKeycode);
+    if (backToPassthrough) onClear();
+    else onEdit(withoutHold);
+  }
   const referencedLayer = lexeme?.kind === "layerSwitch" ? lexeme.layer : undefined;
   const formatted = (value: string | undefined): string => {
     if (value === undefined) return "—";
@@ -183,19 +194,35 @@ export function Inspector({
           : "下の picker から選ぶと、すぐに保存する。"}
       </p>
 
-      <label className="field">
-        <span>動作</span>
-        <select
-          value={behavior}
-          onChange={(event) => onEdit(composeKeycode(event.target.value, structured))}
-        >
-          {options.map((option) => (
-            <option value={option} key={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="field">
+        <label htmlFor="inspector-behavior">動作</label>
+        <div className="field-row">
+          <select
+            id="inspector-behavior"
+            value={behavior}
+            onChange={(event) => onEdit(composeKeycode(event.target.value, structured))}
+          >
+            {options.map((option) => (
+              <option value={option} key={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <Button
+            size="small"
+            appearance="secondary"
+            disabled={withoutHold === undefined}
+            title={
+              withoutHold === undefined
+                ? "Hold は設定されていない"
+                : `Tap の ${formatted(withoutHold)} だけに戻す`
+            }
+            onClick={onRemoveHold}
+          >
+            Hold を外す
+          </Button>
+        </div>
+      </div>
 
       <details className="details">
         <summary>raw keycode{mode === "cornix" ? "・表示名" : ""}</summary>

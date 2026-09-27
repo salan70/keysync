@@ -239,6 +239,7 @@ layer の切替は layer 番号と名前の chip で、番号の順に強調色 
 参照元の無い layer は畳み、選択中の layer は常に出す。
 
 <!-- @code src/ui/components/index.ts#Inspector -->
+<!-- @code src/ui/keycode-compose.ts#removeHold -->
 <!-- @code src/ui/save-state.ts#SaveState -->
 <!-- @code src/ui/save-state.ts#chooseSaveCandidate -->
 <!-- @code src/ui/save-state.ts#saveFailureState -->
@@ -248,6 +249,9 @@ layer の切替は layer 番号と名前の chip で、番号の順に強調色 
 編集パネルは選択中のキーまたは encoder の位置、keycap、raw keycode、挙動の説明を常設する。
 layer を指す keycode は参照先の layer 名と番号を示し、押すとその layer を開く。
 picker の適用先（キー全体、Tap、Hold）は segmented の radio で、各適用先の現在値を併記する。
+動作 select の横に「Hold を外す」を常設し、mod-tap と layer-tap を Tap だけの keycode へ戻す（`removeHold`）。
+Hold が無いときは無効にして、高さを変えない。
+Mac で戻した keycode が素通しで送るキーと同じなら、割り当てを外して素通しへ戻す。
 動作 select は既存 keycode の分類を使い、Cornix は `BEHAVIOR_OPTIONS`、Mac は `basic` / `modified` / `modTap` / `layerSwitch` / `none` に絞る。
 raw keycode と表示名は折りたたみの中に置く。
 raw keycode は Enter または「反映」で保存し、Mac では空欄を素通しへ戻す操作として扱う。
