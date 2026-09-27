@@ -25,3 +25,12 @@ ADR 0047 に記録した。
 
 - Permissive Hold と Chordal Hold を Karabiner で作れるか。第 2 段階として Spike で確かめる。
 - Karabiner を更新して適用したあと、連続打鍵で Flow Tap が意図どおり効くか。
+
+## 追記: Karabiner 16.3.0 への更新と適用
+
+- Fact: 利用者が Karabiner を 16.3.0 へ更新した直後は、すべての割り当てが効かなくなった。旧版の `karabiner_grabber` が止まり、新版のサービスが起動していなかったためである。
+- Fact: 16.x では、キー処理の本体が `Karabiner-Core-Service`（daemon と agent）に替わる。ログは `/var/log/karabiner/core_service.log` である。旧 `karabiner_grabber` の launchd 登録は残るが、起動しない（終了コード 78）。
+- Fact: 利用者がシステム設定で許可を与えると、Core Service が `karabiner.json` を読み込み、内蔵キーボードを掴んだ。読み込み時にエラーは出なかった。
+- Fact: 16.3.0 の `karabiner_cli --lint-complex-modifications` は、Flow Tap を含む生成物を `ok` とした。
+- Fact: `just mac diff` は差分なしで、KeySync profile の mod-tap は閾値 180ms、`expression_if` は 9 個だった。
+- 実機の連続打鍵での効き具合は、利用者の確認待ちである。
