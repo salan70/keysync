@@ -1,0 +1,115 @@
+/* 打鍵テスト（ADR 0045）。閾値ごとに課題を打って採点する。 */
+@layer features {
+  .typing {
+    display: grid;
+    gap: var(--space-300);
+  }
+  /* 状態文の長さが変わってもカードの高さを変えない。 */
+  .typing-status {
+    min-height: calc(2em * var(--font-line-height-ui));
+  }
+  .typing-status.is-ok {
+    color: var(--color-success);
+    font-weight: var(--font-weight-bold);
+  }
+  .typing-trial,
+  .typing-history {
+    justify-items: stretch;
+  }
+  .typing-prompt {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-lg);
+    overflow-wrap: anywhere;
+  }
+  /* 高さを固定し、打った量でパネルが伸び縮みしないようにする。 */
+  .typing-capture {
+    height: calc(var(--font-size-lg) * 4.5);
+    overflow-y: auto;
+    padding: var(--space-200) var(--space-300);
+    border: var(--border-width-thick) solid var(--color-outline);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-lg);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    cursor: text;
+  }
+  .typing-capture:focus-visible {
+    border-color: var(--color-focus);
+  }
+  .typing-capture .muted {
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-sm);
+  }
+  .typing-token.is-chord {
+    padding: 0 var(--space-50);
+    border-radius: var(--radius-sm);
+    background: var(--color-error);
+    color: var(--color-surface);
+  }
+  .typing-result {
+    display: grid;
+    align-content: start;
+    gap: var(--space-200);
+    min-height: calc(var(--font-size-lg) * 6);
+  }
+  .typing-line {
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-lg);
+    line-height: 2;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .typing-mark {
+    padding: 0 var(--space-50);
+    border-radius: var(--radius-sm);
+    background: var(--color-tertiary-container);
+    color: var(--color-on-tertiary-container);
+  }
+  .typing-mark.is-misfire {
+    background: var(--color-error);
+    color: var(--color-surface);
+  }
+  .typing-mark.is-dropped {
+    background: none;
+    color: var(--color-on-surface-variant);
+    text-decoration: line-through;
+  }
+  .typing-mark sup {
+    margin-inline-start: var(--space-50);
+    font-size: var(--font-size-xs);
+  }
+  .typing-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-100) var(--space-400);
+  }
+  .typing-counts > div {
+    display: flex;
+    gap: var(--space-100);
+  }
+  .typing-counts dt {
+    color: var(--color-on-surface-variant);
+  }
+  .typing-counts dd {
+    font-weight: var(--font-weight-bold);
+    font-variant-numeric: tabular-nums;
+  }
+  .typing-history-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .typing-table :is(td, th) {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .typing-table :is(td, thead th:not(:first-child)) {
+    text-align: end;
+  }
+  .typing-table tr.is-current {
+    background: var(--color-primary-container);
+    color: var(--color-on-primary-container);
+  }
+}

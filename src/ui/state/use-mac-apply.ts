@@ -19,6 +19,18 @@ import {
 /** 計画を組めずに止まった理由。 */
 export type MacApplyStopped = MacPlanBlocked | MacApiFailure | MacServerUnreachable;
 
+/**
+ * Karabiner で効いていると確かめた mod-tap の閾値。適用が成功したとき、または差分が
+ * 無く profile も選択済みと分かったときにだけ記録する。打鍵テストが、どの閾値で
+ * 打った結果かを示すのに使う（ADR 0045）。
+ *
+ * @doc docs/specs/ui.md#typing-panel
+ */
+export interface MacEffectiveTappingTerm {
+  readonly layout: MacKeyboardLayout;
+  readonly tappingTermMs: number;
+}
+
 /** 書き込みを試みた後の結果。`fingerprint-mismatch` は計画の見直しへ戻すので含めない。 */
 export type MacApplyOutcome =
   | Exclude<MacApplyResponse, { kind: "fingerprint-mismatch" } | MacPlanBlocked | MacApiFailure>
@@ -43,9 +55,21 @@ export type MacApplyView =
 export function useMacApply() {
   const [machine, setMachine] = useState<MacMachine>({ kind: "unknown" });
   const [view, setView] = useState<MacApplyView>({ phase: "closed" });
+  const [effective, setEffective] = useState<MacEffectiveTappingTerm | undefined>();
   const target = useRef<
-    { readonly layout: MacKeyboardLayout; readonly digest: string } | undefined
+    | {
+        readonly layout: MacKeyboardLayout;
+        readonly digest: string;
+        readonly tappingTermMs: number;
+      }
+    | undefined
   >(undefined);
+
+  function markEffective(): void {
+    if (target.current === undefined) return;
+    const { layout, tappingTermMs } = target.current;
+    setEffective({ layout, tappingTermMs });
+  }
 
   useEffect(() => {
     let alive = true;
@@ -66,8 +90,11 @@ export function useMacApply() {
   async function open(layout: MacKeyboardLayout, document: MacKeymapDocument): Promise<void> {
     setView({ phase: "planning" });
     const digest = await macKeymapDigest(document, globalThis.crypto);
-    target.current = { layout, digest };
+    target.current = { layout, digest, tappingTermMs: document.tappingTermMs };
     const result = await planMacApplyRemote({ layout, digest });
+    if (result.kind === "planned" && result.entries.length === 0 && !result.selection.required) {
+      markEffective();
+    }
     setView(
       result.kind === "planned"
         ? { phase: "review", plan: result, changed: false }
@@ -80,11 +107,13 @@ export function useMacApply() {
     if (view.phase !== "review" || target.current === undefined) return;
     const { plan } = view;
     setView({ phase: "applying", plan });
-    const result = await applyMacRemote({ ...target.current, fingerprint: plan.fingerprint });
+    const { layout, digest } = target.current;
+    const result = await applyMacRemote({ layout, digest, fingerprint: plan.fingerprint });
     if (result.kind === "fingerprint-mismatch") {
       setView({ phase: "review", plan: result.plan, changed: true });
       return;
     }
+    if (result.kind === "applied") markEffective();
     setView({ phase: "result", outcome: result, retrying: false });
   }
 
@@ -96,6 +125,7 @@ export function useMacApply() {
     setView({ phase: "result", outcome: failed, retrying: true });
     const result = await selectMacProfileRemote(target.current.layout);
     if (result.kind === "selected" && result.ok) {
+      markEffective();
       setView({
         phase: "result",
         outcome: { kind: "applied", backup: failed.backup, selected: true },
@@ -117,5 +147,5 @@ export function useMacApply() {
     setView({ phase: "closed" });
   }
 
-  return { machine, view, open, apply, retrySelect, close };
+  return { machine, view, effective, open, apply, retrySelect, close };
 }

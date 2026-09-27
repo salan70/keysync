@@ -17,7 +17,7 @@ export function targetKeyOf(target: EditTarget): TargetKey {
  *
  * @doc docs/specs/ui.md#rail-and-panels
  */
-export type PanelId = "overview" | "behaviors" | "validation" | "device" | "files";
+export type PanelId = "overview" | "behaviors" | "validation" | "device" | "typing" | "files";
 
 export type Selection =
   | { readonly kind: "key"; readonly row: number; readonly col: number }

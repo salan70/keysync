@@ -8,6 +8,7 @@ import {
 } from "../core/mac-keymap/edit.ts";
 import { macKeycodeSupport } from "../core/mac-keymap/generate.ts";
 import { isMacTappingTerm, MAC_TAPPING_TERM_RANGE } from "../core/mac-keymap/types.ts";
+import type { TrialRecord } from "../core/typing-trial/history.ts";
 import { validateMacKeymap } from "../core/mac-keymap/validate.ts";
 import { setEncoderAssignment, setKeyAssignment } from "../core/model/edit.ts";
 import { buildKeymapView } from "../core/model/keymap-view.ts";
@@ -58,6 +59,7 @@ import { CornixDevicePanel, MacDevicePanel } from "./components/panels/DevicePan
 import { FilesPanel } from "./components/panels/FilesPanel.tsx";
 import { IconStyleContext } from "./components/Icon.tsx";
 import { OverviewPanel } from "./components/panels/OverviewPanel.tsx";
+import { TypingPanel } from "./components/panels/TypingPanel.tsx";
 import {
   CornixReferences,
   MacReferences,
@@ -73,6 +75,7 @@ const PANEL_TONE: Readonly<Record<PanelId, string>> = {
   behaviors: "tone-behaviors",
   validation: "tone-validation",
   device: "tone-device",
+  typing: "tone-typing",
   files: "tone-files",
 };
 
@@ -103,6 +106,8 @@ export function App({
   });
   const [panel, setPanel] = useState<PanelId | undefined>();
   const [panelSizes, setPanelSizes] = useState<Readonly<Partial<Record<PanelId, PanelSize>>>>({});
+  // 打鍵テストの試行。パネルを閉じても残し、再読込で消える（ADR 0045）。
+  const [trials, setTrials] = useState<readonly TrialRecord[]>([]);
   const [validationFilter, setValidationFilter] = useState<Severity | undefined>();
   const inspectorHeading = useRef<HTMLHeadingElement>(null);
   const afterPanelClose = useRef<(() => void) | undefined>(undefined);
@@ -337,6 +342,17 @@ export function App({
           errors: macValidation?.summary.error ?? 0,
         });
 
+  /** mod-tap の閾値を保存する。保存できなければ理由を返す（実機パネルと打鍵テストで共有）。 */
+  function editTappingTerm(value: string): string | undefined {
+    if (macLayout === undefined) return undefined;
+    const ms = /^[0-9]+$/.test(value) ? Number(value) : Number.NaN;
+    if (!isMacTappingTerm(ms)) {
+      return `${MAC_TAPPING_TERM_RANGE.min}〜${MAC_TAPPING_TERM_RANGE.max}の整数が必要`;
+    }
+    ws.updateMac(macLayout, (document) => setMacTappingTerm(document, ms));
+    return undefined;
+  }
+
   function startMacApply(): void {
     if (macBlockedReason !== undefined || macLayout === undefined || macReady === undefined) return;
     void macApply.open(macLayout, macReady.document);
@@ -436,6 +452,11 @@ export function App({
       ? "keymap.yaml 未読込"
       : undefined
     : "Cornix のみ";
+  const macOnly = isCornix
+    ? "Mac のみ"
+    : macReady === undefined
+      ? `${macLayout === undefined ? "" : macKeymapPath(macLayout)} 未読込`
+      : undefined;
   const position =
     selection === undefined
       ? undefined
@@ -479,7 +500,7 @@ export function App({
       <Rail
         panel={panel}
         onPanel={openPanel}
-        unavailable={{ overview: cornixOnly, behaviors: cornixOnly }}
+        unavailable={{ overview: cornixOnly, behaviors: cornixOnly, typing: macOnly }}
         counts={{
           validation: summary.error + summary.warning,
           device: isCornix && device.read !== undefined ? changed.length : undefined,
@@ -606,7 +627,7 @@ export function App({
             tone={PANEL_TONE[panel]}
             title={panelDef.label}
             subtitle={TARGET_LABEL[cursor.key]}
-            size={panelSizes[panel] ?? "window"}
+            size={panelSizes[panel] ?? (panel === "typing" ? "full" : "window")}
             onSize={(size) => setPanelSizes((current) => ({ ...current, [panel]: size }))}
             onClose={() => closePanel()}
           >
@@ -702,18 +723,30 @@ export function App({
                   mac={macState}
                   applyBlockedReason={macBlockedReason}
                   onApply={() => closePanel(startMacApply)}
-                  onTappingTerm={(value) => {
-                    if (macState.kind !== "ready") return undefined;
-                    const ms = /^[0-9]+$/.test(value) ? Number(value) : Number.NaN;
-                    if (!isMacTappingTerm(ms)) {
-                      return `${MAC_TAPPING_TERM_RANGE.min}〜${MAC_TAPPING_TERM_RANGE.max}の整数が必要`;
-                    }
-                    ws.updateMac(macLayout, (document) => setMacTappingTerm(document, ms));
-                    return undefined;
-                  }}
+                  onTappingTerm={editTappingTerm}
                   onExportKarabiner={() => void ws.exportKarabiner(macLayout)}
                 />
               ) : null
+            ) : null}
+            {panel === "typing" ? (
+              macLayout !== undefined && macReady !== undefined ? (
+                <TypingPanel
+                  document={macReady.document}
+                  effectiveTappingTermMs={
+                    macApply.effective?.layout === macLayout
+                      ? macApply.effective.tappingTermMs
+                      : undefined
+                  }
+                  applyBlockedReason={macBlockedReason}
+                  records={trials}
+                  onTappingTerm={editTappingTerm}
+                  onApply={startMacApply}
+                  onRecord={(record) => setTrials((current) => [...current, record])}
+                  onClearRecords={() => setTrials([])}
+                />
+              ) : (
+                <p>Mac の設定を読み込めていないため使えない。</p>
+              )
             ) : null}
             {panel === "files" ? (
               <FilesPanel

@@ -192,15 +192,16 @@ Apply の gate と診断の severity を UI 表示上で混同しない。
 
 ## Rail and panels
 
-左端の入口は `割り当て`、`全体`、`動作`、`検証`、`実機`、`ファイル` の順に固定する。
+左端の入口は `割り当て`、`全体`、`動作`、`検証`、`実機`、`打鍵`、`ファイル` の順に固定する。
 入口はすべて同じ大きさにする。
-選んだ対象で使えない入口は位置を動かさず、`aria-disabled` にして理由（Mac では「Cornix のみ」、Cornix を読み込めていなければ「keymap.yaml 未読込」）を読み上げだけに渡す。
+選んだ対象で使えない入口は位置を動かさず、`aria-disabled` にして理由（Mac では「Cornix のみ」、Cornix を読み込めていなければ「keymap.yaml 未読込」、Cornix では打鍵の「Mac のみ」）を読み上げだけに渡す。
 検証の入口には error と warning の件数、実機の入口には読込済みのときの差分件数を添える。
 
 パネルは native の `<dialog>` を `showModal()` で画面中央に開き、開いたら見出しへ focus を移す。
 Esc、×、背景の押下でいつでも閉じられる。
 開いている間は背後が inert になるため、閉じた後の focus の移動（開いた入口へ戻す、盤面へ移る）は閉じた描画の後の effect で行う。
 パネルごとに標準と全画面を切り替えられ、全画面にしたパネルは同じ session の中で次も全画面で開く。
+打鍵テストだけは最初から全画面で開く。課題、入力欄、結果、成績表を 1 画面に並べるためである。
 パネルは modal なので、開いたまま編集対象は切り替わらない。
 
 <!-- @code src/ui/components/index.ts#CornixLayerBar -->
@@ -446,6 +447,36 @@ Cornix が ready でなければ復元を無効にする。
 Mac の実機パネルは「Karabiner へ適用…」の入口と押せない理由、`just mac apply` でも適用できること、適用先、mod-tap の閾値、Karabiner asset の書出を置く。
 mod-tap の閾値は Enter か focus を外したときに保存し、50〜1000 の整数でなければ保存せずに欄の下へ理由を出す（ADR 0044）。
 保存は `mac-keyboard.<layout>.yaml` までで、Karabiner への反映には適用が要る。
+
+<!-- @code src/ui/components/index.ts#TypingPanel -->
+<!-- @code src/ui/state/use-mac-apply.ts#MacEffectiveTappingTerm -->
+
+## Typing panel
+
+打鍵テストは Mac の mod-tap の閾値を実測で調整するパネルで、Mac を選んでいるときだけ開ける（ADR 0045）。
+採点の規則は `typing-trial.md` にある。
+
+パネルは「閾値を決めて適用する」「課題を選ぶ」「打って採点する」「閾値ごとの成績」を上から並べる。
+閾値欄は実機パネルと同じ保存の経路を使い、Enter か focus を外したときに `mac-keyboard.<layout>.yaml` へ保存する。
+適用の入口は「Karabiner へ適用…」をそのまま開き、パネルは閉じない。
+
+閾値の欄の下には、Karabiner で効いていると確かめた閾値を出す。
+確かめたと扱うのは、このセッションで適用が成功したときと、計画で差分が無く profile も選択済みだと分かったときだけである。
+確かめていなければその旨を、yaml と食い違っていれば両方の値を出す。
+状態文は 2 行分の高さを確保し、文の長さでカードの高さを変えない。
+
+入力欄は `role="textbox"` の要素で、`keydown` をすべて `preventDefault` してから記録する。
+⌘A などのブラウザの動作と、Esc による dialog の close を起こさないためである（利用者の keymap では Tab が Esc になる）。
+修飾の無い Enter で採点し、キーの autorepeat は記録しない。
+入力欄と結果欄は高さを固定し、打った量や結果の有無で下の成績表を動かさない。
+
+結果は期待の文を並べ、合わなかった箇所を印で囲んで出力を上付きで添える。
+誤爆は error 色、脱落は取り消し線で示す。
+その下に正解率、分類ごとの件数、訂正の回数、数えなかった未入力の数、誤爆した組を出す。
+
+成績表は閾値ごとに試行数、文章課題の正解率、誤爆、脱落、入れ替わり、その他（誤字と余分）、hold 課題の成功率を並べる。
+いま効いている閾値の行を強調する。
+記録は App の state に持つため、パネルを閉じても残り、再読込で消える。
 
 <!-- @code src/ui/components/index.ts#OverviewPanel -->
 <!-- @code src/ui/overview-model.ts#buildOverviewModel -->

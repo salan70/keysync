@@ -29,6 +29,7 @@ import {
 } from "./panels/DevicePanel.tsx";
 import { FilesPanel as FilesPanelComponent } from "./panels/FilesPanel.tsx";
 import { OverviewPanel as OverviewPanelComponent } from "./panels/OverviewPanel.tsx";
+import { TypingPanel as TypingPanelComponent } from "./panels/TypingPanel.tsx";
 import {
   CornixReferences as CornixReferencesComponent,
   MacReferences as MacReferencesComponent,
@@ -82,6 +83,9 @@ export const CornixDevicePanel = CornixDevicePanelComponent;
 
 /** @doc docs/specs/ui.md#device-panel */
 export const MacDevicePanel = MacDevicePanelComponent;
+
+/** @doc docs/specs/ui.md#typing-panel */
+export const TypingPanel = TypingPanelComponent;
 
 /** @doc docs/specs/ui.md#overview-layer-grid */
 export const OverviewPanel = OverviewPanelComponent;

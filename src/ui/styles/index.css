@@ -22,6 +22,7 @@
 @import "./features/inspector.css";
 @import "./features/panel.css";
 @import "./features/apply.css";
+@import "./features/typing.css";
 @import "./features/workspace.css";
 
 @import "./utilities.css";

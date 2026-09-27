@@ -14,6 +14,8 @@ export const PANELS: readonly {
   { id: "behaviors", label: "動作定義", short: "動作", icon: "behaviors", tone: "tone-tertiary" },
   { id: "validation", label: "検証", short: "検証", icon: "validation", tone: "tone-primary" },
   { id: "device", label: "実機と適用", short: "実機", icon: "device", tone: "tone-secondary" },
+  // 専用のアイコンが無いため、キーキャップの keymap を借りる。
+  { id: "typing", label: "打鍵テスト", short: "打鍵", icon: "keymap", tone: "tone-primary" },
   { id: "files", label: "ファイル", short: "ファイル", icon: "files", tone: "tone-tertiary" },
 ];
 

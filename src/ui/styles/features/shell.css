@@ -86,7 +86,8 @@
 
   /* 役割色の組。塗り面とその上の文字色を 1 組で持つ。 */
   .tone-primary,
-  .tone-validation {
+  .tone-validation,
+  .tone-typing {
     --tone: var(--color-primary);
     --on-tone: var(--color-on-primary);
     --tone-soft: var(--color-primary-container);
