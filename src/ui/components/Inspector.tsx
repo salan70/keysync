@@ -136,10 +136,14 @@ export function Inspector({
     else onEdit(withoutHold);
   }
   const referencedLayer = lexeme?.kind === "layerSwitch" ? lexeme.layer : undefined;
-  const formatted = (value: string | undefined): string => {
+  /** 適用先ごとの現在値。Tap は素通しなら送るキーを初期値として出す。 */
+  const slotValue = (target: PickTarget): string | undefined =>
+    target === "tap" ? targetValue(base, "tap") : targetValue(keycode, target);
+  const readable = (value: string | undefined): string => {
     if (value === undefined) return "—";
-    const name = keycodeLabel(labels, value);
-    return name === undefined ? value : `${name}（${value}）`;
+    const shown = keycodeDisplay(value, labels, table, { compact: true });
+    const text = shown.role === undefined ? shown.primary : `${shown.primary} · ${shown.role}`;
+    return text.replace(/\n/g, " ");
   };
 
   return (
@@ -171,34 +175,49 @@ export function Inspector({
       </div>
 
       <fieldset className="seg">
-        <legend>picker の適用先</legend>
-        {PICK_TARGETS.map((option) => (
-          <label key={option.id} className={pickTarget === option.id ? "is-on" : ""}>
-            <input
-              type="radio"
-              name="pick-target"
-              value={option.id}
-              checked={pickTarget === option.id}
-              onChange={() => onPickTarget(option.id)}
-            />
-            <span className="seg-label">{option.label}</span>
-            <span className="seg-value" title={formatted(targetValue(keycode, option.id))}>
-              {formatted(targetValue(keycode, option.id))}
-            </span>
-          </label>
-        ))}
+        <legend>下の一覧で選ぶ先</legend>
+        {PICK_TARGETS.map((option) => {
+          const value = slotValue(option.id);
+          const shown = option.id === "whole" && keycode === undefined ? "素通し" : readable(value);
+          return (
+            <div key={option.id} className="seg-cell">
+              <label className={pickTarget === option.id ? "is-on" : ""} title={value}>
+                <input
+                  type="radio"
+                  name="pick-target"
+                  value={option.id}
+                  checked={pickTarget === option.id}
+                  onChange={() => onPickTarget(option.id)}
+                />
+                <span className="seg-label">{option.label}</span>
+                <span className="seg-value">{shown}</span>
+              </label>
+              {option.id === "hold" && withoutHold !== undefined ? (
+                <button
+                  type="button"
+                  className="seg-clear"
+                  aria-label="Hold を外す"
+                  title="Hold を外す"
+                  onClick={onRemoveHold}
+                >
+                  <Icon name="close" />
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
       </fieldset>
       <p className="hint">
         {pickTarget === "hold"
-          ? "Hold に選べるのは modifier と MO だけ。MO(n) は LTn になる。picker の他のキーは無効になる。"
-          : "下の picker から選ぶと、すぐに保存する。"}
+          ? "Hold には修飾キーと MO(n) だけ選べる。"
+          : "選ぶとすぐに保存する。"}
       </p>
 
-      <div className="field">
-        <label htmlFor="inspector-behavior">動作</label>
-        <div className="field-row">
+      <details className="details">
+        <summary>詳細</summary>
+        <label className="field">
+          <span>動作</span>
           <select
-            id="inspector-behavior"
             value={behavior}
             onChange={(event) => onEdit(composeKeycode(event.target.value, structured))}
           >
@@ -208,24 +227,7 @@ export function Inspector({
               </option>
             ))}
           </select>
-          <Button
-            size="small"
-            appearance="secondary"
-            disabled={withoutHold === undefined}
-            title={
-              withoutHold === undefined
-                ? "Hold は設定されていない"
-                : `Tap の ${formatted(withoutHold)} だけに戻す`
-            }
-            onClick={onRemoveHold}
-          >
-            Hold を外す
-          </Button>
-        </div>
-      </div>
-
-      <details className="details">
-        <summary>raw keycode{mode === "cornix" ? "・表示名" : ""}</summary>
+        </label>
         <form
           className="field"
           onSubmit={(event) => {

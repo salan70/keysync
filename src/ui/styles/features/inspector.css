@@ -79,6 +79,37 @@
     padding: 0;
     font-weight: var(--font-weight-bold);
   }
+  .seg-cell {
+    position: relative;
+    display: grid;
+    min-width: 0;
+  }
+  .seg-cell:has(.seg-clear) label {
+    padding-right: calc(var(--size-target-min) + var(--space-100));
+  }
+  /* Hold の値があるときだけ出す。セルの中に重ねるので高さは変わらない。 */
+  .seg-clear {
+    position: absolute;
+    top: var(--space-50);
+    right: var(--space-50);
+    display: grid;
+    width: var(--size-target-min);
+    height: var(--size-target-min);
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-on-surface-variant);
+    cursor: pointer;
+  }
+  .seg-clear:hover {
+    background: var(--color-surface-variant);
+    color: var(--color-on-surface);
+  }
+  .seg-clear:focus-visible {
+    outline: var(--border-width-thick) solid var(--color-focus);
+  }
   .seg label {
     position: relative;
     display: grid;
@@ -135,12 +166,8 @@
     border-radius: var(--radius-control);
     background: var(--color-surface);
   }
-  .field-row input,
-  .field-row select {
+  .field-row input {
     flex: 1;
-  }
-  .field-row > .button {
-    flex: none;
   }
   .details summary {
     font-weight: var(--font-weight-bold);
