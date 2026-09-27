@@ -14,6 +14,7 @@ import {
   generateKarabinerRules,
   macKeycodeSupport,
 } from "./generate.ts";
+import { appliedTappingTermMs } from "./applied.ts";
 import type { KarabinerManipulator } from "./karabiner.ts";
 import { parseMacKeymapYaml } from "./parse.ts";
 import { DEFAULT_MAC_DEVICES, type MacKeyboardLayout, type MacKeymapDocument } from "./types.ts";
@@ -353,4 +354,15 @@ test("macKeycodeSupport と生成器の判定はずれない", () => {
     const hasError = diagnostics.some((diagnostic) => diagnostic.severity === "error");
     strictEqual(macKeycodeSupport(keycode).ok, !hasError, keycode);
   }
+});
+
+test("appliedTappingTermMs は所有 profile の mod-tap の閾値を読み、無ければ null", () => {
+  const { profile } = generateOwnedProfile({
+    ...documentOf([{ f: "LGUI_T(KC_F)" }]),
+    tappingTermMs: 180,
+  });
+  strictEqual(appliedTappingTermMs({ profiles: [profile] }, "KeySync"), 180);
+  strictEqual(appliedTappingTermMs({ profiles: [profile] }, "Other"), null);
+  const { profile: plain } = generateOwnedProfile(documentOf([{ a: "KC_B" }]));
+  strictEqual(appliedTappingTermMs({ profiles: [plain] }, "KeySync"), null);
 });

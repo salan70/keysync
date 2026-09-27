@@ -5,6 +5,7 @@ import {
   type TrialGrade,
 } from "../../../core/typing-trial/grade.ts";
 import type { TrialRecord } from "../../../core/typing-trial/history.ts";
+import type { BrowserLogEvent } from "../../../core/typing-log/types.ts";
 import { summarizeTrials } from "../../../core/typing-trial/history.ts";
 import {
   customTask,
@@ -77,6 +78,32 @@ function typedEvent(event: React.KeyboardEvent): TypedEvent {
   };
 }
 
+/** `KeyboardEvent` をログの 1 行へ写す。記録はできるだけ落とさない（ADR 0046）。 */
+function browserEvent(event: React.KeyboardEvent): BrowserLogEvent {
+  return {
+    type: "browser",
+    ms: event.timeStamp,
+    kind: event.type === "keyup" ? "keyup" : "keydown",
+    key: event.key,
+    code: event.code,
+    location: event.location,
+    repeat: event.repeat,
+    meta: event.metaKey,
+    ctrl: event.ctrlKey,
+    alt: event.altKey,
+    shift: event.shiftKey,
+    composing: event.nativeEvent.isComposing,
+  };
+}
+
+/** 試行 1 回のログ。採点の結果と一緒に workspace へ保存する。 */
+export interface TrialLog {
+  readonly taskId: string;
+  readonly prompt: string;
+  readonly summary: unknown;
+  readonly events: readonly BrowserLogEvent[];
+}
+
 /**
  * 打鍵テスト（Mac）。閾値を変えて Karabiner へ適用し、課題を打って採点する（ADR 0045）。
  *
@@ -91,6 +118,7 @@ export function TypingPanel({
   onTappingTerm,
   onApply,
   onRecord,
+  onSaveLog,
   onClearRecords,
 }: {
   readonly document: MacKeymapDocument;
@@ -102,12 +130,16 @@ export function TypingPanel({
   readonly onTappingTerm: (value: string) => string | undefined;
   readonly onApply: () => void;
   readonly onRecord: (record: TrialRecord) => void;
+  /** 採点のたびに、入力欄が受けた全イベントを渡す。 */
+  readonly onSaveLog: (log: TrialLog) => void;
   readonly onClearRecords: () => void;
 }): React.JSX.Element {
   const holdTasks = holdTasksFor(document);
   const [taskId, setTaskId] = useState<string>(ROLL_TASKS[0]?.id ?? CUSTOM);
   const [customText, setCustomText] = useState("");
   const [events, setEvents] = useState<readonly TypedEvent[]>([]);
+  // 採点に使わないもの（keyup、修飾キー単独、autorepeat、Enter）も含めた全イベント。
+  const [raw, setRaw] = useState<readonly BrowserLogEvent[]>([]);
   const [grade, setGrade] = useState<TrialGrade | undefined>();
 
   const task =
@@ -120,28 +152,46 @@ export function TypingPanel({
 
   function reset(): void {
     setEvents([]);
+    setRaw([]);
     setGrade(undefined);
   }
 
-  function score(): void {
+  function score(log: readonly BrowserLogEvent[] = raw): void {
     if (task.expected.length === 0 || events.length === 0) return;
     const result = gradeTypingTrial(task, events);
     setGrade(result);
     if (result.kind === "graded") {
       onRecord({ tappingTermMs: effectiveTappingTermMs, kind: task.kind, summary: result.summary });
     }
+    onSaveLog({
+      taskId: task.id,
+      prompt: task.kind === "text" ? task.text : `${task.holdKeyCode} + ${task.partner}`,
+      summary: result.kind === "graded" ? result.summary : { ime: true },
+      events: log,
+    });
     setEvents([]);
+    setRaw([]);
+  }
+
+  function onKeyUp(event: React.KeyboardEvent<HTMLDivElement>): void {
+    event.preventDefault();
+    event.stopPropagation();
+    // 採点の直後に届く Enter などの離しを、次の試行の頭に入れない。
+    if (raw.length === 0) return;
+    setRaw((current) => [...current, browserEvent(event)]);
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
     // ⌘A・⌘F・Esc（dialog を閉じる）などをブラウザへ渡さない。
     event.preventDefault();
     event.stopPropagation();
+    const logged = [...raw, browserEvent(event)];
     const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
     if (plain && event.key === "Enter") {
-      score();
+      score(logged);
       return;
     }
+    setRaw(logged);
     if (plain && event.key === "Escape") return;
     if (event.repeat) return;
     if (grade !== undefined) setGrade(undefined);
@@ -244,6 +294,7 @@ export function TypingPanel({
           tabIndex={0}
           aria-label="打鍵の入力欄。Enter で採点する"
           onKeyDown={onKeyDown}
+          onKeyUp={onKeyUp}
         >
           {typed.length === 0 ? (
             <span className="muted">ここを選んで打つ。Enter で採点、訂正はしない。</span>
@@ -262,7 +313,7 @@ export function TypingPanel({
           <Button
             size="small"
             disabled={task.expected.length === 0 || events.length === 0}
-            onClick={score}
+            onClick={() => score()}
           >
             採点
           </Button>

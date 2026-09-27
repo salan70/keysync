@@ -33,6 +33,7 @@ Thumbs.db
 # workspace の生成物・バックアップ
 keysync/generated/
 keysync/backups/
+keysync/typing-logs/
 # 改名前（ADR 0035）の管理ディレクトリ。移行しても削除しないため除外を残す（ADR 0036）
 cornix/generated/
 cornix/backups/

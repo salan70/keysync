@@ -232,6 +232,15 @@ ADR 0023です。`classifyKeycode`が返す`KeycodeLexeme`から直接写しま�
 
 `key_code`名の昇順で並べます。生成物が入力の書き順に依存しないようにするためです。
 
+<!-- @code src/core/mac-keymap/applied.ts#appliedTappingTermMs -->
+
+## appliedTappingTermMs
+
+`karabiner.json` の所有 profile から、いま効いている mod-tap の閾値を読みます。
+生成器は全 mod-tap に同じ閾値を書くため（ADR 0044）、最初に見つかった
+`basic.to_if_held_down_threshold_milliseconds` を返します。mod-tap が無ければ `null` です。
+打鍵ログに「記録した時点で効いていた閾値」を残すのに使います（ADR 0046）。
+
 <!-- @code src/core/mac-keymap/generate.ts#macKeycodeSupport -->
 
 ## macKeycodeSupport

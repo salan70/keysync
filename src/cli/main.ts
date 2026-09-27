@@ -16,7 +16,11 @@ import { addMacDevice } from "../core/mac-keymap/edit.ts";
 import { serializeMacKeymapYaml } from "../core/mac-keymap/serialize.ts";
 import { validateMacKeymap } from "../core/mac-keymap/validate.ts";
 import type { MacKeyboardLayout, MacKeymapDocument } from "../core/mac-keymap/types.ts";
+import { appliedTappingTermMs } from "../core/mac-keymap/applied.ts";
+import { analyzeModTapOutput } from "../core/typing-log/analyze.ts";
+import { keyLogPath, serializeKeyLog, TYPING_LOG_DIR } from "../core/typing-log/format.ts";
 import { applyMacPlan, planMacApplyAt, writeAndLintAsset } from "../mac/apply-service.ts";
+import { createKeyRecorder, type KeyRecorder } from "../mac/key-recorder.ts";
 import { detectBuiltInLayout } from "../mac/keyboard-type.ts";
 import { readMacKeymapFor } from "../workspace/mac-keymap-file.ts";
 import { planLayoutMigration, writeLayoutMigration } from "../workspace/bootstrap.ts";
@@ -57,6 +61,9 @@ import { NodeWorkspaceStore } from "../workspace/node.ts";
 interface CliDeps {
   readonly karabinerCli?: KarabinerCli;
   readonly keydHost?: KeydHost;
+  readonly keyRecorder?: KeyRecorder;
+  /** 記録を始めた時刻。テストで固定する。 */
+  readonly now?: () => Date;
 }
 
 /** 読み込んだ Mac の desired state と、どのファイルから来たか。 */
@@ -273,7 +280,8 @@ async function mac(root: string, args: ParsedArgs, deps: CliDeps): Promise<numbe
   if (sub === "diff") return await macDiff(root, loaded, args);
   if (sub === "apply") return await macApply(root, loaded, args, cli);
   if (sub === "devices") return await macDevices(root, loaded, args);
-  throw new Error("keysync mac generate|diff|apply|devices が必要");
+  if (sub === "record") return await macRecord(root, loaded, args, deps);
+  throw new Error("keysync mac generate|diff|apply|devices|record が必要");
 }
 
 /** `--layout` の明示指定。検出できない環境と、別配列の設定を触りたいときの入口。 */
@@ -432,6 +440,89 @@ async function macGenerate(
     ),
   );
   return lint !== undefined && !lint.ok ? 1 : 0;
+}
+
+/** 記録の既定の長さ（秒）。Ctrl-C で早く止められる。 */
+const DEFAULT_RECORD_SECONDS = 30;
+
+/**
+ * 打鍵を記録して workspace の `keysync/typing-logs/` へ書き、mod-tap の判定の推定を出す。
+ *
+ * 記録するのは Karabiner が処理した後の入力（HID と OS の 2 層）で、何も書き換えない。
+ * `karabiner.json` は、記録した時点で効いていた閾値を残すために読むだけ（ADR 0046）。
+ */
+async function macRecord(
+  root: string,
+  loaded: LoadedMacKeymap,
+  args: ParsedArgs,
+  deps: CliDeps,
+): Promise<number> {
+  const raw = args.seconds ?? args._[1] ?? DEFAULT_RECORD_SECONDS;
+  const seconds = Number(raw);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    throw new Error(`記録する秒数は正の数（${String(raw)} が渡された）`);
+  }
+  const karabiner = karabinerPath(args);
+  let tappingTermMs: number | null = null;
+  try {
+    const { config } = await readKarabinerConfig(karabiner);
+    tappingTermMs = appliedTappingTermMs(config, loaded.document.profile);
+  } catch {
+    // 閾値が分からなくても記録はできる。ログには null を残す。
+  }
+  const startedAt = (deps.now ?? (() => new Date()))();
+  const recorder = deps.keyRecorder ?? createKeyRecorder();
+  const recording = await recorder.record(seconds, () => {
+    console.error(`${seconds} 秒記録する。Ctrl-C で早く止められる。打鍵を始めてよい。`);
+  });
+  if (recording.hidOpened.length === 0 && !recording.tapOk) {
+    throw new Error(
+      "キーボードの入力を読めない。システム設定の「入力監視」で、この端末アプリを許可する",
+    );
+  }
+
+  const path = keyLogPath(startedAt, "cli");
+  const store = new NodeWorkspaceStore(root);
+  await store.ensureDirectory(TYPING_LOG_DIR);
+  await store.writeText(
+    path,
+    serializeKeyLog(
+      {
+        type: "meta",
+        recorder: "cli",
+        startedAt: startedAt.toISOString(),
+        layout: loaded.layout,
+        tappingTermMs,
+        ...(recording.originNs === undefined ? {} : { originNs: recording.originNs }),
+      },
+      recording.events,
+    ),
+  );
+
+  const warnings = [...recording.warnings];
+  if (recording.hidOpened.length === 0) warnings.push("HID の層を読めなかった");
+  if (!recording.tapOk) warnings.push("OS の層を読めなかった（入力監視の許可を確かめる）");
+  console.log(
+    JSON.stringify(
+      {
+        workspace: root,
+        layout: loaded.layout,
+        log: path,
+        tappingTermMs,
+        recorded: {
+          hid: recording.events.filter((event) => event.type === "hid").length,
+          os: recording.events.filter((event) => event.type === "os").length,
+          hidDevices: recording.hidOpened,
+          blockedDevices: recording.hidBlocked,
+        },
+        warnings,
+        analysis: analyzeModTapOutput(recording.events, loaded.document),
+      },
+      null,
+      2,
+    ),
+  );
+  return 0;
 }
 
 /** 所有 profile の構造 diff を出す。karabiner.json は読むだけ。 */
@@ -837,7 +928,7 @@ function mapReplacer(_key: string, value: unknown): unknown {
 }
 function printHelp(): void {
   console.log(
-    `keysync validate|analyze|diff|render|export vil\n  --workspace <dir>\n  diff --against <file.vil>\n  render --format svg|pdf --out <file> --layer <n>\n  import vil <file.vil> --definition <definition.json>\n  migrate （改名前の cornix/ を keysync/ へ移す）\n  mac generate --out <file>\n  mac diff --karabiner <karabiner.json>\n  mac apply --karabiner <karabiner.json> --confirm <fingerprint> [--no-select]\n  mac devices [--devices <observed.json>] [--add <vendor_id>:<product_id>]\n  mac ... --layout ansi|jis （既定は実行中のMacの内蔵配列を検出）\n  linux devices [--devices <file>] [--add <vendor>:<product>]\n  linux generate|diff\n  linux apply [--confirm <fingerprint>] [--config <keysync.conf>]\n  linux ... --layout ansi|jis （linux-keyboard.*.yaml が 1 つだけなら省略可）\n  --workspace の既定は $KEYSYNC_WORKSPACE（未設定ならエラー）`,
+    `keysync validate|analyze|diff|render|export vil\n  --workspace <dir>\n  diff --against <file.vil>\n  render --format svg|pdf --out <file> --layer <n>\n  import vil <file.vil> --definition <definition.json>\n  migrate （改名前の cornix/ を keysync/ へ移す）\n  mac generate --out <file>\n  mac diff --karabiner <karabiner.json>\n  mac apply --karabiner <karabiner.json> --confirm <fingerprint> [--no-select]\n  mac devices [--devices <observed.json>] [--add <vendor_id>:<product_id>]\n  mac record [秒数] （打鍵を記録して keysync/typing-logs/ へ書く。既定 30 秒）\n  mac ... --layout ansi|jis （既定は実行中のMacの内蔵配列を検出）\n  linux devices [--devices <file>] [--add <vendor>:<product>]\n  linux generate|diff\n  linux apply [--confirm <fingerprint>] [--config <keysync.conf>]\n  linux ... --layout ansi|jis （linux-keyboard.*.yaml が 1 つだけなら省略可）\n  --workspace の既定は $KEYSYNC_WORKSPACE（未設定ならエラー）`,
   );
 }
 

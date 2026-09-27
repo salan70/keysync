@@ -7,7 +7,11 @@ import {
   setMacTappingTerm,
 } from "../core/mac-keymap/edit.ts";
 import { macKeycodeSupport } from "../core/mac-keymap/generate.ts";
-import { isMacTappingTerm, MAC_TAPPING_TERM_RANGE } from "../core/mac-keymap/types.ts";
+import {
+  isMacTappingTerm,
+  MAC_TAPPING_TERM_RANGE,
+  type MacKeyboardLayout,
+} from "../core/mac-keymap/types.ts";
 import type { TrialRecord } from "../core/typing-trial/history.ts";
 import { validateMacKeymap } from "../core/mac-keymap/validate.ts";
 import { setEncoderAssignment, setKeyAssignment } from "../core/model/edit.ts";
@@ -59,7 +63,8 @@ import { CornixDevicePanel, MacDevicePanel } from "./components/panels/DevicePan
 import { FilesPanel } from "./components/panels/FilesPanel.tsx";
 import { IconStyleContext } from "./components/Icon.tsx";
 import { OverviewPanel } from "./components/panels/OverviewPanel.tsx";
-import { TypingPanel } from "./components/panels/TypingPanel.tsx";
+import { TypingPanel, type TrialLog } from "./components/panels/TypingPanel.tsx";
+import { keyLogPath, serializeKeyLog, TYPING_LOG_DIR } from "../core/typing-log/format.ts";
 import {
   CornixReferences,
   MacReferences,
@@ -351,6 +356,36 @@ export function App({
     }
     ws.updateMac(macLayout, (document) => setMacTappingTerm(document, ms));
     return undefined;
+  }
+
+  /** 打鍵テストの試行を `keysync/typing-logs/` へ保存する（ADR 0046）。 */
+  async function saveTrialLog(layout: MacKeyboardLayout, log: TrialLog): Promise<void> {
+    const startedAt = new Date();
+    const path = keyLogPath(startedAt, "browser");
+    const store = workspace?.store;
+    if (store === undefined) return;
+    const applied = macApply.effective;
+    const effective = applied?.layout === layout ? applied.tappingTermMs : null;
+    try {
+      await store.ensureDirectory(TYPING_LOG_DIR);
+      await store.writeText(
+        path,
+        serializeKeyLog(
+          {
+            type: "meta",
+            recorder: "browser",
+            startedAt: startedAt.toISOString(),
+            layout,
+            tappingTermMs: effective,
+            trial: { taskId: log.taskId, prompt: log.prompt, summary: log.summary },
+          },
+          log.events,
+        ),
+      );
+      status.say(`打鍵ログを ${path} へ保存した`);
+    } catch (error) {
+      status.say(`打鍵ログを保存できない: ${errorMessage(error)}`);
+    }
   }
 
   function startMacApply(): void {
@@ -742,6 +777,7 @@ export function App({
                   onTappingTerm={editTappingTerm}
                   onApply={startMacApply}
                   onRecord={(record) => setTrials((current) => [...current, record])}
+                  onSaveLog={(log) => void saveTrialLog(macLayout, log)}
                   onClearRecords={() => setTrials([])}
                 />
               ) : (

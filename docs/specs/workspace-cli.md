@@ -3,7 +3,7 @@
 workspaceは`$KEYSYNC_WORKSPACE`で指定し、CLIとローカルサーバーが同じ規則で決める（ADR 0038、ADR 0039）。
 `keymap.yaml`がdesired stateで、definitionはSHA-256の先頭16文字を使ったcontent-addressed
 pathに保存する。`keysync/acknowledgements.json`はApply warningの確認IDを保持する。
-`keysync/backups/`と`keysync/generated/`は生成物で、keymapの競合検出は
+`keysync/backups/`と`keysync/generated/`は生成物で、`keysync/typing-logs/`は打鍵ログ（ADR 0046）である。keymapの競合検出は
 mtimeだけでなく読み出したcontent hashを優先する。
 
 <!-- @code src/workspace/layout.ts#WORKSPACE_LAYOUT -->
@@ -24,6 +24,7 @@ keysync/
   backups/<timestamp>.vil
   backups/latest.vil
   generated/<name>
+  typing-logs/<UTC 時刻>-<cli|browser>.jsonl
 ```
 
 改名前（ADR 0035）の管理ディレクトリは`cornix/`だった。`LEGACY_WORKSPACE_LAYOUT`はそのうち
@@ -172,6 +173,11 @@ Linuxで使うApple製キーボードは`keysync linux devices|generate|diff|app
 `linux devices --add <vendor>:<product>`は設定が無ければ作る。
 `linux apply`は`--confirm`が無いうちは生成と`keyd check`、差分、fingerprintを出して終わる。
 `--config <path>`の既定は`/etc/keyd/keysync.conf`。
+
+`keysync mac record [秒数]`は打鍵を記録して`keysync/typing-logs/`へ書く（ADR 0046）。
+既定は30秒で、Ctrl-Cで早く止められる。`karabiner.json`は、記録した時点で効いていた閾値を残すために読むだけである。
+出力は記録した件数、開けたキーボードと開けなかったキーボード、警告、mod-tapの判定の推定である。
+仕様は`typing-log.md`にある。
 
 `--no-select`を渡すとprofileの選択を行わない。診断が変わるのでfingerprintも変わり、
 確認文字列はフラグを含む形で返る（ADR 0028）。

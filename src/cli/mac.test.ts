@@ -12,6 +12,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { main } from "./main.ts";
 import type { KarabinerCli, KarabinerCliResult } from "../karabiner/node.ts";
+import type { KeyRecorder, KeyRecording } from "../mac/key-recorder.ts";
+import { parseKeyLog } from "../core/typing-log/format.ts";
 
 const FIXTURES = join(import.meta.dirname, "../../fixtures/mac-keyboard");
 
@@ -617,5 +619,102 @@ test("macの出力は解決済みのworkspaceを必ず載せる", async () => {
   ]) {
     const { json } = await captureJson(argv);
     strictEqual(json.workspace, root);
+  }
+});
+
+/** 固定の打鍵を返すレコーダー。実物は入力監視の許可と実際の打鍵が要る。 */
+function fakeKeyRecorder(recording: Partial<KeyRecording> = {}): KeyRecorder & {
+  readonly calls: number[];
+} {
+  const calls: number[] = [];
+  return {
+    calls,
+    async record(seconds, onStart) {
+      calls.push(seconds);
+      onStart();
+      return {
+        originNs: "1000",
+        hidOpened: ["Karabiner DriverKit VirtualHIDKeyboard 1.8.0"],
+        hidBlocked: ["Apple Internal Keyboard / Trackpad"],
+        hidNotPermitted: false,
+        tapOk: true,
+        warnings: [],
+        events: [
+          // caps_lock の mod-tap（LCTL_T(KC_ESC)）の tap が 4ms の合成で出た。
+          { type: "hid", ns: 0, usage: 0x29, down: true, device: "Karabiner" },
+          { type: "hid", ns: 4_000_000, usage: 0x29, down: false, device: "Karabiner" },
+          { type: "os", ns: 0, kind: "down", keycode: 53, flags: 256, chars: "", repeat: false },
+        ],
+        ...recording,
+      };
+    },
+  };
+}
+
+async function captureRecord(
+  argv: readonly string[],
+  recorder: KeyRecorder,
+): Promise<{ readonly code: number; readonly json: Record<string, unknown> }> {
+  const lines: string[] = [];
+  const original = console.log;
+  const originalError = console.error;
+  console.log = (...args: unknown[]) => void lines.push(args.map(String).join(" "));
+  console.error = () => {};
+  try {
+    const code = await main([...argv], {
+      karabinerCli: fakeKarabinerCli({ absent: true }),
+      keyRecorder: recorder,
+      now: () => new Date("2026-09-27T01:02:03.456Z"),
+    });
+    return { code, json: JSON.parse(lines.join("\n")) as Record<string, unknown> };
+  } finally {
+    console.log = original;
+    console.error = originalError;
+  }
+}
+
+test("mac record は打鍵ログを typing-logs/ へ書き、効いている閾値と判定の推定を出す", async () => {
+  const { root, karabiner } = await workspace();
+  const recorder = fakeKeyRecorder();
+  const { code, json } = await captureRecord(
+    ["mac", "record", "5", "--layout", "jis", "--workspace", root, "--karabiner", karabiner],
+    recorder,
+  );
+  strictEqual(code, 0);
+  deepStrictEqual(recorder.calls, [5]);
+  strictEqual(json.log, "keysync/typing-logs/2026-09-27T01-02-03-456Z-cli.jsonl");
+  // baseline の karabiner.json は mod-tap に閾値を持たない（ADR 0044 以前の形）。
+  strictEqual(json.tappingTermMs, null);
+  const log = parseKeyLog(await readFile(join(root, String(json.log)), "utf8"));
+  strictEqual(log.meta.recorder, "cli");
+  strictEqual(log.meta.originNs, "1000");
+  strictEqual(log.events.length, 3);
+  const analysis = json.analysis as { readonly taps: readonly { readonly position: string }[] };
+  deepStrictEqual(
+    analysis.taps.map((one) => one.position),
+    ["caps_lock"],
+  );
+});
+
+test("mac record はどちらの層も読めなければ、入力監視の許可を案内して止まる", async () => {
+  const { root, karabiner } = await workspace();
+  const lines: string[] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => void lines.push(args.map(String).join(" "));
+  try {
+    const code = await main(
+      ["mac", "record", "--layout", "jis", "--workspace", root, "--karabiner", karabiner],
+      {
+        karabinerCli: fakeKarabinerCli({ absent: true }),
+        keyRecorder: fakeKeyRecorder({ hidOpened: [], tapOk: false, events: [] }),
+      },
+    );
+    strictEqual(code, 1);
+    strictEqual(
+      lines.some((line) => line.includes("入力監視")),
+      true,
+    );
+  } finally {
+    console.error = originalError;
   }
 });

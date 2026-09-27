@@ -5,6 +5,7 @@
  * `src/core/` の意味モデルからは参照しない。
  */
 
+import { TYPING_LOG_DIR } from "../core/typing-log/format.ts";
 import { canonicalDefinitionText } from "../core/definition/identity.ts";
 import type { MacKeyboardLayout } from "../core/mac-keymap/types.ts";
 import type { WorkspaceFileStore } from "./types.ts";
@@ -24,6 +25,8 @@ export const WORKSPACE_LAYOUT = {
   backups: "keysync/backups",
   latestBackup: "keysync/backups/latest.vil",
   generated: "keysync/generated",
+  /** 打鍵ログ（ADR 0046）。定義元は Core の `TYPING_LOG_DIR`。 */
+  typingLogs: TYPING_LOG_DIR,
 } as const;
 
 /**

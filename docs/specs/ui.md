@@ -482,6 +482,11 @@ mod-tap の閾値は Enter か focus を外したときに保存し、50〜1000 
 いま効いている閾値の行を強調する。
 記録は App の state に持つため、パネルを閉じても残り、再読込で消える。
 
+入力欄は keydown と keyup をすべて記録する（ADR 0046）。採点に使わない修飾キー単独、autorepeat、Enter も含む。
+採点のたびに、その試行の全イベントと採点の集計を `keysync/typing-logs/<UTC 時刻>-browser.jsonl` へ保存し、状態欄に保存先を出す。
+採点の直後に届く離し（Enter など）は、次の試行の頭に入れない。
+ログの形式は `typing-log.md` にある。
+
 <!-- @code src/ui/components/index.ts#OverviewPanel -->
 <!-- @code src/ui/overview-model.ts#buildOverviewModel -->
 <!-- @code src/ui/overview-layout.ts#overviewColumns -->

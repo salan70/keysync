@@ -58,12 +58,14 @@ workspace の推奨ディレクトリ構成です。
 | `keysync/acknowledgements.json` | 承認済み警告の記録 ID                 | 管理対象 |
 | `keysync/backups/`              | Apply 前に退避した実機状態            | 管理外   |
 | `keysync/generated/`            | 書き出した VIL、SVG、PDF などの成果物 | 管理外   |
+| `keysync/typing-logs/`          | 打鍵テストと `mac record` の打鍵ログ  | 管理外   |
 
 workspace を Git 管理するときは、workspace 直下の `.gitignore` へ以下を追加してください。
 
 ```gitignore
 keysync/backups/
 keysync/generated/
+keysync/typing-logs/
 ```
 
 ### 改名前の workspace（`cornix/`）

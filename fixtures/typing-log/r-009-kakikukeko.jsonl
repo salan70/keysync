@@ -1,0 +1,85 @@
+{"type":"meta","recorder":"cli","startedAt":"2026-09-27T00:00:00.000Z","layout":"ansi","tappingTermMs":200,"originNs":"2676833296844666"}
+{"type":"hid","ns":0,"usage":14,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":0,"kind":"down","keycode":40,"flags":256,"chars":"k","repeat":false}
+{"type":"hid","ns":3905834,"usage":14,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":3905834,"kind":"up","keycode":40,"flags":256,"chars":"k","repeat":false}
+{"type":"hid","ns":79155167,"usage":4,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":79155167,"kind":"down","keycode":0,"flags":256,"chars":"a","repeat":false}
+{"type":"hid","ns":159182292,"usage":4,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":159182292,"kind":"up","keycode":0,"flags":256,"chars":"a","repeat":false}
+{"type":"hid","ns":364595875,"usage":14,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":364595875,"kind":"down","keycode":40,"flags":256,"chars":"k","repeat":false}
+{"type":"hid","ns":369339750,"usage":14,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":369339750,"kind":"up","keycode":40,"flags":256,"chars":"k","repeat":false}
+{"type":"hid","ns":517304167,"usage":12,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":517304167,"kind":"down","keycode":34,"flags":256,"chars":"i","repeat":false}
+{"type":"hid","ns":581860459,"usage":12,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":581860459,"kind":"up","keycode":34,"flags":256,"chars":"i","repeat":false}
+{"type":"hid","ns":856901292,"usage":14,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":856901292,"kind":"down","keycode":40,"flags":256,"chars":"k","repeat":false}
+{"type":"hid","ns":860798250,"usage":14,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":860798250,"kind":"up","keycode":40,"flags":256,"chars":"k","repeat":false}
+{"type":"hid","ns":949160959,"usage":24,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":949160959,"kind":"down","keycode":32,"flags":256,"chars":"u","repeat":false}
+{"type":"hid","ns":1009512250,"usage":24,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":1009512250,"kind":"up","keycode":32,"flags":256,"chars":"u","repeat":false}
+{"type":"hid","ns":1233359959,"usage":14,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":1233359959,"kind":"down","keycode":40,"flags":256,"chars":"k","repeat":false}
+{"type":"hid","ns":1237891417,"usage":14,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":1237891417,"kind":"up","keycode":40,"flags":256,"chars":"k","repeat":false}
+{"type":"hid","ns":1454033959,"usage":8,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":1454033959,"kind":"down","keycode":14,"flags":256,"chars":"e","repeat":false}
+{"type":"hid","ns":1538355834,"usage":8,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":1538355834,"kind":"up","keycode":14,"flags":256,"chars":"e","repeat":false}
+{"type":"hid","ns":1736921125,"usage":14,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":1736921125,"kind":"down","keycode":40,"flags":256,"chars":"k","repeat":false}
+{"type":"hid","ns":1742576375,"usage":14,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":1742576375,"kind":"up","keycode":40,"flags":256,"chars":"k","repeat":false}
+{"type":"hid","ns":1906774167,"usage":18,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":1906774167,"kind":"down","keycode":31,"flags":256,"chars":"o","repeat":false}
+{"type":"hid","ns":1983392709,"usage":18,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":1983392709,"kind":"up","keycode":31,"flags":256,"chars":"o","repeat":false}
+{"type":"hid","ns":2317382209,"usage":44,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":2317382209,"kind":"down","keycode":49,"flags":256,"chars":" ","repeat":false}
+{"type":"hid","ns":2321750875,"usage":44,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":2321750875,"kind":"up","keycode":49,"flags":256,"chars":" ","repeat":false}
+{"type":"hid","ns":2621754917,"usage":11,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":2621754917,"kind":"down","keycode":4,"flags":256,"chars":"h","repeat":false}
+{"type":"hid","ns":2625746417,"usage":11,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":2625746417,"kind":"up","keycode":4,"flags":256,"chars":"h","repeat":false}
+{"type":"hid","ns":2690280209,"usage":4,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":2690280209,"kind":"down","keycode":0,"flags":256,"chars":"a","repeat":false}
+{"type":"hid","ns":2782358167,"usage":4,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":2782358167,"kind":"up","keycode":0,"flags":256,"chars":"a","repeat":false}
+{"type":"hid","ns":2895319000,"usage":11,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":2895319000,"kind":"down","keycode":4,"flags":256,"chars":"h","repeat":false}
+{"type":"hid","ns":2899794292,"usage":11,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":2899794292,"kind":"up","keycode":4,"flags":256,"chars":"h","repeat":false}
+{"type":"hid","ns":2980457084,"usage":12,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":2980457084,"kind":"down","keycode":34,"flags":256,"chars":"i","repeat":false}
+{"type":"hid","ns":3084076042,"usage":12,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":3084076042,"kind":"up","keycode":34,"flags":256,"chars":"i","repeat":false}
+{"type":"hid","ns":3283180000,"usage":11,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":3283180000,"kind":"down","keycode":4,"flags":256,"chars":"h","repeat":false}
+{"type":"hid","ns":3287568417,"usage":11,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":3287568417,"kind":"up","keycode":4,"flags":256,"chars":"h","repeat":false}
+{"type":"hid","ns":3379979209,"usage":24,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":3379979209,"kind":"down","keycode":32,"flags":256,"chars":"u","repeat":false}
+{"type":"hid","ns":3428234375,"usage":24,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":3428234375,"kind":"up","keycode":32,"flags":256,"chars":"u","repeat":false}
+{"type":"hid","ns":3626278167,"usage":11,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":3626278167,"kind":"down","keycode":4,"flags":256,"chars":"h","repeat":false}
+{"type":"hid","ns":3630820209,"usage":11,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":3630820209,"kind":"up","keycode":4,"flags":256,"chars":"h","repeat":false}
+{"type":"hid","ns":3712346834,"usage":8,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":3712346834,"kind":"down","keycode":14,"flags":256,"chars":"e","repeat":false}
+{"type":"hid","ns":3788666584,"usage":8,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":3788666584,"kind":"up","keycode":14,"flags":256,"chars":"e","repeat":false}
+{"type":"hid","ns":3956768459,"usage":11,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":3956768459,"kind":"down","keycode":4,"flags":256,"chars":"h","repeat":false}
+{"type":"hid","ns":3960899834,"usage":11,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":3960899834,"kind":"up","keycode":4,"flags":256,"chars":"h","repeat":false}
+{"type":"hid","ns":4051204209,"usage":18,"down":true,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":4051204209,"kind":"down","keycode":31,"flags":256,"chars":"o","repeat":false}
+{"type":"hid","ns":4119083375,"usage":18,"down":false,"device":"Karabiner DriverKit VirtualHIDKeyboard 1.8.0"}
+{"type":"os","ns":4119083375,"kind":"up","keycode":31,"flags":256,"chars":"o","repeat":false}
