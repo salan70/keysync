@@ -10,6 +10,7 @@ function documentOf(layer0: Record<string, string>): MacKeymapDocument {
     layout: "ansi",
     devices: DEFAULT_MAC_DEVICES,
     tappingTermMs: 200,
+    flowTapTermMs: 0,
     profile: "KeySync",
     layers: new Map([[0, new Map(Object.entries(layer0))]]),
   };

@@ -13,8 +13,11 @@
 import {
   DEFAULT_MAC_DEVICES,
   DEFAULT_MAC_LAYOUT,
+  DEFAULT_MAC_FLOW_TAP_TERM_MS,
   DEFAULT_MAC_TAPPING_TERM_MS,
+  isMacFlowTapTerm,
   isMacTappingTerm,
+  MAC_FLOW_TAP_TERM_RANGE,
   MAC_TAPPING_TERM_RANGE,
   LEGACY_MAC_KEYMAP_SCHEMA,
   MAC_KEYMAP_SCHEMA,
@@ -35,6 +38,7 @@ export function parseMacKeymapYaml(text: string): MacKeymapDocument {
   let profile: string | undefined;
   let devices: MacDeviceIdentifier[] | undefined;
   let tappingTermMs: number | undefined;
+  let flowTapTermMs: number | undefined;
   let sawLayers = false;
   let current: Map<string, string> | undefined;
   const layers = new Map<number, ReadonlyMap<string, string>>();
@@ -68,6 +72,17 @@ export function parseMacKeymapYaml(text: string): MacKeymapDocument {
         );
       }
       tappingTermMs = parsed;
+      continue;
+    }
+    if (line.startsWith("flow_tap_term_ms:")) {
+      const value = line.slice("flow_tap_term_ms:".length).trim();
+      const parsed = /^[0-9]+$/.test(value) ? Number(value) : Number.NaN;
+      if (!isMacFlowTapTerm(parsed)) {
+        throw new MacKeymapParseError(
+          `flow_tap_term_ms は ${MAC_FLOW_TAP_TERM_RANGE.min}〜${MAC_FLOW_TAP_TERM_RANGE.max} の整数: ${value}`,
+        );
+      }
+      flowTapTermMs = parsed;
       continue;
     }
     if (line.startsWith("profile:")) {
@@ -129,6 +144,7 @@ export function parseMacKeymapYaml(text: string): MacKeymapDocument {
     layout: layout ?? DEFAULT_MAC_LAYOUT,
     devices: devices ?? DEFAULT_MAC_DEVICES,
     tappingTermMs: tappingTermMs ?? DEFAULT_MAC_TAPPING_TERM_MS,
+    flowTapTermMs: flowTapTermMs ?? DEFAULT_MAC_FLOW_TAP_TERM_MS,
     profile,
     layers,
   };

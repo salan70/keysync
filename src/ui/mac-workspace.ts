@@ -10,6 +10,7 @@ import { serializeMacKeymapYaml } from "../core/mac-keymap/serialize.ts";
 import {
   KEYSYNC_PROFILE_NAME,
   DEFAULT_MAC_DEVICES,
+  DEFAULT_MAC_FLOW_TAP_TERM_MS,
   DEFAULT_MAC_TAPPING_TERM_MS,
   type MacKeyboardLayout,
   type MacKeymapDocument,
@@ -74,6 +75,7 @@ export function initialMacKeymapYaml(layout: MacKeyboardLayout): string {
     layout,
     devices: DEFAULT_MAC_DEVICES,
     tappingTermMs: DEFAULT_MAC_TAPPING_TERM_MS,
+    flowTapTermMs: DEFAULT_MAC_FLOW_TAP_TERM_MS,
     profile: KEYSYNC_PROFILE_NAME,
     layers: new Map([[0, new Map()]]),
   };

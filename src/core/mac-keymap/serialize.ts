@@ -15,14 +15,15 @@ import { MAC_KEYMAP_SCHEMA, type MacDeviceIdentifier, type MacKeymapDocument } f
 
 /** @doc docs/specs/mac-keymap.md#serializemackeymapyaml */
 export function serializeMacKeymapYaml(document: MacKeymapDocument): string {
-  // layout・devices・tapping_term_ms は省略時の既定があっても常に書く。正規形は明示
-  // （ADR 0024・0026・0044）。
+  // layout・devices・tapping_term_ms・flow_tap_term_ms は省略時の既定があっても常に書く。
+  // 正規形は明示（ADR 0024・0026・0044・0047）。
   const lines = [
     `schema: ${MAC_KEYMAP_SCHEMA}`,
     `layout: ${document.layout}`,
     "devices:",
     ...document.devices.map((device) => `  - ${deviceFlow(device)}`),
     `tapping_term_ms: ${document.tappingTermMs}`,
+    `flow_tap_term_ms: ${document.flowTapTermMs}`,
     `profile: ${quote(document.profile)}`,
     "layers:",
   ];

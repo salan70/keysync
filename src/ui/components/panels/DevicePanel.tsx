@@ -1,5 +1,9 @@
 import type { DiffEntry } from "../../../core/diff/diff.ts";
-import { MAC_TAPPING_TERM_RANGE, type MacKeyboardLayout } from "../../../core/mac-keymap/types.ts";
+import {
+  MAC_FLOW_TAP_TERM_RANGE,
+  MAC_TAPPING_TERM_RANGE,
+  type MacKeyboardLayout,
+} from "../../../core/mac-keymap/types.ts";
 import type { Diagnostic } from "../../../core/validation/types.ts";
 import type { RoundTripProgress } from "../../../device/protocol.ts";
 import { macKeymapPath, WORKSPACE_LAYOUT } from "../../../workspace/layout.ts";
@@ -226,6 +230,7 @@ export function MacDevicePanel({
   applyBlockedReason,
   onApply,
   onTappingTerm,
+  onFlowTapTerm,
   onExportKarabiner,
 }: {
   readonly layout: MacKeyboardLayout;
@@ -234,6 +239,8 @@ export function MacDevicePanel({
   readonly onApply: () => void;
   /** 保存できなければ理由を返す。 */
   readonly onTappingTerm: (value: string) => string | undefined;
+  /** 保存できなければ理由を返す。 */
+  readonly onFlowTapTerm: (value: string) => string | undefined;
   readonly onExportKarabiner: () => void;
 }): React.JSX.Element {
   const path = mac.kind === "ready" ? mac.path : macKeymapPath(layout);
@@ -266,19 +273,30 @@ export function MacDevicePanel({
       <section className="step">
         <h3 className="section-title">mod-tap の閾値</h3>
         {mac.kind === "ready" ? (
-          <ValueField
-            id="mac-tapping-term"
-            label={`tapping term（ms、${MAC_TAPPING_TERM_RANGE.min}〜${MAC_TAPPING_TERM_RANGE.max}）`}
-            value={String(mac.document.tappingTermMs)}
-            numeric
-            hint={undefined}
-            onCommit={onTappingTerm}
-          />
+          <>
+            <ValueField
+              id="mac-tapping-term"
+              label={`tapping term（ms、${MAC_TAPPING_TERM_RANGE.min}〜${MAC_TAPPING_TERM_RANGE.max}）`}
+              value={String(mac.document.tappingTermMs)}
+              numeric
+              hint={undefined}
+              onCommit={onTappingTerm}
+            />
+            <ValueField
+              id="mac-flow-tap-term"
+              label={`flow tap（ms、${MAC_FLOW_TAP_TERM_RANGE.min}〜${MAC_FLOW_TAP_TERM_RANGE.max}、0 で無効）`}
+              value={String(mac.document.flowTapTermMs)}
+              numeric
+              hint={undefined}
+              onCommit={onFlowTapTerm}
+            />
+          </>
         ) : (
           <p className="muted">{path} を読み込めていない。</p>
         )}
         <p className="hint">
-          これより前に離すか次のキーを押すと文字、押し続けると修飾キー。Karabiner
+          tapping term より前に離すか次のキーを押すと文字、押し続けると修飾キー。直前の文字キーから
+          flow tap より短い間隔で押した文字の mod-tap は、押し続けても文字になる。Karabiner
           への適用で反映する。
         </p>
       </section>

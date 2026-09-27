@@ -6,6 +6,7 @@ import { parseMacKeymapYaml } from "./parse.ts";
 import { serializeMacKeymapYaml } from "./serialize.ts";
 import {
   DEFAULT_MAC_DEVICES,
+  DEFAULT_MAC_FLOW_TAP_TERM_MS,
   DEFAULT_MAC_TAPPING_TERM_MS,
   MacKeymapParseError,
   type MacKeymapDocument,
@@ -65,6 +66,7 @@ test("serialize は layer 昇順・key_code 名昇順で並べる", () => {
     layout: "jis",
     devices: DEFAULT_MAC_DEVICES,
     tappingTermMs: 200,
+    flowTapTermMs: 0,
     profile: "KeySync",
     layers: new Map([
       [2, new Map([["z", "KC_Z"]])],
@@ -85,6 +87,7 @@ test("serialize は layer 昇順・key_code 名昇順で並べる", () => {
       "devices:",
       "  - { built_in: true }",
       "tapping_term_ms: 200",
+      "flow_tap_term_ms: 0",
       'profile: "KeySync"',
       "layers:",
       "  0:",
@@ -216,13 +219,14 @@ test("tapping_term_ms を省略すると既定の閾値になる", () => {
   strictEqual(document.tappingTermMs, DEFAULT_MAC_TAPPING_TERM_MS);
 });
 
-test("tapping_term_ms は round-trip する", () => {
+test("tapping_term_ms と flow_tap_term_ms は round-trip する", () => {
   const text = [
     "schema: keysync/mac-keymap@1",
     "layout: ansi",
     "devices:",
     "  - { built_in: true }",
     "tapping_term_ms: 180",
+    "flow_tap_term_ms: 130",
     'profile: "KeySync"',
     "layers:",
     "  0:",
@@ -230,7 +234,34 @@ test("tapping_term_ms は round-trip する", () => {
   ].join("\n");
   const document = parseMacKeymapYaml(text);
   strictEqual(document.tappingTermMs, 180);
+  strictEqual(document.flowTapTermMs, 130);
   strictEqual(serializeMacKeymapYaml(document), text);
+});
+
+test("flow_tap_term_ms を省略すると Flow Tap は無効になる", () => {
+  const document = parseMacKeymapYaml(
+    ["schema: keysync/mac-keymap@1", 'profile: "x"', "layers:", "  0:"].join("\n"),
+  );
+  strictEqual(document.flowTapTermMs, DEFAULT_MAC_FLOW_TAP_TERM_MS);
+  strictEqual(document.flowTapTermMs, 0);
+});
+
+test("範囲外や整数でない flow_tap_term_ms は読まずに落ちる", () => {
+  for (const value of ["1001", "130.5", "-1", "abc", ""]) {
+    throws(
+      () =>
+        parseMacKeymapYaml(
+          [
+            "schema: keysync/mac-keymap@1",
+            `flow_tap_term_ms: ${value}`,
+            'profile: "x"',
+            "layers:",
+          ].join("\n"),
+        ),
+      MacKeymapParseError,
+      value,
+    );
+  }
 });
 
 test("範囲外や整数でない tapping_term_ms は読まずに落ちる", () => {
@@ -256,6 +287,7 @@ test("内蔵と外付けを並べた devices が round-trip する", () => {
     layout: "ansi",
     devices: [{ builtIn: true }, { vendorId: 1452, productId: 630 }],
     tappingTermMs: 200,
+    flowTapTermMs: 0,
     profile: "KeySync",
     layers: new Map([[0, new Map([["a", "KC_A"]])]]),
   };

@@ -56,6 +56,26 @@ export function isMacTappingTerm(value: number): boolean {
 }
 
 /**
+ * Flow Tap の閾値（ms）の既定。YAML で省略したときに parse が埋める。0 は無効。
+ *
+ * 直前の文字キーからこれより短い間隔で押した mod-tap は、押している長さに関係なく tap に
+ * なる（ADR 0047）。既定を無効にして、この行の無い既存の YAML の挙動を変えない。
+ */
+export const DEFAULT_MAC_FLOW_TAP_TERM_MS = 0;
+
+/** Flow Tap の閾値として受け付ける範囲（ms、両端を含む）。0 は無効。 */
+export const MAC_FLOW_TAP_TERM_RANGE = { min: 0, max: 1000 } as const;
+
+/** Flow Tap の閾値として受け付ける値か。 */
+export function isMacFlowTapTerm(value: number): boolean {
+  return (
+    Number.isInteger(value) &&
+    value >= MAC_FLOW_TAP_TERM_RANGE.min &&
+    value <= MAC_FLOW_TAP_TERM_RANGE.max
+  );
+}
+
+/**
  * この設定を適用するデバイス 1 個の識別子。
  *
  * Karabiner の `device_if` の identifiers と同じ語彙で、写像は `generate.ts` の
@@ -103,6 +123,11 @@ export interface MacKeymapDocument {
    * parse が `DEFAULT_MAC_TAPPING_TERM_MS` を埋める（ADR 0044）。
    */
   readonly tappingTermMs: number;
+  /**
+   * Flow Tap の閾値（ms）。0 は無効。YAML で省略された場合は parse が
+   * `DEFAULT_MAC_FLOW_TAP_TERM_MS` を埋める（ADR 0047）。
+   */
+  readonly flowTapTermMs: number;
   /** 所有する Karabiner profile の名前。通常は `KEYSYNC_PROFILE_NAME`。 */
   readonly profile: string;
   /** layer 番号 → 割り当て。layer 番号も疎で、連続している必要は無い。 */

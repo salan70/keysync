@@ -9,7 +9,9 @@
  */
 
 import {
+  isMacFlowTapTerm,
   isMacTappingTerm,
+  MAC_FLOW_TAP_TERM_RANGE,
   MAC_TAPPING_TERM_RANGE,
   type MacDeviceIdentifier,
   type MacKeymapDocument,
@@ -139,4 +141,22 @@ export function setMacTappingTerm(
   }
   if (document.tappingTermMs === tappingTermMs) return document;
   return { ...document, tappingTermMs };
+}
+
+/**
+ * Flow Tap の閾値（ms）を変える。0 は無効。範囲外は拒む（ADR 0047）。
+ *
+ * @doc docs/specs/mac-keymap.md#mac-edit
+ */
+export function setMacFlowTapTerm(
+  document: MacKeymapDocument,
+  flowTapTermMs: number,
+): MacKeymapDocument {
+  if (!isMacFlowTapTerm(flowTapTermMs)) {
+    throw new MacKeymapEditError(
+      `flow tap term は ${MAC_FLOW_TAP_TERM_RANGE.min}〜${MAC_FLOW_TAP_TERM_RANGE.max} ms の整数（${flowTapTermMs} が渡された）`,
+    );
+  }
+  if (document.flowTapTermMs === flowTapTermMs) return document;
+  return { ...document, flowTapTermMs };
 }

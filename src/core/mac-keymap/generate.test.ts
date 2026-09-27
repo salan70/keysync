@@ -30,6 +30,7 @@ function documentOf(
     layout,
     devices: DEFAULT_MAC_DEVICES,
     tappingTermMs: 200,
+    flowTapTermMs: 0,
     profile: "KeySync",
     layers: new Map(
       layers.map((assignments, layer) => [layer, new Map(Object.entries(assignments))]),
@@ -266,6 +267,7 @@ test("device_if の identifiers は document の devices から組む", () => {
     layout: "ansi",
     devices: [{ builtIn: true }, { vendorId: 1452, productId: 630 }],
     tappingTermMs: 200,
+    flowTapTermMs: 0,
     profile: "KeySync",
     layers: new Map([[0, new Map([["caps_lock", "KC_ESCAPE"]])]]),
   };
@@ -283,6 +285,7 @@ test("layer 1 以上でも device 条件は先頭に残る", () => {
     layout: "ansi",
     devices: [{ vendorId: 1452, productId: 630 }],
     tappingTermMs: 200,
+    flowTapTermMs: 0,
     profile: "KeySync",
     layers: new Map([
       [0, new Map([["caps_lock", "MO(1)"]])],
@@ -360,9 +363,75 @@ test("appliedTappingTermMs は所有 profile の mod-tap の閾値を読み、�
   const { profile } = generateOwnedProfile({
     ...documentOf([{ f: "LGUI_T(KC_F)" }]),
     tappingTermMs: 180,
+    flowTapTermMs: 0,
   });
   strictEqual(appliedTappingTermMs({ profiles: [profile] }, "KeySync"), 180);
   strictEqual(appliedTappingTermMs({ profiles: [profile] }, "Other"), null);
   const { profile: plain } = generateOwnedProfile(documentOf([{ a: "KC_B" }]));
   strictEqual(appliedTappingTermMs({ profiles: [plain] }, "KeySync"), null);
+});
+
+const FLOW_NOW = {
+  set_variable: { name: "keysync_flow_tap_last_ms", expression: "system.now.milliseconds" },
+};
+const FLOW_RESET = { set_variable: { name: "keysync_flow_tap_last_ms", value: 0 } };
+
+function withFlowTap(layers: readonly Record<string, string>[]): MacKeymapDocument {
+  return { ...documentOf(layers, "ansi"), flowTapTermMs: 130 };
+}
+
+test("Flow Tap が無効なら変数も素通しの rule も出さない", () => {
+  const document = documentOf([{ d: "LALT_T(KC_D)", a: "KC_B" }], "ansi");
+  deepStrictEqual(
+    generateKarabinerRules(document).rules.map((rule) => rule.description),
+    ["KeySync layer 0"],
+  );
+  strictEqual(JSON.stringify(manipulators(document)).includes("keysync_flow_tap"), false);
+});
+
+test("Flow Tap は文字の mod-tap の前に、直前の文字キーからの間隔で即 tap にする manipulator を置く", () => {
+  const [flow, tapHold] = byKey(withFlowTap([{ d: "LALT_T(KC_D)" }]), "d");
+  deepStrictEqual(flow?.to, [FLOW_NOW, { key_code: "d" }]);
+  deepStrictEqual(flow?.conditions.at(-1), {
+    type: "expression_if",
+    expression: "system.now.milliseconds - keysync_flow_tap_last_ms < 130",
+  });
+  strictEqual(flow?.to_if_held_down, undefined);
+  // 間隔が空いていれば、これまでどおり閾値で tap と hold を分ける。押した時刻も記録する。
+  deepStrictEqual(tapHold?.to, [FLOW_NOW]);
+  deepStrictEqual(tapHold?.to_if_held_down, [{ key_code: "left_option" }]);
+});
+
+test("Flow Tap は tap 側が文字でない mod-tap に効かず、押しても記録を消す", () => {
+  // QMK の既定と同じく、Shift の tap 側（かな・英数）や Enter は対象外。
+  const found = byKey(withFlowTap([{ left_shift: "LSFT_T(KC_LANG1)" }]), "left_shift");
+  strictEqual(found.length, 1);
+  deepStrictEqual(found[0]?.to, [FLOW_RESET]);
+});
+
+test("Flow Tap の記録は文字キーで時刻、それ以外で 0 になる", () => {
+  const document = withFlowTap([{ a: "KC_B", b: "KC_ENTER", c: "LSFT(KC_1)", e: "MO(1)" }, {}]);
+  deepStrictEqual(byKey(document, "a")[0]?.to, [FLOW_NOW, { key_code: "b" }]);
+  deepStrictEqual(byKey(document, "b")[0]?.to, [FLOW_RESET, { key_code: "return_or_enter" }]);
+  deepStrictEqual(byKey(document, "c")[0]?.to?.[0], FLOW_RESET);
+  deepStrictEqual(byKey(document, "e")[0]?.to?.at(-1), FLOW_RESET);
+});
+
+test("Flow Tap は割り当ての無い文字キーを、時刻を記録して素通しする rule を最後に置く", () => {
+  const { rules } = generateKarabinerRules(withFlowTap([{ a: "KC_B" }, { x: "KC_Y" }]));
+  deepStrictEqual(
+    rules.map((rule) => rule.description),
+    ["KeySync layer 1", "KeySync layer 0", "KeySync flow tap"],
+  );
+  const passThrough = rules.at(-1)?.manipulators ?? [];
+  // layer 0 に割り当てのある a は layer 0 の rule が記録する。layer 1 だけの x は素通しが要る。
+  strictEqual(
+    passThrough.some((one) => one.from.key_code === "a"),
+    false,
+  );
+  deepStrictEqual(passThrough.find((one) => one.from.key_code === "x")?.to, [
+    FLOW_NOW,
+    { key_code: "x" },
+  ]);
+  strictEqual(passThrough.length, 30);
 });

@@ -11,6 +11,7 @@ function document(): MacKeymapDocument {
     layout: "jis",
     devices: DEFAULT_MAC_DEVICES,
     tappingTermMs: 200,
+    flowTapTermMs: 0,
     profile: "KeySync",
     layers: new Map([
       [0, new Map([["caps_lock", "LCTL_T(KC_ESC)"]])],

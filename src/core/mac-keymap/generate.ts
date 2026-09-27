@@ -21,8 +21,10 @@ import type {
   KarabinerManipulator,
   KarabinerProfile,
   KarabinerRule,
+  KarabinerToEvent,
 } from "./karabiner.ts";
 import {
+  DEFAULT_MAC_FLOW_TAP_TERM_MS,
   DEFAULT_MAC_TAPPING_TERM_MS,
   type MacDeviceIdentifier,
   type MacKeymapDocument,
@@ -30,6 +32,34 @@ import {
 
 /** layer 変数の名前空間。Karabiner の変数は global なので接頭辞で隔離する。 */
 const LAYER_VARIABLE_PREFIX = "keysync_layer_";
+
+/**
+ * Flow Tap のための「直前に文字キーを押した時刻（ms）」。直前が文字キーでなければ 0。
+ *
+ * Karabiner には「前のキーから何 ms か」を直接見る条件が無いため、押すたびにここへ
+ * `system.now.milliseconds` を書き、mod-tap 側の `expression_if` で差を見る（ADR 0047）。
+ */
+const FLOW_TAP_VARIABLE = "keysync_flow_tap_last_ms";
+
+/**
+ * Flow Tap の対象になる tap 側の key_code。QMK の `is_flow_tap_key` の既定
+ * （`KC_A`〜`KC_Z`、`KC_COMM`、`KC_DOT`、`KC_SCLN`、`KC_SLSH`、`KC_SPC`）に合わせる。
+ * 直前のキーと mod-tap の tap 側の両方がこの中にあるときだけ Flow Tap が効く（ADR 0047）。
+ */
+const FLOW_TAP_KEY_CODES: ReadonlySet<string> = new Set([
+  ..."abcdefghijklmnopqrstuvwxyz",
+  "comma",
+  "period",
+  "semicolon",
+  "slash",
+  "spacebar",
+]);
+
+/** tap-hold の閾値。`flowTapTermMs` が 0 なら Flow Tap の manipulator と変数を出さない。 */
+interface TapHoldTerms {
+  readonly tappingTermMs: number;
+  readonly flowTapTermMs: number;
+}
 
 /**
  * 適用先デバイスの条件。`identifiers` は OR なので 1 条件で複数デバイスを指せる。
@@ -69,6 +99,10 @@ export function generateKarabinerRules(document: MacKeymapDocument): GeneratedRu
   const base = document.layers.get(0);
   const layers = [...document.layers.keys()].sort((a, b) => b - a);
   const device = deviceCondition(document.devices);
+  const terms: TapHoldTerms = {
+    tappingTermMs: document.tappingTermMs,
+    flowTapTermMs: document.flowTapTermMs,
+  };
 
   for (const layer of layers) {
     const assignments = document.layers.get(layer);
@@ -79,12 +113,17 @@ export function generateKarabinerRules(document: MacKeymapDocument): GeneratedRu
       if (keycode === undefined) continue;
       // layer 0 と同値なら出さない。出しても素通しと同じ結果にしかならない。
       if (layer > 0 && base?.get(keyCode) === keycode) continue;
-      manipulators.push(
-        ...manipulatorsForKey(keyCode, keycode, layer, device, document.tappingTermMs, diagnostics),
-      );
+      manipulators.push(...manipulatorsForKey(keyCode, keycode, layer, device, terms, diagnostics));
     }
     if (manipulators.length === 0) continue;
     rules.push({ description: `${document.profile} layer ${layer}`, manipulators });
+  }
+
+  if (terms.flowTapTermMs > 0) {
+    const passThrough = flowTapPassThrough(base, device);
+    if (passThrough.length > 0) {
+      rules.push({ description: `${document.profile} flow tap`, manipulators: passThrough });
+    }
   }
 
   return { rules, diagnostics };
@@ -155,7 +194,7 @@ export function macKeycodeSupport(keycode: string): MacKeycodeSupport {
     keycode,
     0,
     PROBE_DEVICE,
-    DEFAULT_MAC_TAPPING_TERM_MS,
+    { tappingTermMs: DEFAULT_MAC_TAPPING_TERM_MS, flowTapTermMs: DEFAULT_MAC_FLOW_TAP_TERM_MS },
     diagnostics,
   );
   const first = diagnostics[0];
@@ -196,6 +235,81 @@ function tapHoldParameters(tappingTermMs: number): Readonly<Record<string, numbe
   };
 }
 
+/** Flow Tap の対象になる tap 側か。修飾キー付き（`KC_EXLM` など）は対象外。 */
+function isFlowTapKey(event: KarabinerKeyEvent): boolean {
+  return FLOW_TAP_KEY_CODES.has(event.key_code) && event.modifiers === undefined;
+}
+
+/**
+ * 押したキーを Flow Tap の変数へ記録する `to` イベント。Flow Tap が無効なら何も出さない。
+ *
+ * 文字キーなら押した時刻を、それ以外なら 0 を書く。QMK の Flow Tap は「直前に押したキー」
+ * が文字キーのときだけ効くため、文字以外のキーで記録を消す必要がある（ADR 0047）。
+ */
+function flowTapMark(terms: TapHoldTerms, flowKey: boolean): readonly KarabinerToEvent[] {
+  if (terms.flowTapTermMs === 0) return [];
+  return [
+    flowKey
+      ? { set_variable: { name: FLOW_TAP_VARIABLE, expression: "system.now.milliseconds" } }
+      : { set_variable: { name: FLOW_TAP_VARIABLE, value: 0 } },
+  ];
+}
+
+/**
+ * tap-hold キーを Flow Tap で即 tap にする manipulator。対象外なら空配列。
+ *
+ * 直前の文字キーから `flowTapTermMs` 未満で押したときだけ当たり、tap 側をそのまま
+ * `to` で送る。hold の判定を持たないので、押し続ければ tap 側の key repeat になる。
+ * 通常の tap-hold の manipulator より**前に**置く（同じ rule の中では最初に当たったものが勝つ）。
+ */
+function flowTapManipulators(
+  from: KarabinerFrom,
+  inner: KarabinerKeyEvent,
+  conditions: readonly KarabinerCondition[],
+  terms: TapHoldTerms,
+): readonly KarabinerManipulator[] {
+  if (terms.flowTapTermMs === 0 || !isFlowTapKey(inner)) return [];
+  return [
+    {
+      type: "basic",
+      from,
+      to: [...flowTapMark(terms, true), inner],
+      conditions: [
+        ...conditions,
+        {
+          type: "expression_if",
+          expression: `system.now.milliseconds - ${FLOW_TAP_VARIABLE} < ${terms.flowTapTermMs}`,
+        },
+      ],
+    },
+  ];
+}
+
+/**
+ * どの layer にも割り当ての無い文字キーで、押した時刻を記録するだけの素通し。
+ *
+ * 割り当ての無いキーは manipulator が無く、そのままでは記録されない。layer の rule より
+ * 後ろに置くので、割り当てのあるキーはそちらが先に当たる。数字や矢印など文字以外の素通し
+ * キーは記録を消さない。QMK との差として ADR 0047 に残す。
+ */
+function flowTapPassThrough(
+  base: ReadonlyMap<string, string> | undefined,
+  device: KarabinerCondition,
+): readonly KarabinerManipulator[] {
+  return [...FLOW_TAP_KEY_CODES]
+    .filter((keyCode) => base?.get(keyCode) === undefined)
+    .sort()
+    .map((keyCode) => ({
+      type: "basic",
+      from: fromKey(keyCode),
+      to: [
+        { set_variable: { name: FLOW_TAP_VARIABLE, expression: "system.now.milliseconds" } },
+        { key_code: keyCode },
+      ],
+      conditions: [device],
+    }));
+}
+
 /**
  * 修飾キーの組を `to` イベント 1 個にする。先頭を `key_code`、残りを `modifiers` に置く。
  *
@@ -232,7 +346,7 @@ function manipulatorsForKey(
   keycode: string,
   layer: number,
   device: KarabinerCondition,
-  tappingTermMs: number,
+  terms: TapHoldTerms,
   diagnostics: Diagnostic[],
 ): readonly KarabinerManipulator[] {
   const lexeme = classifyKeycode(keycode);
@@ -261,7 +375,9 @@ function manipulatorsForKey(
         );
         return [];
       }
-      return [{ type: "basic", from, to: [to], conditions }];
+      return [
+        { type: "basic", from, to: [...flowTapMark(terms, isFlowTapKey(to)), to], conditions },
+      ];
     }
 
     case "layerSwitch": {
@@ -271,7 +387,7 @@ function manipulatorsForKey(
           {
             type: "basic",
             from,
-            to: [{ set_variable: { name: variable, value: 1 } }],
+            to: [{ set_variable: { name: variable, value: 1 } }, ...flowTapMark(terms, false)],
             to_after_key_up: [{ set_variable: { name: variable, value: 0 } }],
             conditions,
           },
@@ -292,10 +408,14 @@ function manipulatorsForKey(
           return [];
         }
         return [
+          ...flowTapManipulators(from, inner, conditions, terms),
           {
             type: "basic",
             from,
-            to: [{ set_variable: { name: variable, value: 1 } }],
+            to: [
+              { set_variable: { name: variable, value: 1 } },
+              ...flowTapMark(terms, isFlowTapKey(inner)),
+            ],
             to_after_key_up: [{ set_variable: { name: variable, value: 0 } }],
             to_if_alone: [inner],
             conditions,
@@ -309,13 +429,13 @@ function manipulatorsForKey(
           {
             type: "basic",
             from,
-            to: [{ set_variable: { name: variable, value: 0 } }],
+            to: [{ set_variable: { name: variable, value: 0 } }, ...flowTapMark(terms, false)],
             conditions: [...conditions, { type: "variable_if", name: variable, value: 1 }],
           },
           {
             type: "basic",
             from,
-            to: [{ set_variable: { name: variable, value: 1 } }],
+            to: [{ set_variable: { name: variable, value: 1 } }, ...flowTapMark(terms, false)],
             conditions: [...conditions, { type: "variable_unless", name: variable, value: 1 }],
           },
         ];
@@ -349,14 +469,18 @@ function manipulatorsForKey(
       }
       // 閾値より前に次のキーを押したら tap 側を送る。`to` に lazy な modifier を置く形は
       // 押していた時間に関係なく modifier が掛かり、ロール打鍵で誤爆する（ADR 0044）。
+      // 文字を打っている最中なら、閾値を待たずに tap 側を送る（ADR 0047）。
+      const mark = flowTapMark(terms, isFlowTapKey(inner));
       return [
+        ...flowTapManipulators(from, inner, conditions, terms),
         {
           type: "basic",
           from,
+          ...(mark.length === 0 ? {} : { to: mark }),
           to_if_alone: [{ ...inner, halt: true }],
           to_if_held_down: [modifierEvent(modifiers)],
           to_delayed_action: { to_if_canceled: [inner] },
-          parameters: tapHoldParameters(tappingTermMs),
+          parameters: tapHoldParameters(terms.tappingTermMs),
           conditions,
         },
       ];
@@ -380,7 +504,12 @@ function manipulatorsForKey(
       // `LCTL(KC_EXLM)` のように inner 側が shift を持つ場合は両方を足す。
       const all = [...new Set([...modifiers, ...(inner.modifiers ?? [])])];
       return [
-        { type: "basic", from, to: [{ key_code: inner.key_code, modifiers: all }], conditions },
+        {
+          type: "basic",
+          from,
+          to: [...flowTapMark(terms, false), { key_code: inner.key_code, modifiers: all }],
+          conditions,
+        },
       ];
     }
 

@@ -46,6 +46,10 @@ YAMLでは省略でき、省略時は内蔵キーボードだけ（`DEFAULT_MAC_
 50〜1000の整数です（ADR 0044）。YAMLでは`tapping_term_ms`と書き、省略時は200
 （`DEFAULT_MAC_TAPPING_TERM_MS`）です。
 
+`flowTapTermMs`はFlow Tapの閾値（ms）です。直前の文字キーからこれより短い間隔で押した
+文字のmod-tapは、押している長さに関係なくtapになります。0〜1000の整数で、0は無効です
+（ADR 0047）。YAMLでは`flow_tap_term_ms`と書き、省略時は0（`DEFAULT_MAC_FLOW_TAP_TERM_MS`）です。
+
 <!-- @code src/core/mac-keymap/serialize.ts#serializeMacKeymapYaml -->
 
 ## serializeMacKeymapYaml
@@ -59,6 +63,7 @@ devices:
   - { built_in: true }
   - { vendor_id: 1452, product_id: 630 }
 tapping_term_ms: 200
+flow_tap_term_ms: 0
 profile: "KeySync"
 layers:
   0:
@@ -75,8 +80,8 @@ layers:
 並び順はlayer昇順・`key_code`名昇順で固定します。生成器がmanipulatorを並べる規則と
 同じにして、手で並べ替えてもdiffが動かないようにします。
 
-`layout`行、`devices`、`tapping_term_ms`行は省略時の既定があっても**常に**書き出します。
-正規形は明示です（ADR 0024・0026・0044）。`devices`の各項目は1行のflow mappingで置きます。疎なmapを1行ずつ
+`layout`行、`devices`、`tapping_term_ms`行、`flow_tap_term_ms`行は省略時の既定があっても
+**常に**書き出します。正規形は明示です（ADR 0024・0026・0044・0047）。`devices`の各項目は1行のflow mappingで置きます。疎なmapを1行ずつ
 置くこのファイルの方針に合わせたもので、block mappingへは展開しません。
 
 <!-- @code src/core/mac-keymap/parse.ts#parseMacKeymapYaml -->
@@ -94,6 +99,7 @@ layers:
 `devices`が受け付けるのは`- { built_in: true }`と`- { vendor_id: N, product_id: N }`を
 2スペース字下げした2形だけで、省略なら内蔵キーボードだけ、2回書けば落とします（ADR 0026）。
 `tapping_term_ms`は省略なら200、50〜1000の整数でなければ落とします（ADR 0044）。
+`flow_tap_term_ms`は省略なら0、0〜1000の整数でなければ落とします（ADR 0047）。
 
 schemaは`keysync/mac-keymap@1`のほか、改名前の`cornix-bonsai/mac-keymap@1`も受け付けます（ADR 0036）。
 書き出すのは常に`keysync/mac-keymap@1`で、開いただけではファイルを書き換えません。
@@ -149,6 +155,7 @@ Inferenceです（ADR 0024・0025）。
 <!-- @code src/core/mac-keymap/edit.ts#addMacLayer -->
 <!-- @code src/core/mac-keymap/edit.ts#addMacDevice -->
 <!-- @code src/core/mac-keymap/edit.ts#setMacTappingTerm -->
+<!-- @code src/core/mac-keymap/edit.ts#setMacFlowTapTerm -->
 
 ## Mac edit
 
@@ -167,6 +174,7 @@ Vial側と違いlayersは疎なmapなので「範囲外」という概念が無�
 
 `setMacTappingTerm`はmod-tapの閾値を差し替えます。50〜1000の整数でなければ
 `MacKeymapEditError`で拒みます。同じ値なら元のdocumentをそのまま返します（ADR 0044）。
+`setMacFlowTapTerm`はFlow Tapの閾値を同じ規則で差し替えます。範囲は0〜1000で、0は無効です（ADR 0047）。
 
 <!-- @code src/core/mac-keymap/physical-layout.ts#MacPhysicalKey -->
 <!-- @code src/core/mac-keymap/physical-layout.ts#macPhysicalLayout -->
@@ -224,11 +232,23 @@ ADR 0023です。`classifyKeycode`が返す`KeycodeLexeme`から直接写しま�
   次のキーを押したとき、`to_if_canceled`が同じ文字をもう一度送ります
 - 複合modifier（`SGUI_T`など）のmod-tapは、holdの先頭を`key_code`、残りを`modifiers`に
   置きます。単独modifierには`modifiers`を付けません（ADR 0043）
+- `flowTapTermMs`が0より大きいとき、Flow Tapを出します（ADR 0047）。0なら以下の変数・manipulator・ruleを
+  どれも出さず、出力はFlow Tapを入れる前と同じです
+  - キーを押すmanipulatorはすべて、`to`の先頭で変数`keysync_flow_tap_last_ms`を書きます。
+    送るキーが文字キー（`a`〜`z`、`comma`、`period`、`semicolon`、`slash`、`spacebar`で修飾なし）なら
+    `system.now.milliseconds`、それ以外は0です。mod-tapとlayer-tapはtap側で判定します。
+    `KC_NO`は書きません
+  - tap側が文字キーのmod-tapとlayer-tapは、通常のmanipulatorの**前に**Flow Tap用の1本を置きます。
+    `expression_if`で`system.now.milliseconds - keysync_flow_tap_last_ms < flowTapTermMs`のときだけ当たり、
+    tap側を`to`でそのまま送ります
+  - どのlayerにも割り当ての無い文字キーは、時刻を書いて同じキーを送る素通しのmanipulatorを
+    `<profile> flow tap` ruleへ置きます。このruleはlayerのruleより後ろです
 - 全manipulatorの`conditions[0]`は`device_if`で、identifiersは`document.devices`から組みます。
   identifiersはORなので1条件で複数デバイスを指せます。内部表現からKarabinerの語彙への写像は
   `generate.ts`の`deviceCondition`だけが持ちます（ADR 0026）
 - `from`には`modifiers: { optional: ["any"] }`を付け、修飾キーを素通しさせます
 - manipulatorが1つも出ないlayerはruleごと省略します
+- `expression_if`と`set_variable.expression`はKarabiner 15.6.0以降でしか読めません
 
 `key_code`名の昇順で並べます。生成物が入力の書き順に依存しないようにするためです。
 

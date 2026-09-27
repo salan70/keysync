@@ -11,7 +11,9 @@
 export type KarabinerCondition =
   | { readonly type: "device_if"; readonly identifiers: readonly Record<string, unknown>[] }
   | { readonly type: "variable_if"; readonly name: string; readonly value: number }
-  | { readonly type: "variable_unless"; readonly name: string; readonly value: number };
+  | { readonly type: "variable_unless"; readonly name: string; readonly value: number }
+  /** exprtk の式が真のとき。Karabiner 15.6.0 以降（ADR 0047）。 */
+  | { readonly type: "expression_if"; readonly expression: string };
 
 /** キーを送る `to` イベント。`modifiers` は同時に押す修飾キー（ADR 0043）。 */
 export interface KarabinerKeyEvent {
@@ -24,7 +26,9 @@ export interface KarabinerKeyEvent {
 /** manipulator の `to` に置く 1 イベント。 */
 export type KarabinerToEvent =
   | KarabinerKeyEvent
-  | { readonly set_variable: { readonly name: string; readonly value: number } };
+  | { readonly set_variable: { readonly name: string; readonly value: number } }
+  /** 値を exprtk の式で決める。Karabiner 15.6.0 以降（ADR 0047）。 */
+  | { readonly set_variable: { readonly name: string; readonly expression: string } };
 
 /** `from` の指定。修飾キーは素通しさせる。 */
 export interface KarabinerFrom {

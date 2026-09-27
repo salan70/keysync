@@ -7,6 +7,7 @@ import {
   clearMacAssignment,
   MacKeymapEditError,
   setMacAssignment,
+  setMacFlowTapTerm,
   setMacTappingTerm,
 } from "./edit.ts";
 import { parseMacKeymapYaml } from "./parse.ts";
@@ -18,6 +19,7 @@ function baseDocument(): MacKeymapDocument {
     layout: "jis",
     devices: DEFAULT_MAC_DEVICES,
     tappingTermMs: 200,
+    flowTapTermMs: 0,
     profile: "KeySync",
     layers: new Map([[0, new Map([["caps_lock", "LCTL_T(KC_ESC)"]])]]),
   };
@@ -116,5 +118,20 @@ test("setMacTappingTerm は閾値を差し替え、元の document を壊さな�
 test("setMacTappingTerm は範囲外と整数でない値を拒む", () => {
   for (const value of [49, 1001, 150.5, Number.NaN]) {
     throws(() => setMacTappingTerm(baseDocument(), value), MacKeymapEditError, String(value));
+  }
+});
+
+test("setMacFlowTapTerm は閾値を差し替え、0 で無効にできる", () => {
+  const before = baseDocument();
+  const after = setMacFlowTapTerm(before, 130);
+  strictEqual(after.flowTapTermMs, 130);
+  strictEqual(before.flowTapTermMs, 0, "入力は変えない");
+  strictEqual(setMacFlowTapTerm(after, 130), after, "同じ値なら同じ document を返す");
+  strictEqual(setMacFlowTapTerm(after, 0).flowTapTermMs, 0);
+});
+
+test("setMacFlowTapTerm は範囲外と整数でない値を拒む", () => {
+  for (const value of [-1, 1001, 130.5, Number.NaN]) {
+    throws(() => setMacFlowTapTerm(baseDocument(), value), MacKeymapEditError, String(value));
   }
 });

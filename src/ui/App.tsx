@@ -4,11 +4,14 @@ import {
   addMacLayer,
   clearMacAssignment,
   setMacAssignment,
+  setMacFlowTapTerm,
   setMacTappingTerm,
 } from "../core/mac-keymap/edit.ts";
 import { macKeycodeSupport } from "../core/mac-keymap/generate.ts";
 import {
+  isMacFlowTapTerm,
   isMacTappingTerm,
+  MAC_FLOW_TAP_TERM_RANGE,
   MAC_TAPPING_TERM_RANGE,
   type MacKeyboardLayout,
 } from "../core/mac-keymap/types.ts";
@@ -355,6 +358,17 @@ export function App({
       return `${MAC_TAPPING_TERM_RANGE.min}〜${MAC_TAPPING_TERM_RANGE.max}の整数が必要`;
     }
     ws.updateMac(macLayout, (document) => setMacTappingTerm(document, ms));
+    return undefined;
+  }
+
+  /** Flow Tap の閾値を保存する。保存できなければ理由を返す（ADR 0047）。 */
+  function editFlowTapTerm(value: string): string | undefined {
+    if (macLayout === undefined) return undefined;
+    const ms = /^[0-9]+$/.test(value) ? Number(value) : Number.NaN;
+    if (!isMacFlowTapTerm(ms)) {
+      return `${MAC_FLOW_TAP_TERM_RANGE.min}〜${MAC_FLOW_TAP_TERM_RANGE.max}の整数が必要`;
+    }
+    ws.updateMac(macLayout, (document) => setMacFlowTapTerm(document, ms));
     return undefined;
   }
 
@@ -759,6 +773,7 @@ export function App({
                   applyBlockedReason={macBlockedReason}
                   onApply={() => closePanel(startMacApply)}
                   onTappingTerm={editTappingTerm}
+                  onFlowTapTerm={editFlowTapTerm}
                   onExportKarabiner={() => void ws.exportKarabiner(macLayout)}
                 />
               ) : null
