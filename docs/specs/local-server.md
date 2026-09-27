@@ -75,7 +75,7 @@ URLのpathを`dist/`配下のファイルへ解決して読みます。
 
 守る相手はブラウザで開いている別のサイトです。
 同じマシンで同じユーザーとして動く別のプロセスは対象外にします。
-そのプロセスは`karabiner.json`を直接書けるので、APIを守っても防げません。
+そのプロセスはkanataの設定ファイルを直接書けるので、APIを守っても防げません。
 起動ごとのトークンを持たないのはこのためです。
 
 <!-- @code src/server/mac-api.ts#createMacApi -->
@@ -92,20 +92,21 @@ Macの適用APIです。
 | `/api/mac/status` | `{}`                            | このマシンの内蔵配列とworkspaceを返す           |
 | `/api/mac/plan`   | `{layout, digest}`              | 計画を組み、差分とfingerprintを返す             |
 | `/api/mac/apply`  | `{layout, digest, fingerprint}` | 計画を組み直し、fingerprintが一致したら適用する |
-| `/api/mac/select` | `{layout}`                      | profileの切り替えだけをやり直す                 |
 
 計画を組む前に、次の順で突き合わせます。
-どれかで止まったら`karabiner.json`には触れません。
+どれかで止まったらkanataの設定ファイルには触れません。
 
 1. 編集対象の配列が、このマシンの内蔵配列（`detectBuiltInLayout`）と一致する
 2. その配列の設定ファイルがある
 3. Web UIが送った`digest`が、ディスクから読んだ設定の`macKeymapDigest`と一致する
 4. error診断が無い
-5. Karabinerが入っている（CLIと違い、ここで止める）
-6. lintが通る
+5. kanataが入っている
+6. `kanata --check`が通る
 
 `apply`は計画を組み直し、fingerprintが違えば書かずに新しい計画を`fingerprint-mismatch`で返します。
-書き込みとverifyの後にprofileの切り替えだけが失敗したら、巻き戻さずに`select-failed`を返します。
+計画には、kanataが常駐していてReloadできるか（`running`）を添えます。
+書き込みとverifyの後にReloadだけが失敗したら、巻き戻さずに`reload-failed`を返します。
+kanataが常駐していなければ、書き込んだうえで`applied`の`reloaded`を`false`にします。
 想定外の例外は500と`{kind: "failed", message}`にします。
 
 <!-- @code src/server/workspace-api.ts#createWorkspaceApi -->

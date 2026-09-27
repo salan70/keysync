@@ -13,7 +13,6 @@
 
 import { baseOf } from "../keycode/shifted.ts";
 import { canonicalKeycode } from "../validation/keycode-vocabulary.ts";
-import type { KarabinerKeyEvent } from "./karabiner.ts";
 import type { MacKeyboardLayout } from "./types.ts";
 
 /** `from`〜`to` の連番を `KC_<prefix>n` → `<karabiner>n` の対に展開する。 */
@@ -263,11 +262,17 @@ export function passthroughKeycode(keyCode: string): string | undefined {
   return QMK_KEYCODES_BY_POSITION.get(keyCode);
 }
 
+/** 位置の語彙で表したキー 1 つ。`modifiers` は同時に押す修飾キー（ADR 0043）。 */
+export interface KarabinerKeyEvent {
+  readonly key_code: string;
+  readonly modifiers?: readonly string[];
+}
+
 /**
- * QMK 表記を Karabiner の `to` イベント 1 個へ写す。無ければ `undefined`。
+ * QMK 表記を、Karabiner の `key_code` 名で表したキー 1 つへ写す。無ければ `undefined`。
  *
  * `KC_EXLM` のような shift 済み keycode は base の `key_code` に `left_shift` を付けて表す。
- * Karabiner に `!` 単体の `key_code` は無いため（ADR 0043）。
+ * `!` 単体のキーは無いため（ADR 0043）。kanata の生成器はこれを output chord にする。
  *
  * @doc docs/specs/mac-keymap.md#karabinerkeycode
  */

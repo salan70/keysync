@@ -18,7 +18,6 @@ function documentOf(
     devices: DEFAULT_MAC_DEVICES,
     tappingTermMs: 200,
     flowTapTermMs: 0,
-    profile: "KeySync",
     layers: new Map(
       layers.map((assignments, layer) => [layer, new Map(Object.entries(assignments))]),
     ),
@@ -102,7 +101,6 @@ test("devices が空なら適用先が無いので error", () => {
     devices: [],
     tappingTermMs: 200,
     flowTapTermMs: 0,
-    profile: "KeySync",
     layers: new Map([[0, new Map([["a", "KC_A"]])]]),
   });
   const diagnostic = result.diagnostics.find((d) => d.code === "mac-keymap/no-target-device");

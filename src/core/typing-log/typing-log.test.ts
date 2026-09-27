@@ -16,7 +16,6 @@ const DOCUMENT: MacKeymapDocument = {
   devices: DEFAULT_MAC_DEVICES,
   tappingTermMs: 200,
   flowTapTermMs: 0,
-  profile: "KeySync",
   layers: new Map([
     [
       0,

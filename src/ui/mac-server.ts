@@ -1,8 +1,8 @@
 /**
  * ローカルサーバーの Mac 適用 API を呼ぶ。
  *
- * Web UI は `karabiner.json` にも `karabiner_cli` にも触れない。書き込みと profile の選択は
- * サーバーが行い、ここは同じ origin へ JSON を POST するだけである（ADR 0034）。
+ * Web UI は kanata の設定ファイルにも kanata にも触れない。書き込みと読み直しはサーバーが
+ * 行い、ここは同じ origin へ JSON を POST するだけである（ADR 0034・0049）。
  * サーバーへ届かないときは `unreachable` を返し、例外を外へ出さない。
  */
 
@@ -12,10 +12,8 @@ import {
   type MacApplyResponse,
   type MacPlanRequest,
   type MacPlanResponse,
-  type MacSelectResponse,
   type MacStatusResponse,
 } from "../server/protocol.ts";
-import type { MacKeyboardLayout } from "../core/mac-keymap/types.ts";
 
 /** サーバーへ届かなかった。`just ui` と `just dev` 以外（静的配信だけのサーバーなど）で開いたときもこれになる。 */
 export interface MacServerUnreachable {
@@ -46,13 +44,6 @@ export async function applyMacRemote(
   fetcher: Fetch = fetch,
 ): Promise<Reached<MacApplyResponse>> {
   return await post(fetcher, MAC_API.apply, request);
-}
-
-export async function selectMacProfileRemote(
-  layout: MacKeyboardLayout,
-  fetcher: Fetch = fetch,
-): Promise<Reached<MacSelectResponse>> {
-  return await post(fetcher, MAC_API.select, { layout });
 }
 
 /** 同じ origin の API へ JSON を POST する。届かなければ `unreachable` を返し、例外を外へ出さない。 */

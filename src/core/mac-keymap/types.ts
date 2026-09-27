@@ -23,20 +23,6 @@ export type MacKeyboardLayout = "ansi" | "jis";
 export const DEFAULT_MAC_LAYOUT: MacKeyboardLayout = "jis";
 
 /**
- * KeySync が所有する Karabiner profile の既定の名前。設定を新しく作るときだけ使う。
- *
- * `karabiner.json` の `profiles[]` のうち、この名前の 1 個だけを書き換える。
- * `global` と他の profile、`selected` には触らない（ADR 0022）。
- */
-export const KEYSYNC_PROFILE_NAME = "KeySync";
-
-/**
- * 改名前（ADR 0035）の既定の profile 名。Karabiner に残っていれば知らせるだけで、
- * 置き換えも削除もしない（ADR 0036）。
- */
-export const LEGACY_PROFILE_NAME = "Cornix Bonsai";
-
-/**
  * mod-tap の tap と hold を分ける閾値（ms）の既定。YAML で省略したときに parse が埋める。
  *
  * これより短く押して離すか、これより前に次のキーを押せば tap になる（ADR 0044）。
@@ -78,10 +64,9 @@ export function isMacFlowTapTerm(value: number): boolean {
 /**
  * この設定を適用するデバイス 1 個の識別子。
  *
- * Karabiner の `device_if` の identifiers と同じ語彙で、写像は `generate.ts` の
- * 3 行だけが持つ。内蔵キーボードは vendor / product id を申告しないため
- * `is_built_in_keyboard` でしか指せない（2026-09-19 に
- * `karabiner_grabber_devices.json` で確認）。
+ * 内蔵キーボードは vendor / product id を申告しない（2026-09-19 に
+ * `karabiner_grabber_devices.json` で確認）。kanata への写像は `kanata/generate.ts` の
+ * `deviceNames` だけが持ち、kanata は名前でしか指せないため外付けは error になる（ADR 0049）。
  *
  * @doc docs/specs/mac-keymap.md#mackeymapdocument
  */
@@ -128,8 +113,6 @@ export interface MacKeymapDocument {
    * `DEFAULT_MAC_FLOW_TAP_TERM_MS` を埋める（ADR 0047）。
    */
   readonly flowTapTermMs: number;
-  /** 所有する Karabiner profile の名前。通常は `KEYSYNC_PROFILE_NAME`。 */
-  readonly profile: string;
   /** layer 番号 → 割り当て。layer 番号も疎で、連続している必要は無い。 */
   readonly layers: ReadonlyMap<number, MacLayerAssignments>;
 }

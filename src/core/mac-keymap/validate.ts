@@ -19,7 +19,7 @@ import {
   type DiagnosticSummary,
 } from "../validation/types.ts";
 import { classifyKeycode } from "../validation/keycode-vocabulary.ts";
-import { generateKarabinerRules } from "./generate.ts";
+import { generateKanataConfig } from "./kanata/generate.ts";
 import { KARABINER_POSITIONS, LAYOUT_MISSING_POSITIONS } from "./key-codes.ts";
 import type { MacKeymapDocument } from "./types.ts";
 
@@ -48,8 +48,8 @@ export function validateMacKeymap(document: MacKeymapDocument): MacValidationRes
     ...unknownPositions(document),
     ...positionsNotOnLayout(document),
     ...unknownLayers(document),
-    // 表現可能性は生成器が判定する。落とせないものは manipulator を出さずに error を積む。
-    ...generateKarabinerRules(document).diagnostics,
+    // 表現可能性は kanata の生成器が判定する。落とせないものは書かずに error を積む（ADR 0049）。
+    ...generateKanataConfig(document).diagnostics,
     ...unreachableLayers(document),
   ];
   return { diagnostics, summary: summarize(diagnostics) };
@@ -58,7 +58,7 @@ export function validateMacKeymap(document: MacKeymapDocument): MacValidationRes
 /**
  * 適用先デバイスが 1 つも無い設定。
  *
- * `device_if` の identifiers が空だと、どの manipulator もマッチしない。書いた割り当てが
+ * 適用先が空だと、kanata はどのキーボードも掴まない。書いた割り当てが
  * 1 件残らず効かなくなるので error（ADR 0010 の「機能そのものが無くなる」）。
  */
 function emptyDevices(document: MacKeymapDocument): readonly Diagnostic[] {
@@ -73,7 +73,7 @@ function emptyDevices(document: MacKeymapDocument): readonly Diagnostic[] {
   ];
 }
 
-/** Karabiner の `key_code` として存在しない位置。lint を通らないので error。 */
+/** 位置の語彙（Karabiner の `key_code` 名）に無い位置。生成器が書けないので error。 */
 export function unknownPositions(
   document: KeymapBody,
   namespace: DiagnosticNamespace = "mac-keymap",
@@ -97,8 +97,8 @@ export function unknownPositions(
 }
 
 /**
- * 宣言した物理配列に存在しない位置。rule は lint を通り load もされるが、そのキーが
- * 押せないため manipulator が決して発火しない。割り当てが 1 件単位で静かに失われるので
+ * 宣言した物理配列に存在しない位置。設定としては読み込まれるが、そのキーが
+ * 押せないため割り当てが決して発火しない。割り当てが 1 件単位で静かに失われるので
  * warning（ADR 0024）。`KARABINER_POSITIONS` に無いものは `unknown-position` が error で
  * 報告済みなので見ない（`LAYOUT_MISSING_POSITIONS` は部分集合）。
  */
@@ -126,7 +126,7 @@ export function positionsNotOnLayout(
   return diagnostics;
 }
 
-/** 書かれていない layer を指す `MO` / `LT` / `TG`。変数は立つが読む manipulator が無い。 */
+/** 書かれていない layer を指す `MO` / `LT` / `TG`。切り替えても割り当てが無い。 */
 export function unknownLayers(
   document: KeymapBody,
   namespace: DiagnosticNamespace = "mac-keymap",
@@ -158,9 +158,8 @@ export function unknownLayers(
  * severity は Vial 側の `reachability/unreachable-layer` と揃えて information にする。
  * 書けば書いたとおりに rule へ入り、失われる値も無い（ADR 0010）。
  *
- * Vial 側の `trapped-layer` はここでは見ない。Karabiner では layer 0 の manipulator が
- * 変数の状態に関わらず常に効くため、`TG(n)` を置いたキーが上の layer で潰されていない限り
- * 出口は必ずある。
+ * Vial 側の `trapped-layer` はここでは見ない。Mac（kanata）は押している間だけ効く `MO` / `LT`
+ * だけを扱うので、離せば必ず戻る。Linux（keyd）の `TG` の出口はここでは判定しない。
  */
 export function unreachableLayers(
   document: KeymapBody,

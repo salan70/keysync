@@ -7,7 +7,7 @@ import type { VilDocument } from "../../../core/vil/types.ts";
 import { keycodeLabel, type WorkspaceLabels } from "../../../workspace/labels.ts";
 import { macKeymapPath } from "../../../workspace/layout.ts";
 import { canJumpTo, groupDiagnostics, SEVERITY_VIEW, subjectLabel } from "../../diagnostics.ts";
-import { describeDevices, deviceIfText } from "../../mac-references.ts";
+import { describeDevices, kanataDeviceText } from "../../mac-references.ts";
 import type { MacWorkspaceState } from "../../mac-workspace.ts";
 import { Button } from "../Button.tsx";
 import { Icon } from "../Icon.tsx";
@@ -240,13 +240,13 @@ export function MacReferences({
         <dd>{document.layout.toUpperCase()}</dd>
         <dt>適用先</dt>
         <dd>{describeDevices(document.devices)}</dd>
-        <dt>device_if</dt>
+        <dt>kanata の対象</dt>
         <dd>
-          <code>{deviceIfText(document.devices)}</code>
+          <code>{kanataDeviceText(document.devices)}</code>
         </dd>
         <dt>件数</dt>
         <dd>
-          layer {document.layers.size} · 割り当て {assignmentCount} · Karabiner 非対応{" "}
+          layer {document.layers.size} · 割り当て {assignmentCount} · kanata 非対応{" "}
           {unsupportedCount}
         </dd>
         <dt>内蔵配列</dt>

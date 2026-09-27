@@ -3,8 +3,8 @@
 mod-tap の閾値を調整する材料として、打鍵を記録して workspace に残す仕様です。
 判断は ADR 0046 にあり、Spike は R-009（`spikes/r-009-key-observe/`）です。
 
-記録できるのは Karabiner が処理した**後**の入力だけです。
-Karabiner が内蔵キーボードを seize しているため、物理的な押下は読めません。
+記録できるのは kanata が処理した**後**の入力だけです。
+kanata が内蔵キーボードを seize しているため、物理的な押下は読めません（ADR 0049）。
 
 <!-- @code src/core/typing-log/types.ts#HidLogEvent -->
 <!-- @code src/core/typing-log/types.ts#OsLogEvent -->
@@ -15,11 +15,11 @@ Karabiner が内蔵キーボードを seize しているため、物理的な押
 
 イベントは記録の層ごとに 3 種類です。
 
-| type      | 層                                    | 時刻                               | 記録する側 |
-| --------- | ------------------------------------- | ---------------------------------- | ---------- |
-| `hid`     | Karabiner の仮想キーボードの HID の値 | 記録開始からの ns（`ns`）          | CLI        |
-| `os`      | CGEventTap が受けた OS のイベント     | 記録開始からの ns（`ns`）          | CLI        |
-| `browser` | Web UI の入力欄の keydown / keyup     | ページの `timeStamp` の ms（`ms`） | Web UI     |
+| type      | 層                                                      | 時刻                               | 記録する側 |
+| --------- | ------------------------------------------------------- | ---------------------------------- | ---------- |
+| `hid`     | kanata が出力する Karabiner の仮想キーボードの HID の値 | 記録開始からの ns（`ns`）          | CLI        |
+| `os`      | CGEventTap が受けた OS のイベント                       | 記録開始からの ns（`ns`）          | CLI        |
+| `browser` | Web UI の入力欄の keydown / keyup                       | ページの `timeStamp` の ms（`ms`） | Web UI     |
 
 `hid` と `os` は同じ時計で、同じ打鍵は同じ `ns` になります。
 `browser` の時刻は他の 2 つと揃いません。
@@ -32,7 +32,7 @@ Karabiner が内蔵キーボードを seize しているため、物理的な押
 ## KeyLogMeta
 
 ログの 1 行目です。
-記録した側（`cli` / `browser`）、開始時刻、配列、記録した時点で Karabiner に効いていた閾値を持ちます。
+記録した側（`cli` / `browser`）、開始時刻、配列、記録した時点で kanata に効いていた閾値を持ちます。
 閾値が確かめられなければ `null` です。
 
 CLI は `originNs`（`hid` / `os` の時刻の原点、起動からの ns を 10 進の文字列で）を書きます。

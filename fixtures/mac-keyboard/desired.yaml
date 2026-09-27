@@ -13,7 +13,7 @@ layers:
     "caps_lock": "LCTL_T(KC_ESC)"
     "japanese_eisuu": "MO(2)"
     "japanese_kana": "LT1(KC_LANG1)"
-    "right_command": "TG(3)"
+    "right_command": "MO(3)"
   1:
     "a": "KC_HOME"
     "d": "KC_DEL"

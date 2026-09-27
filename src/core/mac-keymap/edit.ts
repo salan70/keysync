@@ -103,7 +103,7 @@ function sameDevice(left: MacDeviceIdentifier, right: MacDeviceIdentifier): bool
 /**
  * 適用先デバイスを追加する。既にあれば何もしない。
  *
- * 順序は追加順のまま保つ。`device_if` の identifiers は OR なので意味は順序に依存しないが、
+ * 順序は追加順のまま保つ。適用先は集合なので意味は順序に依存しないが、
  * 並べ替えると diff が動く。
  *
  * @doc docs/specs/mac-keymap.md#mac-edit

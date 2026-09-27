@@ -11,13 +11,13 @@
  */
 
 import { resolve } from "node:path";
-import type { OwnedProfileDiff } from "../core/mac-keymap/apply.ts";
+import { diffKanataText, type MacDiffEntry } from "../core/mac-keymap/apply.ts";
 import type { MacKeyboardLayout } from "../core/mac-keymap/types.ts";
-import type { KarabinerCli } from "../karabiner/node.ts";
+import type { KanataHost } from "../kanata/node.ts";
 import {
   applyMacPlan,
   planMacApplyAt,
-  selectOwnedProfile,
+  readOptional,
   type MacApplyPlanning,
   type MacApplyTarget,
 } from "../mac/apply-service.ts";
@@ -31,29 +31,27 @@ import {
   type MacPlanBlocked,
   type MacPlanned,
   type MacPlanResponse,
-  type MacSelectResponse,
   type MacStatusResponse,
 } from "./protocol.ts";
 
 /** API が触れる外界。テストでは偽物を渡す。 */
 export interface MacApiDeps {
   readonly root: string;
+  /** 書き込み先の kanata の設定ファイル。 */
+  readonly config: string;
+  /** 内蔵キーボードの扱いを確かめるために読む `karabiner.json`。 */
   readonly karabiner: string;
-  readonly cli: KarabinerCli;
+  readonly host: KanataHost;
   readonly detectLayout: () => Promise<MacKeyboardLayout | undefined>;
   readonly crypto: Sha256Provider;
 }
 
-export type MacApiResponse =
-  | MacStatusResponse
-  | MacPlanResponse
-  | MacApplyResponse
-  | MacSelectResponse;
+export type MacApiResponse = MacStatusResponse | MacPlanResponse | MacApplyResponse;
 
 /**
  * Mac 適用 API を作る。返す関数は path と JSON 本文を受けて応答を返す。
  *
- * 呼び出しは 1 本ずつ直列に処理する。`karabiner.json` の書き換えと `keysync/generated/` の
+ * 呼び出しは 1 本ずつ直列に処理する。kanata の設定ファイルの書き換えと `keysync/generated/` の
  * 生成が並行すると、計画を組んだ入力と書き込む入力が食い違う。
  *
  * @doc docs/specs/local-server.md#createmacapi
@@ -95,8 +93,6 @@ async function route(
     }
     case MAC_API.apply:
       return await apply(deps, body);
-    case MAC_API.select:
-      return await select(deps, body);
     default:
       return undefined;
   }
@@ -113,9 +109,8 @@ interface Prepared {
 /**
  * 配列と digest を突き合わせてから計画を組む。止まるときは理由を返す。
  *
- * 計画を組むまでの順序は CLI と同じで、error の判定 → asset 生成と lint の順。
- * Web UI からの適用は「書き込み → profile 切り替え」までが 1 つの操作なので、
- * CLI と違って Karabiner が入っていなければここで止める。
+ * 計画を組むまでの順序は CLI と同じで、error の判定 → 生成と `kanata --check` の順。
+ * kanata が入っていなければ check できないので、ここで止める。
  */
 async function prepare(deps: MacApiDeps, body: unknown): Promise<Prepared | MacPlanBlocked> {
   const request = planRequest(body);
@@ -129,16 +124,16 @@ async function prepare(deps: MacApiDeps, body: unknown): Promise<Prepared | MacP
     layout: request.layout,
     path: loaded.path,
     document: loaded.document,
+    config: deps.config,
     karabiner: deps.karabiner,
-    cli: deps.cli,
-    selectProfile: true,
+    host: deps.host,
   };
   const planning = await planMacApplyAt(target);
   if (planning.kind === "invalid") {
     return { kind: "invalid", diagnostics: planning.plan.diagnostics };
   }
-  if (planning.lint === undefined) return { kind: "karabiner-missing" };
-  if (!planning.lint.ok) return { kind: "lint-failed", output: planning.lint.output };
+  if (planning.check === undefined) return { kind: "kanata-missing" };
+  if (!planning.check.ok) return { kind: "check-failed", output: planning.check.output };
   const { plan } = planning;
   return {
     target,
@@ -148,11 +143,11 @@ async function prepare(deps: MacApiDeps, body: unknown): Promise<Prepared | MacP
         kind: "planned",
         workspace: deps.root,
         source: resolve(deps.root, loaded.path),
-        karabiner: deps.karabiner,
+        config: deps.config,
         fingerprint: plan.fingerprint,
-        entries: entryViews(plan.diff),
+        entries: entryViews(plan.entries),
         diagnostics: plan.diagnostics,
-        selection: plan.selection,
+        running: await deps.host.reachable(),
       },
     },
   };
@@ -161,9 +156,8 @@ async function prepare(deps: MacApiDeps, body: unknown): Promise<Prepared | MacP
 /**
  * 計画を組み直し、送られてきた fingerprint と一致したときだけ書き込む。
  *
- * 書き込みと verify が通った後の profile 切り替えの失敗は**巻き戻さない**。巻き戻しは
- * もう一度の書き込みで、新しい失敗の原因を増やす。切り替えだけをやり直せるようにする
- * （ADR 0034）。
+ * 書き込みと verify が通った後の reload の失敗は**巻き戻さない**。巻き戻しはもう一度の
+ * 書き込みで、新しい失敗の原因を増やす（ADR 0034 と同じ考え）。
  */
 async function apply(deps: MacApiDeps, body: unknown): Promise<MacApplyResponse> {
   const fingerprint = stringField(body, "fingerprint");
@@ -174,35 +168,21 @@ async function apply(deps: MacApiDeps, body: unknown): Promise<MacApplyResponse>
     return { kind: "fingerprint-mismatch", plan: planned.response };
   }
   const applied = await applyMacPlan(target, planned.planning);
-  if (!applied.verify.ok) {
+  if (!applied.verify || applied.reload === null) {
+    const observed = await readOptional(deps.config);
     return {
       kind: "verify-failed",
       backup: applied.backup,
-      entries: entryViews({ present: true, changed: true, entries: applied.verify.entries }),
+      entries: entryViews(diffKanataText(observed ?? "", planned.planning.plan.text)),
     };
   }
-  if (applied.selected !== null && !applied.selected.ok) {
-    return {
-      kind: "select-failed",
-      backup: applied.backup,
-      profile: applied.selected.requested,
-      output: applied.selected.output,
-    };
+  if (applied.reload.kind === "failed") {
+    return { kind: "reload-failed", backup: applied.backup, output: applied.reload.output };
   }
-  return { kind: "applied", backup: applied.backup, selected: applied.selected !== null };
-}
-
-/** profile の切り替えだけをやり直す。書き込みは行わない。 */
-async function select(deps: MacApiDeps, body: unknown): Promise<MacSelectResponse> {
-  const loaded = await load(deps, layoutField(body));
-  if ("kind" in loaded) return loaded;
-  const selected = await selectOwnedProfile(deps.cli, loaded.document.profile);
-  if (selected === null) return { kind: "karabiner-missing" };
   return {
-    kind: "selected",
-    ok: selected.ok,
-    observed: selected.observed,
-    output: selected.output,
+    kind: "applied",
+    backup: applied.backup,
+    reloaded: applied.reload.kind === "reloaded",
   };
 }
 
@@ -222,23 +202,9 @@ async function load(
   return { path: file.path, document: file.document };
 }
 
-/** manipulator 単位の差分を、盤面のキー単位へまとめる。 */
-function entryViews(diff: OwnedProfileDiff): readonly MacDiffEntryView[] {
-  const seen = new Set<string>();
-  const views: MacDiffEntryView[] = [];
-  for (const entry of diff.entries) {
-    const layer = /layer (\d+)$/.exec(entry.rule)?.[1];
-    const view: MacDiffEntryView = {
-      layer: layer === undefined ? null : Number(layer),
-      keyCode: entry.keyCode,
-      change: entry.change,
-    };
-    const key = `${view.layer} ${view.keyCode}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    views.push(view);
-  }
-  return views;
+/** 差分を盤面の言葉へ写す。変化の前後の値は Web UI が編集中の内容から引く。 */
+function entryViews(entries: readonly MacDiffEntry[]): readonly MacDiffEntryView[] {
+  return entries.map(({ layer, keyCode, change }) => ({ layer, keyCode, change }));
 }
 
 function planRequest(body: unknown): {

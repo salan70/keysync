@@ -1,5 +1,5 @@
 import type { KeyboardDefinition } from "../core/definition/types.ts";
-import { generateKarabinerAsset } from "../core/mac-keymap/generate.ts";
+import { generateKanataConfig } from "../core/mac-keymap/kanata/generate.ts";
 import { parseMacKeymapYaml } from "../core/mac-keymap/parse.ts";
 import type { MacKeymapDocument } from "../core/mac-keymap/types.ts";
 import { validateMacKeymap } from "../core/mac-keymap/validate.ts";
@@ -49,24 +49,23 @@ export function renderBrowserPdf(
 }
 
 /**
- * `mac-keyboard.yaml` から Karabiner の complex_modifications asset を組み立てる。
+ * `mac-keyboard.yaml` から kanata の設定を組み立てる。
  *
- * error が 1 件でもあれば `asset` は `undefined` にする。Browser UI から**適用はしない**
- * ので、書き出す前に落とせないことが分かった時点で止めるのがここでできる最後の防壁になる
- * （ADR 0022）。
+ * error が 1 件でもあれば `config` は `undefined` にする。書き出す前に落とせないことが
+ * 分かった時点で止める（ADR 0023・0049）。
  *
  * @doc docs/specs/ui.md#browser-import-export
  */
-export function generateBrowserKarabiner(text: string): {
-  readonly asset: string | undefined;
+export function generateBrowserKanata(text: string): {
+  readonly config: string | undefined;
   readonly diagnostics: readonly Diagnostic[];
   readonly summary: DiagnosticSummary;
 } {
-  return generateBrowserKarabinerFromDocument(parseMacKeymapYaml(text));
+  return generateBrowserKanataFromDocument(parseMacKeymapYaml(text));
 }
 
 /**
- * UI 状態の `MacKeymapDocument` から直接 asset を組み立てる。
+ * UI 状態の `MacKeymapDocument` から直接 kanata の設定を組み立てる。
  *
  * 盤面編集が載った後の書き出しはこちらが正。ディスクを再読すると保存キューに
  * 未 flush の編集がある瞬間に古い内容を書き出しうるため、in-memory の document
@@ -74,13 +73,12 @@ export function generateBrowserKarabiner(text: string): {
  *
  * @doc docs/specs/ui.md#browser-import-export
  */
-export function generateBrowserKarabinerFromDocument(document: MacKeymapDocument): {
-  readonly asset: string | undefined;
+export function generateBrowserKanataFromDocument(document: MacKeymapDocument): {
+  readonly config: string | undefined;
   readonly diagnostics: readonly Diagnostic[];
   readonly summary: DiagnosticSummary;
 } {
   const { diagnostics, summary } = validateMacKeymap(document);
-  if (summary.error > 0) return { asset: undefined, diagnostics, summary };
-  const { asset } = generateKarabinerAsset(document);
-  return { asset: `${JSON.stringify(asset, null, 2)}\n`, diagnostics, summary };
+  if (summary.error > 0) return { config: undefined, diagnostics, summary };
+  return { config: generateKanataConfig(document).text, diagnostics, summary };
 }

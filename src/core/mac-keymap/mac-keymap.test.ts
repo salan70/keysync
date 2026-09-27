@@ -27,7 +27,6 @@ function layersOf(document: MacKeymapDocument): Record<number, Record<string, st
 
 test("desired.yaml を読むと疎な map になる", () => {
   const document = parseMacKeymapYaml(readFixture("desired.yaml"));
-  strictEqual(document.profile, "KeySync");
   strictEqual(document.layout, "jis");
   // 割り当ての無いキーは書かない。全キーを並べない（ADR 0022）。
   deepStrictEqual(layersOf(document), {
@@ -35,7 +34,7 @@ test("desired.yaml を読むと疎な map になる", () => {
       caps_lock: "LCTL_T(KC_ESC)",
       japanese_eisuu: "MO(2)",
       japanese_kana: "LT1(KC_LANG1)",
-      right_command: "TG(3)",
+      right_command: "MO(3)",
     },
     1: {
       a: "KC_HOME",
@@ -68,7 +67,6 @@ test("serialize は layer 昇順・key_code 名昇順で並べる", () => {
     devices: DEFAULT_MAC_DEVICES,
     tappingTermMs: 200,
     flowTapTermMs: 0,
-    profile: "KeySync",
     layers: new Map([
       [2, new Map([["z", "KC_Z"]])],
       [
@@ -89,7 +87,6 @@ test("serialize は layer 昇順・key_code 名昇順で並べる", () => {
       "  - { built_in: true }",
       "tapping_term_ms: 200",
       "flow_tap_term_ms: 0",
-      'profile: "KeySync"',
       "layers:",
       "  0:",
       '    "a": "KC_A"',
@@ -195,8 +192,12 @@ test("同じ layer で key_code が重複したら落ちる", () => {
   );
 });
 
-test("profile が無ければ落ちる", () => {
-  throws(() => parseMacKeymapYaml("schema: keysync/mac-keymap@1\nlayers:\n"), MacKeymapParseError);
+test("Karabiner の profile 行は読み捨て、書き出さない", () => {
+  // engine が kanata になり、profile 名は意味を失った（ADR 0049）。
+  const text = 'schema: keysync/mac-keymap@1\nprofile: "KeySync"\nlayers:\n  0:\n';
+  const document = parseMacKeymapYaml(text);
+  strictEqual(serializeMacKeymapYaml(document).includes("profile:"), false);
+  deepStrictEqual(parseMacKeymapYaml("schema: keysync/mac-keymap@1\nlayers:\n  0:\n"), document);
 });
 
 test("devices を省略した設定は内蔵キーボードだけを対象にする", () => {
@@ -228,7 +229,6 @@ test("tapping_term_ms と flow_tap_term_ms は round-trip する", () => {
     "  - { built_in: true }",
     "tapping_term_ms: 180",
     "flow_tap_term_ms: 130",
-    'profile: "KeySync"',
     "layers:",
     "  0:",
     "",
@@ -289,7 +289,6 @@ test("内蔵と外付けを並べた devices が round-trip する", () => {
     devices: [{ builtIn: true }, { vendorId: 1452, productId: 630 }],
     tappingTermMs: 200,
     flowTapTermMs: 0,
-    profile: "KeySync",
     layers: new Map([[0, new Map([["a", "KC_A"]])]]),
   };
   const text = serializeMacKeymapYaml(document);

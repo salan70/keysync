@@ -153,19 +153,24 @@ Web UIの移行と同じ`planLayoutMigration`と`writeLayoutMigration`を通る�
 移す必要が無ければ`migrated: false`を返して何も書かない。
 `cornix/`を指したままのworkspaceへ他のcommandを使うと、`keysync migrate`を案内して止まる。
 
-MacBook内蔵キーボードは`keysync mac generate|diff|apply|devices`で扱う。仕様は
+MacBook内蔵キーボードは`keysync mac generate|diff|apply|service|record`で扱う。engineはkanataで（ADR 0049）、仕様は
 `mac-keymap.md`にある。`keymap.yaml`もdefinitionも要らないため、`import vil`と同じく
-**workspaceを読み込む手前で分岐**する。`--karabiner <path>`の既定は
-`~/.config/karabiner/karabiner.json`。
+**workspaceを読み込む手前で分岐**する。`--config <path>`（kanataの設定ファイル）の既定は
+`~/Library/Application Support/keysync/kanata.kbd`、`--karabiner <path>`（内蔵キーボードを掴んでいないかを
+確かめるために読む）の既定は`~/.config/karabiner/karabiner.json`。
 
 日常の操作は`--workspace`も`--layout`も要らない。配列は実行しているMacから検出し
 （ADR 0027）、workspaceは`$KEYSYNC_WORKSPACE`から決める（ADR 0039）。`mac`の全出力へ
 解決済みの`workspace`を載せる。
 
-適用はCLIとローカルサーバーの適用APIが行う（ADR 0034）。`keysync mac apply`は`--confirm`が無いうちはasset生成と
-lint、構造diff、fingerprintを出して終わり、人間が同じfingerprintを渡したときだけ
-`karabiner.json`を書く。手順は`mac-keymap.md`の「適用の境界」にある。error diagnosticが
-1件でもあれば適用せず、lintが落ちても書き込まない。
+適用はCLIとローカルサーバーの適用APIが行う（ADR 0034）。`keysync mac apply`は`--confirm`が無いうちは生成と
+`kanata --check`、テキストdiff、fingerprintを出して終わり、人間が同じfingerprintを渡したときだけ
+kanataの設定ファイルを書き、常駐しているkanataに読み直させる。手順は`mac-keymap.md`の「適用の境界」にある。
+error diagnosticが1件でもあれば適用せず、checkが落ちても書き込まない。
+
+`keysync mac service status|install`はkanataの常駐（launchd）を扱う。`status`（既定）は登録・常駐・設定ファイルの有無と、
+Karabinerが内蔵キーボードを掴んでいるかを出して何も書かない。`install`はplistを`keysync/generated/`へ生成し、
+端末の`sudo`で`/Library/LaunchDaemons/`へ置いて登録する。kanataの設定ファイルが無ければ登録しない。
 
 Linuxで使うApple製キーボードは`keysync linux devices|generate|diff|apply`で扱う（ADR 0042）。
 仕様は`linux-keymap.md`にある。`mac`と同じくworkspaceを読み込む手前で分岐する。
@@ -179,12 +184,9 @@ Linuxで使うApple製キーボードは`keysync linux devices|generate|diff|app
 何も打たずにEnterを押した課題は飛ばしたものとして扱い、入力が尽きるかCtrl-Cで終える。
 `--tasks roll|hold|all`で課題を選ぶ（既定はall）。記録の上限は1800秒である。
 `--free [秒数]`は課題を出さずに秒数だけ記録する（既定30秒）。
-`karabiner.json`は、記録した時点で効いていた閾値を残すために読むだけである。
+kanataの設定ファイルは、記録した時点で効いていた閾値を残すために読むだけである。
 出力は記録した件数、開けたキーボードと開けなかったキーボード、警告、課題ごとの採点と判定の推定、全体の判定の推定である。
 仕様は`typing-log.md`にある。
-
-`--no-select`を渡すとprofileの選択を行わない。診断が変わるのでfingerprintも変わり、
-確認文字列はフラグを含む形で返る（ADR 0028）。
 
 exit codeは他のコマンドと揃える。errorが1件でもあれば1、それ以外は0。
 

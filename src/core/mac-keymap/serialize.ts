@@ -6,7 +6,7 @@
  * `keysync/labels.yaml`（`src/workspace/labels.ts`）と同じく、section 見出しの下へ
  * `key: "value"` を 1 行ずつ置く形にする。
  *
- * 並び順は layer 昇順・`key_code` 名昇順で固定する。生成器の manipulator の順序と
+ * 並び順は layer 昇順・`key_code` 名昇順で固定する。生成器が行を並べる順序と
  * 同じ規則にして、手で並べ替えても diff が動かないようにする。
  *
  */
@@ -24,7 +24,6 @@ export function serializeMacKeymapYaml(document: MacKeymapDocument): string {
     ...document.devices.map((device) => `  - ${deviceFlow(device)}`),
     `tapping_term_ms: ${document.tappingTermMs}`,
     `flow_tap_term_ms: ${document.flowTapTermMs}`,
-    `profile: ${quote(document.profile)}`,
     "layers:",
   ];
   for (const [layer, assignments] of [...document.layers.entries()].sort(([a], [b]) => a - b)) {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { webcrypto } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { access, constants, readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { parseDefinition } from "../core/definition/parse.ts";
@@ -12,31 +12,39 @@ import { parseVil } from "../core/vil/parse.ts";
 import { serializeVil } from "../core/vil/serialize.ts";
 import { parseKeymapYaml } from "../core/keymap-yaml/parse.ts";
 import { serializeKeymapYaml } from "../core/keymap-yaml/serialize.ts";
-import { planMacApply } from "../core/mac-keymap/apply.ts";
-import { addMacDevice } from "../core/mac-keymap/edit.ts";
-import { serializeMacKeymapYaml } from "../core/mac-keymap/serialize.ts";
+import {
+  appliedTappingTermMs,
+  karabinerGrabsBuiltIn,
+  planMacApply,
+} from "../core/mac-keymap/apply.ts";
 import { validateMacKeymap } from "../core/mac-keymap/validate.ts";
 import type { MacKeyboardLayout, MacKeymapDocument } from "../core/mac-keymap/types.ts";
-import { appliedTappingTermMs } from "../core/mac-keymap/applied.ts";
 import { analyzeModTapOutput } from "../core/typing-log/analyze.ts";
 import { keyLogPath, serializeKeyLog, TYPING_LOG_DIR } from "../core/typing-log/format.ts";
 import { splitAtReturn, typedEventsFromHid } from "../core/typing-log/trial.ts";
 import { gradeTypingTrial, tokenizeTypedEvents } from "../core/typing-trial/grade.ts";
 import { HOLD_REPEAT, holdTasksFor, ROLL_TASKS } from "../core/typing-trial/tasks.ts";
 import type { TypingTask } from "../core/typing-trial/types.ts";
-import { applyMacPlan, planMacApplyAt, writeAndLintAsset } from "../mac/apply-service.ts";
+import {
+  applyMacPlan,
+  generateKanataAt,
+  KANATA_GENERATED,
+  planMacApplyAt,
+  readOptional,
+} from "../mac/apply-service.ts";
 import { createKeyRecorder, type KeyRecorder } from "../mac/key-recorder.ts";
 import { detectBuiltInLayout } from "../mac/keyboard-type.ts";
 import { readMacKeymapFor } from "../workspace/mac-keymap-file.ts";
 import { planLayoutMigration, writeLayoutMigration } from "../workspace/bootstrap.ts";
+import { defaultKarabinerConfigPath, readKarabinerConfig } from "../karabiner/node.ts";
+import { createKanataHost, defaultKanataConfigPath, type KanataHost } from "../kanata/node.ts";
 import {
-  createKarabinerCli,
-  defaultKarabinerConfigPath,
-  KARABINER_DEVICES_PATH,
-  readKarabinerConfig,
-  readObservedKeyboards,
-  type KarabinerCli,
-} from "../karabiner/node.ts";
+  createServiceHost,
+  KANATA_SERVICE_LABEL,
+  KANATA_SERVICE_PLIST,
+  kanataServicePlist,
+  type ServiceHost,
+} from "../kanata/service.ts";
 import { planLinuxApply } from "../core/linux-keymap/apply.ts";
 import { addLinuxDevice, initialLinuxKeymap } from "../core/linux-keymap/edit.ts";
 import { serializeLinuxKeymapYaml } from "../core/linux-keymap/serialize.ts";
@@ -62,9 +70,10 @@ import { parseLabelsYaml, EMPTY_LABELS } from "../workspace/labels.ts";
 import { CORNIX_LP_V112_SETTINGS } from "../workspace/settings.ts";
 import { NodeWorkspaceStore } from "../workspace/node.ts";
 
-/** テストから実物の `karabiner_cli` と keyd / sudo を外すための注入口。 */
+/** テストから実物の kanata・launchd と keyd / sudo を外すための注入口。 */
 interface CliDeps {
-  readonly karabinerCli?: KarabinerCli;
+  readonly kanataHost?: KanataHost;
+  readonly serviceHost?: ServiceHost;
   readonly keydHost?: KeydHost;
   readonly keyRecorder?: KeyRecorder;
   /** 課題つき記録で行を読む入力。既定は標準入力。 */
@@ -93,8 +102,8 @@ interface LoadedWorkspace {
 /**
  * CLI の入口。
  *
- * `deps` はテストのための注入口である。`karabiner_cli` は CI の macOS runner に無く、
- * 実物を叩くテストは書けない（ADR 0022）。
+ * `deps` はテストのための注入口である。kanata と launchd は CI の macOS runner で
+ * 動かせず、実物を叩くテストは書けない（ADR 0049）。
  *
  * @doc docs/specs/workspace-cli.md#cli
  */
@@ -274,21 +283,21 @@ async function migrate(root: string): Promise<number> {
 }
 
 /**
- * MacBook 内蔵キーボードの生成・差分・適用。
+ * MacBook 内蔵キーボードの生成・差分・適用・常駐の登録・記録。
  *
- * 適用は CLI とローカルサーバーの適用 API が行う。Web UI 自身は `karabiner.json` に触れない
- * （ADR 0034）。
+ * 適用は CLI とローカルサーバーの適用 API が行う。Web UI 自身は kanata の設定ファイルに
+ * 触れない（ADR 0034・0049）。
  */
 async function mac(root: string, args: ParsedArgs, deps: CliDeps): Promise<number> {
   const sub = args._[0];
-  const cli = deps.karabinerCli ?? createKarabinerCli();
+  const host = deps.kanataHost ?? createKanataHost();
   const loaded = await loadMacKeymap(root, args);
-  if (sub === "generate") return await macGenerate(root, loaded, args, cli);
+  if (sub === "generate") return await macGenerate(root, loaded, args, host);
   if (sub === "diff") return await macDiff(root, loaded, args);
-  if (sub === "apply") return await macApply(root, loaded, args, cli);
-  if (sub === "devices") return await macDevices(root, loaded, args);
+  if (sub === "apply") return await macApply(root, loaded, args, host);
+  if (sub === "service") return await macService(root, args, host, deps);
   if (sub === "record") return await macRecord(root, loaded, args, deps);
-  throw new Error("keysync mac generate|diff|apply|devices|record が必要");
+  throw new Error("keysync mac generate|diff|apply|service|record が必要");
 }
 
 /** `--layout` の明示指定。検出できない環境と、別配列の設定を触りたいときの入口。 */
@@ -319,107 +328,15 @@ async function loadMacKeymap(root: string, args: ParsedArgs): Promise<LoadedMacK
   return { layout, path: file.path, document: file.document };
 }
 
-/** `--add` が受ける `<vendor_id>:<product_id>`。10 進の整数 2 つだけを受ける。 */
-function parseDeviceArg(value: string): { readonly vendorId: number; readonly productId: number } {
-  const match = /^([0-9]+):([0-9]+)$/.exec(value);
-  if (match?.[1] === undefined || match[2] === undefined) {
-    throw new Error(`--add は <vendor_id>:<product_id> の形（${value} が渡された）`);
-  }
-  return { vendorId: Number(match[1]), productId: Number(match[2]) };
-}
-
-/**
- * 適用先デバイスの一覧と登録。
- *
- * `--add` が無ければ観測されたキーボードを出して終わる。`mac apply` と同じで、
- * **見てから明示的に指定したときだけ**書き込む。内蔵キーボードは vendor / product id を
- * 申告しないため一覧に id が出ない。既定で対象なので登録も要らない。
- *
- * Cornix LP のような他のキーボードもここに並ぶ。登録すると Mac の keymap がその実機の
- * firmware keymap と二重に効くので、product を見て選ぶ必要がある（ADR 0022 の隔離）。
- */
-async function macDevices(
-  root: string,
-  loaded: LoadedMacKeymap,
-  args: ParsedArgs,
-): Promise<number> {
-  // `--karabiner` と同じく、既定の場所以外も指せるようにする。
-  const observed = await readObservedKeyboards(
-    args.devices === undefined ? undefined : String(args.devices),
-  );
-  const add = args.add === undefined ? undefined : parseDeviceArg(String(args.add));
-
-  if (add !== undefined) {
-    const next = addMacDevice(loaded.document, add);
-    await new NodeWorkspaceStore(root).writeText(loaded.path, serializeMacKeymapYaml(next));
-    console.log(
-      JSON.stringify(
-        {
-          workspace: root,
-          path: loaded.path,
-          layout: loaded.layout,
-          devices: next.devices,
-          added: add,
-        },
-        null,
-        2,
-      ),
-    );
-    return 0;
-  }
-
-  const registered = new Set(
-    loaded.document.devices.flatMap((device) =>
-      "builtIn" in device ? [] : [`${device.vendorId}:${device.productId}`],
-    ),
-  );
-  const list = (observed ?? []).map((keyboard) => {
-    const id =
-      keyboard.vendorId === undefined || keyboard.productId === undefined
-        ? undefined
-        : `${keyboard.vendorId}:${keyboard.productId}`;
-    return {
-      product: keyboard.product ?? null,
-      manufacturer: keyboard.manufacturer ?? null,
-      builtIn: keyboard.builtIn,
-      identifier: id ?? null,
-      registered: keyboard.builtIn
-        ? loaded.document.devices.some((device) => "builtIn" in device)
-        : id !== undefined && registered.has(id),
-      add: id === undefined ? null : `keysync mac devices --layout ${loaded.layout} --add ${id}`,
-    };
-  });
-  console.log(
-    JSON.stringify(
-      {
-        workspace: root,
-        source:
-          observed === undefined
-            ? null
-            : args.devices === undefined
-              ? KARABINER_DEVICES_PATH
-              : String(args.devices),
-        layout: loaded.layout,
-        path: loaded.path,
-        devices: loaded.document.devices,
-        observed: list,
-      },
-      null,
-      2,
-    ),
-  );
-  return 0;
-}
-
-/** complex_modifications の asset を書き出す。Karabiner が入っていれば lint も通す。 */
+/** kanata の設定を keysync/generated/ へ書き出す。kanata が入っていれば check も通す。 */
 async function macGenerate(
   root: string,
   loaded: LoadedMacKeymap,
   args: ParsedArgs,
-  cli: KarabinerCli,
+  host: KanataHost,
 ): Promise<number> {
   const result = validateMacKeymap(loaded.document);
-  const target = String(args.out ?? generatedPath("karabiner-complex-modifications.json"));
+  const output = String(args.out ?? KANATA_GENERATED);
   if (result.summary.error > 0) {
     console.log(
       JSON.stringify(
@@ -430,7 +347,7 @@ async function macGenerate(
     );
     return 1;
   }
-  const { output, lint } = await writeAndLintAsset(root, loaded.document, target, cli);
+  const check = await generateKanataAt(root, loaded.document, loaded.path, output, host);
   console.log(
     JSON.stringify(
       {
@@ -440,13 +357,13 @@ async function macGenerate(
         output,
         summary: result.summary,
         diagnostics: result.diagnostics,
-        lint: lint ?? null,
+        check: check ?? null,
       },
       null,
       2,
     ),
   );
-  return lint !== undefined && !lint.ok ? 1 : 0;
+  return check !== undefined && !check.ok ? 1 : 0;
 }
 
 /** 自由記録（`--free`）の既定の長さ（秒）。Ctrl-C で早く止められる。 */
@@ -505,8 +422,8 @@ function recordTasks(args: ParsedArgs, document: MacKeymapDocument): readonly Ty
  * Enter で次へ進む。記録は通しで 1 本にし、HID の Return で課題ごとに区切って採点する。
  * `--free` は課題を出さずに秒数だけ記録する。
  *
- * 記録するのは Karabiner が処理した後の入力（HID と OS の 2 層）で、何も書き換えない。
- * `karabiner.json` は、記録した時点で効いていた閾値を残すために読むだけ（ADR 0046）。
+ * 記録するのは kanata が処理した後の入力（HID と OS の 2 層）で、何も書き換えない。
+ * kanata の設定ファイルは、記録した時点で効いていた閾値を残すために読むだけ（ADR 0046）。
  */
 async function macRecord(
   root: string,
@@ -527,14 +444,9 @@ async function macRecord(
     throw new Error(`記録する秒数は正の数（${String(raw)} が渡された）`);
   }
   const tasks = free ? [] : recordTasks(args, loaded.document);
-  const karabiner = karabinerPath(args);
-  let tappingTermMs: number | null = null;
-  try {
-    const { config } = await readKarabinerConfig(karabiner);
-    tappingTermMs = appliedTappingTermMs(config, loaded.document.profile);
-  } catch {
-    // 閾値が分からなくても記録はできる。ログには null を残す。
-  }
+  const applied = await readOptional(kanataConfigPath(args));
+  // 閾値が分からなくても記録はできる。ログには null を残す。
+  const tappingTermMs = applied === undefined ? null : appliedTappingTermMs(applied);
   const startedAt = (deps.now ?? (() => new Date()))();
   const recorder = deps.keyRecorder ?? createKeyRecorder();
 
@@ -665,23 +577,26 @@ async function macRecord(
   return 0;
 }
 
-/** 所有 profile の構造 diff を出す。karabiner.json は読むだけ。 */
+/** kanata の設定ファイルとの差分を出す。設定ファイルと karabiner.json は読むだけ。 */
 async function macDiff(root: string, loaded: LoadedMacKeymap, args: ParsedArgs): Promise<number> {
-  const path = karabinerPath(args);
-  const { config } = await readKarabinerConfig(path);
-  const plan = planMacApply(config, loaded.document, { selectProfile: selectProfileArg(args) });
+  const config = kanataConfigPath(args);
+  const karabiner = await readKarabinerConfig(karabinerPath(args));
+  const plan = planMacApply(await readOptional(config), loaded.document, {
+    source: loaded.path,
+    karabinerGrabsBuiltIn: karabiner !== undefined && karabinerGrabsBuiltIn(karabiner),
+  });
   console.log(
     JSON.stringify(
       {
         workspace: root,
         layout: loaded.layout,
         source: loaded.path,
-        karabiner: path,
+        config,
         summary: plan.validation.summary,
         diagnostics: plan.diagnostics,
-        selection: plan.selection,
         fingerprint: plan.fingerprint,
-        diff: plan.diff,
+        changed: plan.changed,
+        entries: plan.entries,
       },
       null,
       2,
@@ -691,28 +606,27 @@ async function macDiff(root: string, loaded: LoadedMacKeymap, args: ParsedArgs):
 }
 
 /**
- * 所有 profile を置き換え、必要なら profile を選択する。
+ * kanata の設定ファイルを置き換え、常駐している kanata に読み直させる。
  *
- * `--confirm` が無いうちは asset の生成と lint、diff、fingerprint を出して終わる。人間が
- * 中身を見てから同じ fingerprint を渡したときだけ `karabiner.json` を書く（ADR 0022 の
- * Apply フロー）。手順はローカルサーバーの適用 API と共通で、`apply-service.ts` が持つ。
+ * `--confirm` が無いうちは生成と check、diff、fingerprint を出して終わる。人間が中身を
+ * 見てから同じ fingerprint を渡したときだけ書く（Apply フロー）。手順はローカルサーバーの
+ * 適用 API と共通で、`apply-service.ts` が持つ（ADR 0049）。
  */
 async function macApply(
   root: string,
   loaded: LoadedMacKeymap,
   args: ParsedArgs,
-  cli: KarabinerCli,
+  host: KanataHost,
 ): Promise<number> {
-  const select = selectProfileArg(args);
-  const path = karabinerPath(args);
+  const config = kanataConfigPath(args);
   const target = {
     root,
     layout: loaded.layout,
     path: loaded.path,
     document: loaded.document,
-    karabiner: path,
-    cli,
-    selectProfile: select,
+    config,
+    karabiner: karabinerPath(args),
+    host,
   };
   const planning = await planMacApplyAt(target);
   const { plan } = planning;
@@ -726,25 +640,21 @@ async function macApply(
     );
     throw new Error("error のある desired state は適用しない");
   }
+  const header = { workspace: root, layout: loaded.layout, source: loaded.path, config };
 
   const confirmed = args.confirm === undefined ? undefined : String(args.confirm);
   if (confirmed === undefined) {
     console.log(
       JSON.stringify(
         {
-          workspace: root,
-          layout: loaded.layout,
-          source: loaded.path,
-          karabiner: path,
+          ...header,
           diagnostics: plan.diagnostics,
-          diff: plan.diff,
+          changed: plan.changed,
+          entries: plan.entries,
           generated: planning.generated,
-          lint: planning.lint ?? null,
-          selection: plan.selection,
+          check: planning.check ?? null,
           fingerprint: plan.fingerprint,
-          // `--no-select` は診断を変え、診断 id は指紋に入る。フラグを取り違えたまま
-          // 確認すると黙って別の計画が通るので、確認文字列にフラグを含める。
-          confirm: `keysync mac apply${select ? "" : " --no-select"} --confirm ${plan.fingerprint}`,
+          confirm: `keysync mac apply --confirm ${plan.fingerprint}`,
         },
         null,
         2,
@@ -755,31 +665,112 @@ async function macApply(
   if (confirmed !== plan.fingerprint) {
     throw new Error(`fingerprint が一致しない: expected=${plan.fingerprint} actual=${confirmed}`);
   }
-  if (planning.lint !== undefined && !planning.lint.ok) {
-    throw new Error(`lint が通らない: ${planning.lint.output}`);
+  if (planning.check === undefined) {
+    throw new Error("kanata が見つからない。brew install --HEAD kanata で入れる");
   }
+  if (!planning.check.ok) throw new Error(`kanata --check が通らない: ${planning.check.output}`);
 
   const applied = await applyMacPlan(target, planning);
   console.log(
     JSON.stringify(
       {
-        workspace: root,
-        layout: loaded.layout,
-        source: loaded.path,
-        karabiner: path,
-        backup: applied.backup,
+        ...header,
         diagnostics: plan.diagnostics,
         generated: planning.generated,
-        lint: planning.lint ?? null,
-        verify: applied.verify,
-        selected: applied.selected,
+        ...applied,
+        ...(applied.reload?.kind === "not-running"
+          ? { next: "kanata が常駐していない。keysync mac service install で登録する" }
+          : {}),
       },
       null,
       2,
     ),
   );
-  if (!applied.verify.ok) return 1;
-  return applied.selected !== null && !applied.selected.ok ? 1 : 0;
+  return applied.verify && applied.reload?.kind !== "failed" ? 0 : 1;
+}
+
+/**
+ * kanata の常駐（launchd）の状態を出し、`install` なら登録する。
+ *
+ * 登録には root が要る。sudo は端末で認証する（ADR 0049）。kanata の設定ファイルが無いうちは
+ * 登録しない。kanata は起動時に設定を読めなければ止まるので、先に `mac apply` を求める。
+ */
+async function macService(
+  root: string,
+  args: ParsedArgs,
+  host: KanataHost,
+  deps: CliDeps,
+): Promise<number> {
+  const action = args._[1] ?? "status";
+  if (action !== "status" && action !== "install") {
+    throw new Error("keysync mac service status|install が必要");
+  }
+  const service = deps.serviceHost ?? createServiceHost();
+  const config = kanataConfigPath(args);
+  const karabiner = await readKarabinerConfig(karabinerPath(args));
+  const status = {
+    label: KANATA_SERVICE_LABEL,
+    plist: KANATA_SERVICE_PLIST,
+    installed: await service.installed(),
+    running: await host.reachable(),
+    config,
+    configPresent: (await readOptional(config)) !== undefined,
+    karabinerGrabsBuiltIn: karabiner !== undefined && karabinerGrabsBuiltIn(karabiner),
+  };
+  if (action === "status") {
+    console.log(JSON.stringify({ workspace: root, ...status }, null, 2));
+    return 0;
+  }
+
+  if (!status.configPresent) {
+    throw new Error(`${config} が無い。先に keysync mac apply で設定を置く`);
+  }
+  const kanata = await host.binary();
+  if (kanata === undefined) {
+    throw new Error("kanata が見つからない。brew install --HEAD kanata で入れる");
+  }
+  const binary = await absoluteBinary(kanata);
+  const plist = generatedPath(`${KANATA_SERVICE_LABEL}.plist`);
+  await new NodeWorkspaceStore(root).writeText(
+    plist,
+    kanataServicePlist({ kanata: binary, config }),
+  );
+  const install = await service.install(resolve(root, plist));
+  const bootstrap = install.ok ? await service.bootstrap() : null;
+  console.log(
+    JSON.stringify(
+      {
+        workspace: root,
+        ...status,
+        generated: plist,
+        kanata: binary,
+        install,
+        bootstrap,
+        next: [
+          `システム設定の「入力監視」と「アクセシビリティ」で ${binary} の実体を許可する`,
+          "許可したら keysync mac service status で running が true になるのを確かめる",
+        ],
+      },
+      null,
+      2,
+    ),
+  );
+  return install.ok && bootstrap?.ok === true ? 0 : 1;
+}
+
+/** PATH から探した `kanata` を、launchd に渡せる絶対 path にする。 */
+async function absoluteBinary(kanata: string): Promise<string> {
+  if (isAbsolute(kanata)) return kanata;
+  for (const directory of (process.env.PATH ?? "").split(":")) {
+    const candidate = resolve(directory, kanata);
+    try {
+      await access(candidate, constants.X_OK);
+      return candidate;
+    } catch {
+      // 次の directory を探す。
+    }
+  }
+  throw new Error(`${kanata} の絶対 path が分からない`);
 }
 
 /** 読み込んだ Linux の desired state と、どのファイルから来たか。 */
@@ -1002,10 +993,12 @@ async function linuxApply(
   return applied.install.ok && applied.reload?.ok === true && applied.verify ? 0 : 1;
 }
 
-/** `--no-select` を受ける。既定は選択する（ADR 0028）。 */
-function selectProfileArg(args: ParsedArgs): boolean {
-  return args["no-select"] === undefined;
+/** kanata の設定ファイル。`--config` で既定の場所以外も指せる。 */
+function kanataConfigPath(args: ParsedArgs): string {
+  return args.config === undefined ? defaultKanataConfigPath() : resolve(String(args.config));
 }
+
+/** 内蔵キーボードの扱いを確かめるために読む `karabiner.json`。 */
 function karabinerPath(args: ParsedArgs): string {
   return args.karabiner === undefined
     ? defaultKarabinerConfigPath()
@@ -1068,7 +1061,7 @@ function mapReplacer(_key: string, value: unknown): unknown {
 }
 function printHelp(): void {
   console.log(
-    `keysync validate|analyze|diff|render|export vil\n  --workspace <dir>\n  diff --against <file.vil>\n  render --format svg|pdf --out <file> --layer <n>\n  import vil <file.vil> --definition <definition.json>\n  migrate （改名前の cornix/ を keysync/ へ移す）\n  mac generate --out <file>\n  mac diff --karabiner <karabiner.json>\n  mac apply --karabiner <karabiner.json> --confirm <fingerprint> [--no-select]\n  mac devices [--devices <observed.json>] [--add <vendor_id>:<product_id>]\n  mac record [--tasks roll|hold|all] （課題を打って記録し keysync/typing-logs/ へ書く）\n  mac record --free [秒数] （課題なしで記録する。既定 30 秒）\n  mac ... --layout ansi|jis （既定は実行中のMacの内蔵配列を検出）\n  linux devices [--devices <file>] [--add <vendor>:<product>]\n  linux generate|diff\n  linux apply [--confirm <fingerprint>] [--config <keysync.conf>]\n  linux ... --layout ansi|jis （linux-keyboard.*.yaml が 1 つだけなら省略可）\n  --workspace の既定は $KEYSYNC_WORKSPACE（未設定ならエラー）`,
+    `keysync validate|analyze|diff|render|export vil\n  --workspace <dir>\n  diff --against <file.vil>\n  render --format svg|pdf --out <file> --layer <n>\n  import vil <file.vil> --definition <definition.json>\n  migrate （改名前の cornix/ を keysync/ へ移す）\n  mac generate [--out <file>]\n  mac diff [--config <kanata.kbd>]\n  mac apply [--confirm <fingerprint>] [--config <kanata.kbd>]\n  mac service status|install （kanata を launchd に登録する。install は sudo を使う）\n  mac record [--tasks roll|hold|all] （課題を打って記録し keysync/typing-logs/ へ書く）\n  mac record --free [秒数] （課題なしで記録する。既定 30 秒）\n  mac ... --layout ansi|jis （既定は実行中のMacの内蔵配列を検出）\n  linux devices [--devices <file>] [--add <vendor>:<product>]\n  linux generate|diff\n  linux apply [--confirm <fingerprint>] [--config <keysync.conf>]\n  linux ... --layout ansi|jis （linux-keyboard.*.yaml が 1 つだけなら省略可）\n  --workspace の既定は $KEYSYNC_WORKSPACE（未設定ならエラー）`,
   );
 }
 

@@ -5,7 +5,8 @@
 
 import { webcrypto } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { createKarabinerCli, defaultKarabinerConfigPath } from "../karabiner/node.ts";
+import { defaultKarabinerConfigPath } from "../karabiner/node.ts";
+import { createKanataHost, defaultKanataConfigPath } from "../kanata/node.ts";
 import { detectBuiltInLayout } from "../mac/keyboard-type.ts";
 import { rejectApiRequest } from "./guard.ts";
 import { createMacApi } from "./mac-api.ts";
@@ -32,8 +33,9 @@ export function createLocalApi(root: string): ApiHandler {
   const workspace = createWorkspaceApi({ root });
   const mac = createMacApi({
     root,
+    config: defaultKanataConfigPath(),
     karabiner: defaultKarabinerConfigPath(),
-    cli: createKarabinerCli(),
+    host: createKanataHost(),
     detectLayout: detectBuiltInLayout,
     crypto: webcrypto,
   });

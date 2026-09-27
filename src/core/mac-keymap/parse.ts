@@ -35,7 +35,6 @@ const EXTERNAL_DEVICE_PATTERN = /^ {2}- \{ vendor_id: ([0-9]+), product_id: ([0-
 /** @doc docs/specs/mac-keymap.md#parsemackeymapyaml */
 export function parseMacKeymapYaml(text: string): MacKeymapDocument {
   let layout: MacKeyboardLayout | undefined;
-  let profile: string | undefined;
   let devices: MacDeviceIdentifier[] | undefined;
   let tappingTermMs: number | undefined;
   let flowTapTermMs: number | undefined;
@@ -85,11 +84,8 @@ export function parseMacKeymapYaml(text: string): MacKeymapDocument {
       flowTapTermMs = parsed;
       continue;
     }
-    if (line.startsWith("profile:")) {
-      profile = unquote(line.slice("profile:".length).trim(), lineNumber).trim();
-      if (profile === "") throw new MacKeymapParseError("profile 名が空");
-      continue;
-    }
+    // Karabiner の profile 名（ADR 0049 より前）。engine が kanata になり意味を失ったので読み捨てる。
+    if (line.startsWith("profile:")) continue;
     if (line === "devices:") {
       if (devices !== undefined) throw new MacKeymapParseError("devices が重複している");
       devices = [];
@@ -138,14 +134,12 @@ export function parseMacKeymapYaml(text: string): MacKeymapDocument {
     current.set(keyCode, keycode);
   }
 
-  if (profile === undefined) throw new MacKeymapParseError("mac-keyboard.yaml に profile が無い");
   if (!sawLayers) throw new MacKeymapParseError("mac-keyboard.yaml に layers が無い");
   return {
     layout: layout ?? DEFAULT_MAC_LAYOUT,
     devices: devices ?? DEFAULT_MAC_DEVICES,
     tappingTermMs: tappingTermMs ?? DEFAULT_MAC_TAPPING_TERM_MS,
     flowTapTermMs: flowTapTermMs ?? DEFAULT_MAC_FLOW_TAP_TERM_MS,
-    profile,
     layers,
   };
 }

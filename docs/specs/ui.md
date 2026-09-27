@@ -183,7 +183,7 @@ status bar は severity ごとの診断件数、保存状態と保存先、通�
 保存状態は Cornix では `keymap.yaml` と `keysync/labels.yaml` を `chooseSaveCandidate` の優先順（conflict > error > saving > saved > idle）で 1 つにまとめ、保存先ファイルと並べる。
 Cornix 表示中は実機との差分件数（未読込ならその旨）と「実機へ Apply…」を出す。
 Apply を開始できないときはボタンを無効にし、理由（`keymap.yaml` 未読込、未接続、未読込、差分 0 件、error あり）を文字で並べる。
-Mac 表示中は Vial の差分件数と Apply を出さず、「Karabiner へ適用…」と、押せないときの理由を出す（Mac apply を参照）。
+Mac 表示中は Vial の差分件数と Apply を出さず、「kanata へ適用…」と、押せないときの理由を出す（Mac apply を参照）。
 Apply の gate と診断の severity を UI 表示上で混同しない。
 
 <!-- @code src/ui/components/index.ts#Rail -->
@@ -261,7 +261,7 @@ Mac では「割り当てを外す（素通しへ戻す）」を置く。
 
 編集パネルの下端には、対象ファイルとともに保存中、ローカル保存済み、保存失敗、外部変更との競合を記号と文言で出す。
 通常の I/O 失敗は再試行でき、外部変更との競合は再試行を出さず、未保存の編集が失われた警告と再読込の導線を出す。
-ここで示す保存はローカルの workspace への保存で、実機への反映は Apply、Mac への適用は「Karabiner へ適用」だと併記する。
+ここで示す保存はローカルの workspace への保存で、実機への反映は Apply、Mac への適用は「kanata へ適用」だと併記する。
 
 <!-- @code src/ui/components/index.ts#Picker -->
 <!-- @code src/ui/keycode-compose.ts#applyPick -->
@@ -296,13 +296,13 @@ modifier のキーは mod の色で塗る。
 picker の現在値は適用先に合わせて強調する。
 Hold では modifier keycode と `MO(n)` だけを有効にし、modifier は Vial 形式の `X_T(kc)`、`MO(n)` は `LTn(kc)` へ組み立てる。
 Hold の現在値は、`LTn(kc)` のとき `MO(n)` として強調する。
-無効にした cell は title と読み上げで理由（Hold に選べるのは modifier と MO だけ、Karabiner で表現できない）を示す。
+無効にした cell は title と読み上げで理由（Hold に選べるのは modifier と MO だけ、kanata で表現できない）を示す。
 編集対象が未選択なら picker の全 cell を無効にする。
 
 picker は選択中の編集対象が何か（key / encoder / Mac の盤面位置）を知らない。
 現在値の `selectedKeycode` を受け取り、選ばれた keycode を生のまま通知する。
 `applyPick` での合成と保存先の分岐は呼び出し側の責務にする（ADR 0025）。
-Mac は `macKeycodeSupport` を渡し、Karabiner へ落とせない cell を無効にする。
+Mac は `macKeycodeSupport` を渡し、kanata へ落とせない cell を無効にする。
 判定表は UI へ複製しない。
 
 <!-- @code src/ui/components/index.ts#MacLayerBar -->
@@ -336,7 +336,7 @@ keycode の選択は同じ picker を使い、`applyPick` の合成と `setMacAs
 素通しのキーへ Hold や動作を足すときは、そのキーが素通しで送る keycode（`passthroughKeycode`）を Tap の初期値にする。
 keycode 表示は Vial と同じ label 関数を使うが、layer 名は剥がして渡し、`createKeycodeTable` は呼ばない。
 診断は `validateMacKeymap` の結果を Vial 側と分けて持ち、盤面の印、検証パネル、status bar の件数はすべて Mac の診断で描く。
-Karabiner への適用はローカルサーバーが行い、Web UI は差分を見せて承認を送るだけである（ADR 0034）。
+kanata への適用はローカルサーバーが行い、Web UI は差分を見せて承認を送るだけである（ADR 0034・0049）。
 
 <!-- @code src/ui/components/index.ts#MacApplyDialog -->
 <!-- @code src/ui/state/use-mac-apply.ts#useMacApply -->
@@ -345,8 +345,8 @@ Karabiner への適用はローカルサーバーが行い、Web UI は差分を
 
 ## Mac apply
 
-「Karabiner へ適用…」は、ローカルサーバーの適用 API（`local-server.md`）を呼んで `karabiner.json` を書き換える。
-Web UI は `karabiner.json` にも `karabiner_cli` にも触れず、同じ origin へ JSON を POST するだけである（ADR 0034）。
+「kanata へ適用…」は、ローカルサーバーの適用 API（`local-server.md`）を呼んで kanata の設定ファイルを書き換え、常駐している kanata に読み直させる。
+Web UI は kanata の設定ファイルにも kanata にも触れず、同じ origin へ JSON を POST するだけである（ADR 0034・0049）。
 
 起動時に 1 回だけ、このマシンの内蔵配列をサーバーへ訊く。
 サーバーへ届かない（サーバーを止めた、静的配信だけで開いた）ときは `unreachable` として扱う。
@@ -366,10 +366,12 @@ Web UI は `karabiner.json` にも `karabiner_cli` にも触れず、同じ orig
 | 8   | error 診断がある                 | error があるため適用できない                         |
 
 押すと、編集中の document の `macKeymapDigest` を添えて計画を頼み、modal に差分を出す。
-差分は layer、キー（物理キャップ名）、割り当て（QMK 表記）、追加 / 変更 / 削除で並べ、error 以外の診断（改名前の profile が残っている案内を含む）を添える。
-差分が無く profile の切り替えも要らなければ「このマシンは最新」と出し、適用ボタンを無効にする。
+差分は layer、キー（物理キャップ名）、割り当て（QMK 表記）、追加 / 変更 / 削除で並べ、error 以外の診断（Karabiner が内蔵キーボードを掴んでいる警告を含む）を添える。
+layer の外の設定（閾値など）は、layer を「—」、キーを設定の名前で出す。
+kanata が常駐していなければ、適用しても起動するまで効かないことと、`just mac service install` での登録を示す。
+差分が無ければ「このマシンは最新」と出し、適用ボタンを無効にする。
 
-計画の段階で止まったときは、`karabiner.json` に触れていないと明示して理由を出す。
+計画の段階で止まったときは、kanata の設定に触れていないと明示して理由を出す。
 digest が一致しないときは、画面の内容とサーバーが読んだファイルの絶対 path が違うと示し、再読込を置く。
 保存の途中や、外部エディタや Git で書き換えた後に古い画面から適用するのを止めるためである。
 
@@ -377,12 +379,12 @@ digest が一致しないときは、画面の内容とサーバーが読んだ�
 計画の後に内容が変わっていれば、サーバーが返した新しい計画を見せ直す。
 結果は次のとおり出す。
 
-| 結果                       | 表示                                                           |
-| -------------------------- | -------------------------------------------------------------- |
-| 適用した                   | backup の path と、profile を切り替えたこと                    |
-| verify が一致しない        | backup から戻す手順                                            |
-| profile の切り替えだけ失敗 | 書き込みは巻き戻していないこと、「切り替えを再試行」、戻す手順 |
-| 想定外の失敗               | 理由と、適用前の設定は `keysync/backups/` にあること           |
+| 結果                    | 表示                                                                   |
+| ----------------------- | ---------------------------------------------------------------------- |
+| 適用した                | backup の path と、kanata が読み直したか（常駐していなければ登録手順） |
+| verify が一致しない     | backup から戻す手順                                                    |
+| kanata の読み直しに失敗 | 書き込みは巻き戻していないこと、kanata の出力、戻す手順                |
+| 想定外の失敗            | 理由と、適用前の設定は `keysync/backups/` にあること                   |
 
 計画中と適用中は modal を閉じられない。
 
@@ -450,10 +452,10 @@ Apply の入口を押すとパネルを閉じてから Apply の modal を開く
 「backup から復元」は `keysync/backups/latest.vil` を目標状態へ読み込むだけで、実機にも `keymap.yaml` にも書き込まず、通常の差分確認と Apply へ戻す。
 Cornix が ready でなければ復元を無効にする。
 
-Mac の実機パネルは「Karabiner へ適用…」の入口と押せない理由、`just mac apply` でも適用できること、適用先、mod-tap の閾値、Karabiner asset の書出を置く。
+Mac の実機パネルは「kanata へ適用…」の入口と押せない理由、`just mac apply` でも適用できること、適用先、mod-tap の閾値、kanata の設定の書出を置く。
 mod-tap の閾値は Enter か focus を外したときに保存し、50〜1000 の整数でなければ保存せずに欄の下へ理由を出す（ADR 0044）。
 同じ節に Flow Tap の閾値の欄を並べ、同じ規則で保存する。範囲は 0〜1000 で、0 は無効（ADR 0047）。
-保存は `mac-keyboard.<layout>.yaml` までで、Karabiner への反映には適用が要る。
+保存は `mac-keyboard.<layout>.yaml` までで、kanata への反映には適用が要る。
 
 <!-- @code src/ui/components/index.ts#TypingPanel -->
 <!-- @code src/ui/state/use-mac-apply.ts#MacEffectiveTappingTerm -->
@@ -465,10 +467,10 @@ mod-tap の閾値は Enter か focus を外したときに保存し、50〜1000 
 
 パネルは「閾値を決めて適用する」「課題を選ぶ」「打って採点する」「閾値ごとの成績」を上から並べる。
 閾値欄は実機パネルと同じ保存の経路を使い、Enter か focus を外したときに `mac-keyboard.<layout>.yaml` へ保存する。
-適用の入口は「Karabiner へ適用…」をそのまま開き、パネルは閉じない。
+適用の入口は「kanata へ適用…」をそのまま開き、パネルは閉じない。
 
-閾値の欄の下には、Karabiner で効いていると確かめた閾値を出す。
-確かめたと扱うのは、このセッションで適用が成功したときと、計画で差分が無く profile も選択済みだと分かったときだけである。
+閾値の欄の下には、kanata で効いていると確かめた閾値を出す。
+確かめたと扱うのは、このセッションで適用して kanata が読み直したときと、計画で差分が無く kanata が常駐していると分かったときだけである。
 確かめていなければその旨を、yaml と食い違っていれば両方の値を出す。
 状態文は 2 行分の高さを確保し、文の長さでカードの高さを変えない。
 
@@ -521,8 +523,8 @@ SVG / PDF の書出は、盤面で選択中の layer を `keysync/generated/keym
 <!-- @code src/ui/browser-export.ts#serializeBrowserVil -->
 <!-- @code src/ui/browser-export.ts#renderBrowserSvg -->
 <!-- @code src/ui/browser-export.ts#renderBrowserPdf -->
-<!-- @code src/ui/browser-export.ts#generateBrowserKarabiner -->
-<!-- @code src/ui/browser-export.ts#generateBrowserKarabinerFromDocument -->
+<!-- @code src/ui/browser-export.ts#generateBrowserKanata -->
+<!-- @code src/ui/browser-export.ts#generateBrowserKanataFromDocument -->
 
 ## Browser import / export
 
@@ -536,11 +538,11 @@ VIL、SVG、PDF の書出は workspace の Git 管理外である `keysync/gener
 SVG / PDF は renderer へ選択中の layer を渡し、CLI と同じ座標と表示名の規則を使う。
 いずれも実機への write を開始しない。
 
-Karabiner の complex_modifications asset の書出は、Mac 表示中の実機パネルが担う。
-保存先は `keysync/generated/karabiner-complex-modifications.json` である。
+kanata の設定の書出は、Mac 表示中の実機パネルが担う。
+保存先は `keysync/generated/kanata.kbd` である。
 生成元は編集中の in-memory document であり、ディスクを再読しない（ADR 0025）。
 error が 1 件でもあれば書き出さない。
-`karabiner.json` へ触るのは CLI の `keysync mac apply` とローカルサーバーの適用 API だけで、Web UI 自身は触らない（ADR 0034）。
+kanata が読む設定ファイルへ書くのは CLI の `keysync mac apply` とローカルサーバーの適用 API だけで、Web UI 自身は書かない（ADR 0034・0049）。
 
 <!-- @code src/ui/components/index.ts#BehaviorsPanel -->
 <!-- @code src/ui/components/index.ts#CornixReferences -->
@@ -560,7 +562,7 @@ Settings は Cornix LP 公式 firmware V1.12 で確認した qsid 辞書の名�
 timeout と設定値は 0〜65535 の整数だけを保存し、範囲外や空欄は保存せず、欄の下と status bar に理由を出す。
 
 Cornix の参照は dynamic entry の usages / unused と layer の unreachable を、診断とは別の情報として検証パネルに出す。
-Mac の参照はファイル、物理配列、適用先、`device_if` 相当、layer 数、割り当て数、Karabiner 非対応の件数を出す。
+Mac の参照はファイル、物理配列、適用先、kanata の対象（`macos-dev-names-include`）、layer 数、割り当て数、kanata 非対応の件数を出す。
 検出した内蔵配列は Browser では出さず、CLI が apply / diff のときに検出すると書く。
 表示名の変更は validation、diff 判定、Apply fingerprint へ影響しない。
 

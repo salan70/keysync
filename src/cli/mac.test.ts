@@ -1,8 +1,8 @@
 /**
  * `keysync mac` の検証。
  *
- * `karabiner_cli` には依存しない。CI の macOS runner に入っていないため、
- * lint を通ることの確認はローカルで行う（ADR 0022）。
+ * kanata と launchd には依存しない。CI の macOS runner では動かせないため、偽物を注入する。
+ * `kanata --check` を通ることの確認は、kanata が入っている開発機の test で行う（ADR 0049）。
  */
 
 import { deepStrictEqual, strictEqual } from "node:assert/strict";
@@ -12,60 +12,80 @@ import { Readable } from "node:stream";
 import { join } from "node:path";
 import { test } from "node:test";
 import { main } from "./main.ts";
-import type { KarabinerCli, KarabinerCliResult } from "../karabiner/node.ts";
+import type { KanataHost, KanataReload, KanataResult } from "../kanata/node.ts";
+import type { ServiceHost, ServiceResult } from "../kanata/service.ts";
 import type { KeyRecorder, KeyRecording } from "../mac/key-recorder.ts";
 import { parseKeyLog } from "../core/typing-log/format.ts";
 
 const FIXTURES = join(import.meta.dirname, "../../fixtures/mac-keyboard");
 
-/** `mac-keyboard.jis.yaml` と `karabiner.json` を置いた一時 workspace。 */
-async function workspace(
-  name = "mac-keyboard.jis.yaml",
-): Promise<{ readonly root: string; readonly karabiner: string; readonly desired: string }> {
-  const root = await mkdtemp(join(tmpdir(), "cornix-mac-"));
+/** `mac-keyboard.jis.yaml` と `karabiner.json` を置いた一時 workspace。kanata の設定はまだ無い。 */
+async function workspace(name = "mac-keyboard.jis.yaml"): Promise<{
+  readonly root: string;
+  readonly karabiner: string;
+  readonly desired: string;
+  readonly config: string;
+}> {
+  const root = await mkdtemp(join(tmpdir(), "keysync-mac-"));
   const desired = join(root, name);
   await copyFile(join(FIXTURES, "desired.yaml"), desired);
   const karabiner = join(root, "karabiner.json");
   await copyFile(join(FIXTURES, "karabiner-baseline.json"), karabiner);
-  return { root, karabiner, desired };
-}
-
-/** 呼び出しを記録するだけの `karabiner_cli`。 */
-interface FakeKarabinerCli extends KarabinerCli {
-  readonly calls: string[];
+  return { root, karabiner, desired, config: join(root, "live", "kanata.kbd") };
 }
 
 /**
- * `karabiner_cli` の偽物。
+ * kanata の偽物。呼び出しを記録する。
  *
- * **既定で必ず注入する。** 実物を通すと、開発機で test を回しただけで
- * `--select-profile` が走り、動いている Karabiner の profile が切り替わる。
- *
- * `absent` は Karabiner が入っていない環境（CI の macOS runner）を表す。
+ * **既定で必ず注入する。** 実物を通すと、開発機で test を回しただけで常駐している kanata が
+ * reload される。`absent` は kanata が入っていない環境（CI の macOS runner）を表す。
  */
-function fakeKarabinerCli(
+function fakeKanataHost(
   options: {
-    readonly lint?: KarabinerCliResult;
-    readonly select?: KarabinerCliResult;
-    readonly current?: string;
+    readonly check?: KanataResult;
+    readonly reload?: KanataReload;
+    readonly running?: boolean;
     readonly absent?: boolean;
   } = {},
-): FakeKarabinerCli {
+): KanataHost & { readonly calls: string[] } {
   const calls: string[] = [];
   const absent = options.absent === true;
   return {
     calls,
-    async lintComplexModifications(path) {
-      calls.push(`lint ${path}`);
-      return absent ? undefined : (options.lint ?? { ok: true, output: `${path}: ok` });
+    async check(path) {
+      calls.push(`check ${path}`);
+      return absent ? undefined : (options.check ?? { ok: true, output: "config file is valid" });
     },
-    async selectProfile(name) {
-      calls.push(`select ${name}`);
-      return absent ? undefined : (options.select ?? { ok: true, output: "" });
+    async reload() {
+      calls.push("reload");
+      return options.reload ?? { kind: "reloaded" };
     },
-    async currentProfileName() {
-      calls.push("current");
-      return absent ? undefined : options.current;
+    async reachable() {
+      return options.running ?? true;
+    },
+    async binary() {
+      return absent ? undefined : "/opt/homebrew/bin/kanata";
+    },
+  };
+}
+
+/** launchd の偽物。呼び出しを記録する。 */
+function fakeServiceHost(
+  options: { readonly installed?: boolean; readonly install?: ServiceResult } = {},
+): ServiceHost & { readonly calls: string[] } {
+  const calls: string[] = [];
+  return {
+    calls,
+    async installed() {
+      return options.installed ?? false;
+    },
+    async install(source) {
+      calls.push(`install ${source}`);
+      return options.install ?? { ok: true, output: "" };
+    },
+    async bootstrap() {
+      calls.push("bootstrap");
+      return { ok: true, output: "" };
     },
   };
 }
@@ -73,16 +93,20 @@ function fakeKarabinerCli(
 /** `console.log` を捕まえる。CLI は JSON を stdout へ出すだけなので、これで十分に読める。 */
 async function capture(
   argv: readonly string[],
-  cli: KarabinerCli = fakeKarabinerCli({ absent: true }),
+  host: KanataHost = fakeKanataHost({ absent: true }),
+  service: ServiceHost = fakeServiceHost(),
 ): Promise<{ code: number; out: string }> {
   const lines: string[] = [];
   const original = console.log;
+  const originalError = console.error;
   console.log = (...args: unknown[]) => void lines.push(args.map(String).join(" "));
+  console.error = () => {};
   try {
-    const code = await main([...argv], { karabinerCli: cli });
+    const code = await main([...argv], { kanataHost: host, serviceHost: service });
     return { code, out: lines.join("\n") };
   } finally {
     console.log = original;
+    console.error = originalError;
   }
 }
 
@@ -91,54 +115,57 @@ interface MacOutput {
   readonly workspace?: string;
   readonly output?: string;
   readonly generated?: string;
-  readonly lint?: { readonly ok: boolean } | null;
-  readonly selection?: { readonly required: boolean; readonly profile: string };
-  readonly selected?: {
-    readonly requested: string;
-    readonly observed: string | null;
-    readonly ok: boolean;
-  } | null;
+  readonly check?: { readonly ok: boolean } | null;
   readonly summary?: { readonly error: number };
   readonly diagnostics?: readonly { readonly code: string }[];
   readonly fingerprint?: string;
   readonly confirm?: string;
-  readonly backup?: string;
-  readonly diff?: { readonly present: boolean; readonly changed: boolean };
-  readonly verify?: { readonly ok: boolean; readonly entries: readonly unknown[] };
+  readonly backup?: string | null;
+  readonly changed?: boolean;
+  readonly entries?: readonly { readonly layer: number | null; readonly keyCode: string }[];
+  readonly verify?: boolean;
+  readonly reload?: KanataReload | null;
+  readonly next?: string;
+  readonly installed?: boolean;
+  readonly running?: boolean;
+  readonly configPresent?: boolean;
+  readonly karabinerGrabsBuiltIn?: boolean;
 }
 
 async function captureJson(
   argv: readonly string[],
-  cli?: KarabinerCli,
+  host?: KanataHost,
+  service?: ServiceHost,
 ): Promise<{ readonly code: number; readonly json: MacOutput }> {
-  const { code, out } = await capture(argv, cli);
+  const { code, out } = await capture(argv, host, service);
   return { code, json: JSON.parse(out) as MacOutput };
 }
 
-test("mac generate はkeysync/generated/へassetを書く", async () => {
+test("mac generate はkeysync/generated/へkanataの設定を書き、kanataがあればcheckする", async () => {
   const { root } = await workspace();
-  const { code, json } = await captureJson([
-    "mac",
-    "generate",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-  ]);
+  const host = fakeKanataHost();
+  const { code, json } = await captureJson(
+    ["mac", "generate", "--layout", "jis", "--workspace", root],
+    host,
+  );
 
   strictEqual(code, 0);
-  strictEqual(json.output, "keysync/generated/karabiner-complex-modifications.json");
+  strictEqual(json.output, "keysync/generated/kanata.kbd");
   deepStrictEqual(json.diagnostics, []);
+  deepStrictEqual(host.calls, [`check ${join(root, "keysync/generated/kanata.kbd")}`]);
+  const text = await readFile(join(root, String(json.output)), "utf8");
+  strictEqual(text.includes("(deflayermap (base)"), true);
+  strictEqual(text.includes("caps (tap-hold-opposite-hand-release"), true);
+});
 
-  const asset = JSON.parse(await readFile(join(root, String(json.output)), "utf8")) as {
-    title: string;
-    rules: { description: string }[];
-  };
-  strictEqual(asset.title, "KeySync");
-  deepStrictEqual(
-    asset.rules.map((rule) => rule.description),
-    ["KeySync layer 3", "KeySync layer 2", "KeySync layer 1", "KeySync layer 0"],
+test("kanata --checkが通らなければgenerateは1で終わる", async () => {
+  const { root } = await workspace();
+  const { code, json } = await captureJson(
+    ["mac", "generate", "--layout", "jis", "--workspace", root],
+    fakeKanataHost({ check: { ok: false, output: "error" } }),
   );
+  strictEqual(code, 1);
+  strictEqual(json.check?.ok, false);
 });
 
 test("errorのあるdesired stateはgenerateしない", async () => {
@@ -161,10 +188,8 @@ test("errorのあるdesired stateはgenerateしない", async () => {
   deepStrictEqual(await readdir(join(root)), ["karabiner.json", "mac-keyboard.jis.yaml"]);
 });
 
-test("mac diffはkarabiner.jsonを書き換えない", async () => {
-  const { root, karabiner } = await workspace();
-  const before = await readFile(karabiner, "utf8");
-
+test("mac diffはkanataの設定を書かず、Karabinerが内蔵キーボードを掴むことを診断に出す", async () => {
+  const { root, karabiner, config } = await workspace();
   const { code, json } = await captureJson([
     "mac",
     "diff",
@@ -174,123 +199,24 @@ test("mac diffはkarabiner.jsonを書き換えない", async () => {
     root,
     "--karabiner",
     karabiner,
+    "--config",
+    config,
   ]);
 
   strictEqual(code, 0);
-  strictEqual(json.diff?.present, true);
-  strictEqual(json.diff?.changed, true);
-  strictEqual(await readFile(karabiner, "utf8"), before);
+  strictEqual(json.changed, true);
+  strictEqual((json.entries?.length ?? 0) > 0, true);
+  strictEqual(
+    json.diagnostics?.some((one) => one.code === "mac-keymap/karabiner-grabs-built-in"),
+    true,
+  );
+  deepStrictEqual(await readdir(root), ["karabiner.json", "mac-keyboard.jis.yaml"]);
 });
 
 test("mac applyは--confirmが無ければ書かない", async () => {
-  // 人間が中身を見てから同じfingerprintを渡したときだけ書き込む（ADR 0022）。
-  const { root, karabiner } = await workspace();
-  const before = await readFile(karabiner, "utf8");
-
-  const { code, json } = await captureJson([
-    "mac",
-    "apply",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-    "--karabiner",
-    karabiner,
-  ]);
-
-  strictEqual(code, 0);
-  strictEqual(json.confirm, `keysync mac apply --confirm ${json.fingerprint}`);
-  strictEqual(await readFile(karabiner, "utf8"), before);
-});
-
-test("--no-selectはfingerprintを変え、確認文字列にもフラグが入る", async () => {
-  // 診断が warning へ変わり、診断 id は指紋に入る。取り違えたまま確認できないようにする。
-  const { root, karabiner } = await workspace();
-  const before = await readFile(karabiner, "utf8");
-  const plan = await captureJson([
-    "mac",
-    "apply",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-    "--karabiner",
-    karabiner,
-  ]);
-  const noSelect = await captureJson([
-    "mac",
-    "apply",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-    "--karabiner",
-    karabiner,
-    "--no-select",
-  ]);
-
-  strictEqual(
-    noSelect.json.diagnostics?.some((one) => one.code === "mac-keymap/profile-not-selected"),
-    true,
-  );
-  strictEqual(
-    plan.json.diagnostics?.some((one) => one.code === "mac-keymap/profile-will-be-selected"),
-    true,
-  );
-  strictEqual(noSelect.json.fingerprint === plan.json.fingerprint, false);
-  strictEqual(
-    noSelect.json.confirm,
-    `keysync mac apply --no-select --confirm ${noSelect.json.fingerprint}`,
-  );
-
-  // 他方の fingerprint では書かない。
-  const { code } = await capture([
-    "mac",
-    "apply",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-    "--karabiner",
-    karabiner,
-    "--no-select",
-    "--confirm",
-    String(plan.json.fingerprint),
-  ]);
-  strictEqual(code, 1);
-  strictEqual(await readFile(karabiner, "utf8"), before);
-});
-
-test("fingerprintが一致しないapplyは書かずに落ちる", async () => {
-  const { root, karabiner } = await workspace();
-  const before = await readFile(karabiner, "utf8");
-
-  const { code } = await capture([
-    "mac",
-    "apply",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-    "--karabiner",
-    karabiner,
-    "--confirm",
-    "v1-dead-beef",
-  ]);
-
-  strictEqual(code, 1);
-  strictEqual(await readFile(karabiner, "utf8"), before);
-});
-
-test("applyはbackupを取り、所有profile以外を保ち、verifyとprofile選択まで通す", async () => {
-  const { root, karabiner } = await workspace();
-  const before = await readFile(karabiner, "utf8");
-  const cli = fakeKarabinerCli({ current: "KeySync" });
-  const plan = await captureJson(
-    ["mac", "apply", "--layout", "jis", "--workspace", root, "--karabiner", karabiner],
-    cli,
-  );
-
+  // 人間が中身を見てから同じfingerprintを渡したときだけ書き込む。
+  const { root, karabiner, config } = await workspace();
+  const host = fakeKanataHost();
   const { code, json } = await captureJson(
     [
       "mac",
@@ -301,60 +227,71 @@ test("applyはbackupを取り、所有profile以外を保ち、verifyとprofile�
       root,
       "--karabiner",
       karabiner,
-      "--confirm",
-      String(plan.json.fingerprint),
+      "--config",
+      config,
     ],
-    cli,
+    host,
   );
 
   strictEqual(code, 0);
-  deepStrictEqual(json.verify, { ok: true, entries: [] });
-
-  // 選択は karabiner_cli に任せる。karabiner.json の selected は書き換えない（ADR 0028）。
-  deepStrictEqual(json.selected, {
-    requested: "KeySync",
-    observed: "KeySync",
-    ok: true,
-    output: "",
-  });
-  strictEqual(cli.calls.includes("select KeySync"), true);
-
-  // backupは読んだテキストをそのまま置く。再serializeするとKarabiner独自の整形が落ちる。
-  strictEqual(await readFile(join(root, String(json.backup)), "utf8"), before);
-
-  const applied = JSON.parse(await readFile(karabiner, "utf8")) as {
-    global: unknown;
-    profiles: { name: string; selected?: boolean }[];
-  };
-  const original = JSON.parse(before) as typeof applied;
-  deepStrictEqual(applied.global, original.global);
-  deepStrictEqual(applied.profiles[0], original.profiles[0]);
-  strictEqual(applied.profiles[1]?.selected, undefined);
-
-  // 同じdesiredをもう一度当てても差分は出ない。
-  const again = await captureJson([
-    "mac",
-    "diff",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-    "--karabiner",
-    karabiner,
-  ]);
-  strictEqual(again.json.diff?.changed, false);
+  strictEqual(json.confirm, `keysync mac apply --confirm ${json.fingerprint}`);
+  strictEqual(json.check?.ok, true);
+  deepStrictEqual(await readdir(root), ["karabiner.json", "keysync", "mac-keyboard.jis.yaml"]);
+  strictEqual(host.calls.includes("reload"), false);
 });
 
-test("errorのあるdesired stateは適用しない", async () => {
-  const { root, karabiner, desired } = await workspace();
-  const before = await readFile(karabiner, "utf8");
-  await writeFile(
-    desired,
-    'schema: keysync/mac-keymap@1\nprofile: "KeySync"\nlayers:\n  0:\n    "a": "TD(0)"\n',
-    "utf8",
+test("fingerprintが一致しないapplyは書かずに落ちる", async () => {
+  const { root, karabiner, config } = await workspace();
+  const { code } = await capture(
+    [
+      "mac",
+      "apply",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+      "--config",
+      config,
+      "--confirm",
+      "v1-00000000-00000000",
+    ],
+    fakeKanataHost(),
   );
+  strictEqual(code, 1);
+  deepStrictEqual(await readdir(root), ["karabiner.json", "keysync", "mac-keyboard.jis.yaml"]);
+});
 
-  const { code } = await capture([
+async function planned(
+  root: string,
+  karabiner: string,
+  config: string,
+  host: KanataHost,
+): Promise<string> {
+  const { json } = await captureJson(
+    [
+      "mac",
+      "apply",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+      "--config",
+      config,
+    ],
+    host,
+  );
+  return String(json.fingerprint);
+}
+
+test("applyは設定を書き、読み直してverifyし、kanataにreloadさせる", async () => {
+  const { root, karabiner, config } = await workspace();
+  const host = fakeKanataHost();
+  const fingerprint = await planned(root, karabiner, config, host);
+  const argv = [
     "mac",
     "apply",
     "--layout",
@@ -363,14 +300,237 @@ test("errorのあるdesired stateは適用しない", async () => {
     root,
     "--karabiner",
     karabiner,
-  ]);
+    "--config",
+    config,
+    "--confirm",
+    fingerprint,
+  ];
 
+  const first = await captureJson(argv, host);
+  strictEqual(first.code, 0);
+  // 初回は置き換える前のファイルが無いので backup も無い。
+  strictEqual(first.json.backup, null);
+  strictEqual(first.json.verify, true);
+  deepStrictEqual(first.json.reload, { kind: "reloaded" });
+  const written = await readFile(config, "utf8");
+  strictEqual(
+    written,
+    await readFile(join(root, "keysync/generated/kanata.kbd"), "utf8"),
+    "生成物と同じ内容を書く",
+  );
+
+  // 2 回目は同じ内容で、置き換える前のファイルを backup する。
+  const again = await captureJson(
+    argv.slice(0, -1).concat(await planned(root, karabiner, config, host)),
+    host,
+  );
+  strictEqual(again.code, 0);
+  strictEqual(again.json.backup?.startsWith("keysync/backups/kanata-"), true);
+  strictEqual(await readFile(join(root, String(again.json.backup)), "utf8"), written);
+});
+
+test("kanataが常駐していなければ書いたうえで登録を案内する", async () => {
+  const { root, karabiner, config } = await workspace();
+  const host = fakeKanataHost({ reload: { kind: "not-running" } });
+  const fingerprint = await planned(root, karabiner, config, host);
+  const { code, json } = await captureJson(
+    [
+      "mac",
+      "apply",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+      "--config",
+      config,
+      "--confirm",
+      fingerprint,
+    ],
+    host,
+  );
+  strictEqual(code, 0);
+  deepStrictEqual(json.reload, { kind: "not-running" });
+  strictEqual(json.next?.includes("keysync mac service install"), true);
+});
+
+test("reloadに失敗したら1で終わる。書いた設定は巻き戻さない", async () => {
+  const { root, karabiner, config } = await workspace();
+  const host = fakeKanataHost({ reload: { kind: "failed", output: "boom" } });
+  const fingerprint = await planned(root, karabiner, config, host);
+  const { code } = await capture(
+    [
+      "mac",
+      "apply",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+      "--config",
+      config,
+      "--confirm",
+      fingerprint,
+    ],
+    host,
+  );
   strictEqual(code, 1);
-  strictEqual(await readFile(karabiner, "utf8"), before);
+  strictEqual((await readFile(config, "utf8")).startsWith(";; KeySync"), true);
+});
+
+test("kanataが無ければ確認してもapplyしない", async () => {
+  const { root, karabiner, config } = await workspace();
+  const host = fakeKanataHost({ absent: true });
+  const fingerprint = await planned(root, karabiner, config, host);
+  const { code } = await capture(
+    [
+      "mac",
+      "apply",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+      "--config",
+      config,
+      "--confirm",
+      fingerprint,
+    ],
+    host,
+  );
+  strictEqual(code, 1);
+  deepStrictEqual(await readdir(root), ["karabiner.json", "keysync", "mac-keyboard.jis.yaml"]);
+});
+
+test("errorのあるdesired stateは適用しない", async () => {
+  const { root, karabiner, desired, config } = await workspace();
+  await writeFile(
+    desired,
+    'schema: keysync/mac-keymap@1\nprofile: "KeySync"\nlayers:\n  0:\n    "a": "TD(0)"\n',
+    "utf8",
+  );
+  const { code } = await capture(
+    [
+      "mac",
+      "apply",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+      "--config",
+      config,
+    ],
+    fakeKanataHost(),
+  );
+  strictEqual(code, 1);
+  deepStrictEqual(await readdir(root), ["karabiner.json", "mac-keyboard.jis.yaml"]);
+});
+
+test("mac service status は登録と常駐の状態を出し、何も書かない", async () => {
+  const { root, karabiner, config } = await workspace();
+  const service = fakeServiceHost({ installed: true });
+  const { code, json } = await captureJson(
+    [
+      "mac",
+      "service",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+      "--config",
+      config,
+    ],
+    fakeKanataHost({ running: false }),
+    service,
+  );
+  strictEqual(code, 0);
+  strictEqual(json.installed, true);
+  strictEqual(json.running, false);
+  strictEqual(json.configPresent, false);
+  strictEqual(json.karabinerGrabsBuiltIn, true);
+  deepStrictEqual(service.calls, []);
+});
+
+test("mac service install は設定が無ければ登録しない", async () => {
+  const { root, karabiner, config } = await workspace();
+  const service = fakeServiceHost();
+  const { code } = await capture(
+    [
+      "mac",
+      "service",
+      "install",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+      "--config",
+      config,
+    ],
+    fakeKanataHost(),
+    service,
+  );
+  strictEqual(code, 1);
+  deepStrictEqual(service.calls, []);
+});
+
+test("mac service install はplistを生成してから登録する", async () => {
+  const { root, karabiner, config } = await workspace();
+  const host = fakeKanataHost();
+  const fingerprint = await planned(root, karabiner, config, host);
+  await capture(
+    [
+      "mac",
+      "apply",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+      "--config",
+      config,
+      "--confirm",
+      fingerprint,
+    ],
+    host,
+  );
+  const service = fakeServiceHost();
+  const { code } = await capture(
+    [
+      "mac",
+      "service",
+      "install",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+      "--config",
+      config,
+    ],
+    host,
+    service,
+  );
+  strictEqual(code, 0);
+  const plist = join(root, "keysync/generated/dev.keysync.kanata.plist");
+  deepStrictEqual(service.calls, [`install ${plist}`, "bootstrap"]);
+  const text = await readFile(plist, "utf8");
+  strictEqual(text.includes(`<string>${config}</string>`), true);
+  strictEqual(text.includes("<string>/opt/homebrew/bin/kanata</string>"), true);
 });
 
 test("その配列の設定が無ければkeymap.yamlを探さずに落ちる", async () => {
-  const root = await mkdtemp(join(tmpdir(), "cornix-mac-"));
+  const root = await mkdtemp(join(tmpdir(), "keysync-mac-"));
   const { code } = await capture(["mac", "generate", "--layout", "jis", "--workspace", root]);
   strictEqual(code, 1);
 });
@@ -397,225 +557,48 @@ test("--layoutが未対応の値なら落ちる", async () => {
 
 test("未知のmacサブコマンドは落ちる", async () => {
   const { root } = await workspace();
-  strictEqual((await capture(["mac", "publish", "--workspace", root])).code, 1);
-});
-
-const DEVICES = join(FIXTURES, "karabiner-devices.json");
-
-test("mac devices は観測されたキーボードを出し、書き換えない", async () => {
-  const { root, desired } = await workspace();
-  const before = await readFile(desired, "utf8");
-  const { code, out } = await capture([
-    "mac",
-    "devices",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-    "--devices",
-    DEVICES,
-  ]);
-  strictEqual(code, 0);
-  const json = JSON.parse(out) as {
-    observed: readonly { product: string; identifier: string | null; registered: boolean }[];
-  };
-  deepStrictEqual(
-    json.observed.map((entry) => [entry.product, entry.identifier, entry.registered]),
-    [
-      ["Apple Internal Keyboard / Trackpad", null, true],
-      ["Magic Keyboard", "1452:630", false],
-    ],
-  );
-  strictEqual(await readFile(desired, "utf8"), before, "--add が無ければ書き換えない");
-});
-
-test("mac devices --add は devices へ足して書き戻す", async () => {
-  const { root, desired } = await workspace();
-  const { code } = await capture([
-    "mac",
-    "devices",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-    "--add",
-    "1452:630",
-  ]);
-  strictEqual(code, 0);
-  const text = await readFile(desired, "utf8");
-  strictEqual(
-    text.includes("  - { built_in: true }\n  - { vendor_id: 1452, product_id: 630 }\n"),
-    true,
-  );
-
-  // 二重に足さない。
-  await capture(["mac", "devices", "--layout", "jis", "--workspace", root, "--add", "1452:630"]);
-  strictEqual(await readFile(desired, "utf8"), text);
-});
-
-test("mac devices --add が <vendor>:<product> の形でなければ落ちる", async () => {
-  const { root } = await workspace();
-  const { code } = await capture([
-    "mac",
-    "devices",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-    "--add",
-    "abc",
-  ]);
-  strictEqual(code, 1);
-});
-
-test("所有profileがまだ無い初回applyでも選択が要ることを診断に出す", async () => {
-  // 初回は profile を末尾へ足す。ここを「profile が既存か」で判定すると無診断で通り、
-  // apply は成功したのに何も効かない状態になる（ADR 0028）。
-  const { root } = await workspace();
-  const karabiner = join(root, "karabiner-fresh.json");
-  await copyFile(join(FIXTURES, "karabiner-no-owned-profile.json"), karabiner);
-
-  const { json } = await captureJson([
-    "mac",
-    "apply",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-    "--karabiner",
-    karabiner,
-  ]);
-
-  strictEqual(json.diff?.present, false);
-  deepStrictEqual(json.selection, { required: true, profile: "KeySync" });
-  strictEqual(
-    json.diagnostics?.some((one) => one.code === "mac-keymap/profile-will-be-selected"),
-    true,
-  );
-
-  const noSelect = await captureJson([
-    "mac",
-    "apply",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-    "--karabiner",
-    karabiner,
-    "--no-select",
-  ]);
-  strictEqual(
-    noSelect.json.diagnostics?.some((one) => one.code === "mac-keymap/profile-not-selected"),
-    true,
-  );
-});
-
-test("lintが通らなければkarabiner.jsonへ書かない", async () => {
-  const { root, karabiner } = await workspace();
-  const before = await readFile(karabiner, "utf8");
-  const cli = fakeKarabinerCli({ lint: { ok: false, output: "error: unknown key_code" } });
-  const plan = await captureJson(
-    ["mac", "apply", "--layout", "jis", "--workspace", root, "--karabiner", karabiner],
-    cli,
-  );
-  strictEqual(plan.json.lint?.ok, false);
-
-  const { code } = await capture(
-    [
-      "mac",
-      "apply",
-      "--layout",
-      "jis",
-      "--workspace",
-      root,
-      "--karabiner",
-      karabiner,
-      "--confirm",
-      String(plan.json.fingerprint),
-    ],
-    cli,
-  );
-  strictEqual(code, 1);
-  strictEqual(await readFile(karabiner, "utf8"), before);
-});
-
-test("Karabinerが入っていなければlintを保留して適用まで進む", async () => {
-  const { root, karabiner } = await workspace();
-  const plan = await captureJson([
-    "mac",
-    "apply",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-    "--karabiner",
-    karabiner,
-  ]);
-  strictEqual(plan.json.lint, null);
-
-  const { code, json } = await captureJson([
-    "mac",
-    "apply",
-    "--layout",
-    "jis",
-    "--workspace",
-    root,
-    "--karabiner",
-    karabiner,
-    "--confirm",
-    String(plan.json.fingerprint),
-  ]);
-  strictEqual(code, 0);
-  strictEqual(json.verify?.ok, true);
-  strictEqual(json.selected, null);
-});
-
-test("profileを選べたか読み戻して確かめる", async () => {
-  const { root, karabiner } = await workspace();
-  const cli = fakeKarabinerCli({ current: "Default profile" });
-  const plan = await captureJson(
-    ["mac", "apply", "--layout", "jis", "--workspace", root, "--karabiner", karabiner],
-    cli,
-  );
-
-  const { code, json } = await captureJson(
-    [
-      "mac",
-      "apply",
-      "--layout",
-      "jis",
-      "--workspace",
-      root,
-      "--karabiner",
-      karabiner,
-      "--confirm",
-      String(plan.json.fingerprint),
-    ],
-    cli,
-  );
-
-  // write と verify は通っている。食い違うのは選択だけで、それでも成功にはしない。
-  strictEqual(json.verify?.ok, true);
-  strictEqual(json.selected?.ok, false);
-  strictEqual(json.selected?.observed, "Default profile");
-  strictEqual(code, 1);
+  strictEqual((await capture(["mac", "devices", "--layout", "jis", "--workspace", root])).code, 1);
 });
 
 test("macの出力は解決済みのworkspaceを必ず載せる", async () => {
-  const { root, karabiner } = await workspace();
+  const { root, karabiner, config } = await workspace();
   for (const argv of [
     ["mac", "generate", "--layout", "jis", "--workspace", root],
-    ["mac", "diff", "--layout", "jis", "--workspace", root, "--karabiner", karabiner],
-    ["mac", "apply", "--layout", "jis", "--workspace", root, "--karabiner", karabiner],
     [
       "mac",
-      "devices",
+      "diff",
       "--layout",
       "jis",
       "--workspace",
       root,
-      "--devices",
-      join(FIXTURES, "karabiner-devices.json"),
+      "--karabiner",
+      karabiner,
+      "--config",
+      config,
+    ],
+    [
+      "mac",
+      "apply",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+      "--config",
+      config,
+    ],
+    [
+      "mac",
+      "service",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+      "--config",
+      config,
     ],
   ]) {
     const { json } = await captureJson(argv);
@@ -669,7 +652,7 @@ async function captureRecord(
   console.error = () => {};
   try {
     const code = await main([...argv], {
-      karabinerCli: fakeKarabinerCli({ absent: true }),
+      kanataHost: fakeKanataHost({ absent: true }),
       keyRecorder: recorder,
       now: () => new Date("2026-09-27T01:02:03.456Z"),
       ...(input === undefined ? {} : { input }),
@@ -702,7 +685,7 @@ test("mac record --free は打鍵ログを typing-logs/ へ書き、効いてい
   strictEqual(code, 0);
   deepStrictEqual(recorder.calls, [5]);
   strictEqual(json.log, "keysync/typing-logs/2026-09-27T01-02-03-456Z-cli.jsonl");
-  // baseline の karabiner.json は mod-tap に閾値を持たない（ADR 0044 以前の形）。
+  // kanata の設定がまだ無いので、効いている閾値は分からない。
   strictEqual(json.tappingTermMs, null);
   const log = parseKeyLog(await readFile(join(root, String(json.log)), "utf8"));
   strictEqual(log.meta.recorder, "cli");
@@ -724,7 +707,7 @@ test("mac record はどちらの層も読めなければ、入力監視の許可
     const code = await main(
       ["mac", "record", "--free", "--layout", "jis", "--workspace", root, "--karabiner", karabiner],
       {
-        karabinerCli: fakeKarabinerCli({ absent: true }),
+        kanataHost: fakeKanataHost({ absent: true }),
         keyRecorder: fakeKeyRecorder({ hidOpened: [], tapOk: false, events: [] }),
       },
     );
@@ -815,7 +798,7 @@ test("mac record の --tasks は roll|hold|all だけを受ける", async () => 
         "--karabiner",
         karabiner,
       ],
-      { karabinerCli: fakeKarabinerCli({ absent: true }), keyRecorder: fakeKeyRecorder() },
+      { kanataHost: fakeKanataHost({ absent: true }), keyRecorder: fakeKeyRecorder() },
     );
     strictEqual(code, 1);
   } finally {

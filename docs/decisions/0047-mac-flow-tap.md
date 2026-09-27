@@ -1,6 +1,6 @@
 # Mac keyboard の mod-tap に QMK の Flow Tap を足す
 
-状態: 採用
+状態: 採用（Karabiner での作り方は ADR 0049 が上書き。`flow_tap_term_ms` と文字キーの集合は残る）
 
 2026-09-27 に、MacBook 内蔵キーボードで home mod の誤爆と Shift の反応の悪さが Cornix より目立つという報告を受けて決めた。
 Cornix LP と同じ判定へ近づける 2 段階のうち、第 1 段階にあたる。

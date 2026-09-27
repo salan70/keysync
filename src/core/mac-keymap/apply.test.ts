@@ -1,187 +1,138 @@
-import { deepStrictEqual, strictEqual } from "node:assert/strict";
+import { deepStrictEqual, notStrictEqual, strictEqual } from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { generateOwnedProfile } from "./generate.ts";
-import type { KarabinerConfig } from "./karabiner.ts";
 import { parseMacKeymapYaml } from "./parse.ts";
-import { diffOwnedProfile, ownedProfile, planMacApply, verifyMacApply } from "./apply.ts";
+import {
+  appliedTappingTermMs,
+  diffKanataText,
+  karabinerGrabsBuiltIn,
+  planMacApply,
+  verifyMacApply,
+} from "./apply.ts";
 
 const FIXTURES = join(import.meta.dirname, "../../../fixtures/mac-keyboard");
 const readFixture = (name: string) => readFileSync(join(FIXTURES, name), "utf8");
 
 const DESIRED = parseMacKeymapYaml(readFixture("desired.yaml"));
-const baseline = (): KarabinerConfig =>
-  JSON.parse(readFixture("karabiner-baseline.json")) as KarabinerConfig;
 
-test("所有 profile 以外には触らない", () => {
-  // KeySync が所有するのは name が一致する profile 1 個だけ（ADR 0022）。
-  const current = baseline();
-  const { next } = planMacApply(current, DESIRED);
-  deepStrictEqual(next["global"], current["global"]);
-  deepStrictEqual(next.profiles[0], current.profiles[0]);
-  strictEqual(next.profiles.length, current.profiles.length);
-});
-
-test("所有 profile が無ければ末尾へ足す", () => {
-  const current: KarabinerConfig = {
-    profiles: [
-      { name: "Default profile", selected: true },
-    ] as unknown as KarabinerConfig["profiles"],
-  };
-  const { next, diff } = planMacApply(current, DESIRED);
-  strictEqual(diff.present, false);
-  strictEqual(next.profiles.length, 2);
-  strictEqual(next.profiles[1]?.name, "KeySync");
-});
-
-test("所有 profile の selected は変更しない", () => {
-  // profile の切り替えはユーザーの操作（ADR 0022）。
-  const original = baseline();
-  const current: KarabinerConfig = {
-    ...original,
-    profiles: original.profiles.map((profile) =>
-      profile.name === "KeySync" ? { ...profile, selected: true } : profile,
-    ),
-  };
-  const { next, diagnostics } = planMacApply(current, DESIRED);
-  strictEqual(next.profiles[1]?.selected, true);
+test("初回はファイルが無いので、全部が追加の差分になる", () => {
+  const plan = planMacApply(undefined, DESIRED);
+  strictEqual(plan.present, false);
+  strictEqual(plan.changed, true);
   strictEqual(
-    diagnostics.some((one) => one.code === "mac-keymap/profile-not-selected"),
-    false,
-  );
-});
-
-test("所有 profile が選択されていなければ選択の要否を診断に出す", () => {
-  // 既定では apply が選ぶので information。`--no-select` のときだけ warning になる（ADR 0028）。
-  const plan = planMacApply(baseline(), DESIRED);
-  strictEqual(plan.selection.required, true);
-  strictEqual(
-    plan.diagnostics.some((one) => one.code === "mac-keymap/profile-will-be-selected"),
+    plan.entries.every((entry) => entry.change === "added"),
     true,
   );
-
-  const noSelect = planMacApply(baseline(), DESIRED, { selectProfile: false });
-  strictEqual(
-    noSelect.diagnostics.some((one) => one.code === "mac-keymap/profile-not-selected"),
-    true,
+  deepStrictEqual(
+    plan.entries.find((entry) => entry.layer === 0 && entry.keyCode === "caps_lock"),
+    {
+      layer: 0,
+      keyCode: "caps_lock",
+      change: "added",
+      after: "(tap-hold-opposite-hand-release $tapping-term esc lctl (timeout hold))",
+    },
   );
-  strictEqual(noSelect.fingerprint === plan.fingerprint, false);
-});
-
-test("所有 profile がまだ無くても選択が要ると判定する", () => {
-  // 判定を「profile が既存か」で書くと、初回だけ無診断で通って何も効かない（ADR 0028）。
-  const original = baseline();
-  const current: KarabinerConfig = {
-    ...original,
-    profiles: original.profiles.filter((profile) => profile.name !== "KeySync"),
-  };
-  const plan = planMacApply(current, DESIRED);
-  strictEqual(plan.diff.present, false);
-  strictEqual(plan.selection.required, true);
-  strictEqual(
-    plan.diagnostics.some((one) => one.code === "mac-keymap/profile-will-be-selected"),
-    true,
-  );
-});
-
-test("diff は所有 profile の manipulator 単位で出る", () => {
-  // baseline の caps_lock は left_command で、desired の left_control と食い違う。
-  const { diff } = planMacApply(baseline(), DESIRED);
-  strictEqual(diff.present, true);
-  strictEqual(diff.changed, true);
-  const changed = diff.entries.filter((entry) => entry.change === "changed");
-  strictEqual(changed.length, 1);
-  strictEqual(changed[0]?.keyCode, "caps_lock");
-  deepStrictEqual(changed[0]?.after?.to_if_held_down, [{ key_code: "left_control" }]);
 });
 
 test("同じ desired を 2 回適用しても差分は出ない", () => {
-  const applied = planMacApply(baseline(), DESIRED).next;
-  strictEqual(planMacApply(applied, DESIRED).diff.changed, false);
+  const { text } = planMacApply(undefined, DESIRED);
+  const again = planMacApply(text, DESIRED);
+  strictEqual(again.changed, false);
+  deepStrictEqual(again.entries, []);
 });
 
-test("整形の違いだけでは差分にならない", () => {
-  // karabiner_cli --format-json が独自整形でファイルを書き換えるため、
-  // テキスト比較では毎回「変更あり」になる（ADR 0022）。
-  const { profile } = generateOwnedProfile(DESIRED);
-  const reordered = JSON.parse(
-    JSON.stringify({
-      complex_modifications: profile.complex_modifications,
-      virtual_hid_keyboard: profile.virtual_hid_keyboard,
-      name: profile.name,
-    }),
-  ) as typeof profile;
-  strictEqual(diffOwnedProfile(reordered, profile).changed, false);
-});
-
-test("verify は適用後の config で通る", () => {
-  const plan = planMacApply(baseline(), DESIRED);
-  const observed = JSON.parse(JSON.stringify(plan.next)) as KarabinerConfig;
-  deepStrictEqual(verifyMacApply(observed, plan.profile), { ok: true, entries: [] });
-});
-
-test("verify は所有 profile が書けていなければ落ちる", () => {
-  const plan = planMacApply(baseline(), DESIRED);
-  const result = verifyMacApply(baseline(), plan.profile);
-  strictEqual(result.ok, false);
-  strictEqual(result.entries.length > 0, true);
-});
-
-test("fingerprint は同じ入力で一致し、変えると変わる", () => {
-  strictEqual(
-    planMacApply(baseline(), DESIRED).fingerprint,
-    planMacApply(baseline(), DESIRED).fingerprint,
-  );
-  const modified = {
+test("差分は layer とキー、layer の外の設定の単位で出る", () => {
+  const before = planMacApply(undefined, DESIRED).text;
+  const next = {
     ...DESIRED,
-    layers: new Map([...DESIRED.layers, [4, new Map([["p", "KC_P"]])]]),
+    tappingTermMs: 150,
+    layers: new Map([...DESIRED.layers, [1, new Map([["a", "KC_END"]])]]),
   };
-  strictEqual(
-    planMacApply(baseline(), DESIRED).fingerprint ===
-      planMacApply(baseline(), modified).fingerprint,
-    false,
-  );
-});
-
-test("ownedProfile は名前が一致する 1 個だけを返す", () => {
-  strictEqual(ownedProfile(baseline(), "KeySync")?.name, "KeySync");
-  strictEqual(ownedProfile(baseline(), "存在しない"), undefined);
-});
-
-test("改名前の profile が残っていれば案内するだけで、触らない", () => {
-  // 旧 profile は所有していない。置き換えも削除もしない（ADR 0036）。
-  const current = JSON.parse(readFixture("karabiner-legacy-profile.json")) as KarabinerConfig;
-  const plan = planMacApply(current, DESIRED);
-
-  const legacy = plan.diagnostics.filter((one) => one.code === "mac-keymap/legacy-profile-present");
-  strictEqual(legacy.length, 1);
-  strictEqual(legacy[0]?.severity, "information");
-  strictEqual(plan.diff.present, false);
+  const plan = planMacApply(before, next);
   deepStrictEqual(
-    plan.next.profiles.map((profile) => profile.name),
-    ["Default profile", "Cornix Bonsai", "KeySync"],
+    plan.entries.map(({ layer, keyCode, change }) => ({ layer, keyCode, change })),
+    [
+      { layer: 1, keyCode: "a", change: "changed" },
+      { layer: 1, keyCode: "d", change: "removed" },
+      { layer: 1, keyCode: "e", change: "removed" },
+      { layer: 1, keyCode: "h", change: "removed" },
+      { layer: 1, keyCode: "j", change: "removed" },
+      { layer: 1, keyCode: "k", change: "removed" },
+      { layer: 1, keyCode: "l", change: "removed" },
+      { layer: null, keyCode: "tapping-term", change: "changed" },
+    ],
   );
-  deepStrictEqual(ownedProfile(plan.next, "Cornix Bonsai"), ownedProfile(current, "Cornix Bonsai"));
 });
 
-test("改名前の profile を所有している設定では案内しない", () => {
-  // profile: "Cornix Bonsai" のままの設定は、その profile を所有しているので旧 profile ではない。
-  const current = JSON.parse(readFixture("karabiner-legacy-profile.json")) as KarabinerConfig;
-  const plan = planMacApply(current, { ...DESIRED, profile: "Cornix Bonsai" });
-
-  strictEqual(
-    plan.diagnostics.some((one) => one.code === "mac-keymap/legacy-profile-present"),
-    false,
-  );
-  strictEqual(plan.diff.present, true);
+test("verify は書いたテキストと一致するときだけ通る", () => {
+  const { text } = planMacApply(undefined, DESIRED);
+  strictEqual(verifyMacApply(text, text), true);
+  strictEqual(verifyMacApply(undefined, text), false);
+  strictEqual(verifyMacApply(`${text};;\n`, text), false);
 });
 
-test("改名前の profile が無ければ案内しない", () => {
+test("fingerprint は同じ入力で一致し、中身や診断が変わると変わる", () => {
+  const one = planMacApply(undefined, DESIRED);
+  strictEqual(planMacApply(undefined, DESIRED).fingerprint, one.fingerprint);
+  notStrictEqual(
+    planMacApply(undefined, { ...DESIRED, tappingTermMs: 150 }).fingerprint,
+    one.fingerprint,
+  );
+  notStrictEqual(
+    planMacApply(undefined, DESIRED, { karabinerGrabsBuiltIn: true }).fingerprint,
+    one.fingerprint,
+  );
+});
+
+test("Karabiner が内蔵キーボードを掴むなら warning を出す", () => {
+  const plan = planMacApply(undefined, DESIRED, { karabinerGrabsBuiltIn: true });
+  const found = plan.diagnostics.find((one) => one.code === "mac-keymap/karabiner-grabs-built-in");
+  strictEqual(found?.severity, "warning");
   strictEqual(
-    planMacApply(baseline(), DESIRED).diagnostics.some(
-      (one) => one.code === "mac-keymap/legacy-profile-present",
+    planMacApply(undefined, DESIRED).diagnostics.some(
+      (one) => one.code === "mac-keymap/karabiner-grabs-built-in",
     ),
     false,
   );
+});
+
+test("karabinerGrabsBuiltIn は選択中の profile が内蔵キーボードを ignore していれば false", () => {
+  // R-010 で Karabiner の Devices 画面が書いた形。
+  const ignoring = {
+    profiles: [
+      { name: "Default profile" },
+      {
+        name: "KeySync",
+        selected: true,
+        devices: [{ identifiers: { is_keyboard: true }, ignore: true }],
+      },
+    ],
+  };
+  strictEqual(karabinerGrabsBuiltIn(ignoring), false);
+  // 外付け（id あり）を ignore しても内蔵は掴む。
+  const external = {
+    profiles: [
+      {
+        selected: true,
+        devices: [
+          { identifiers: { is_keyboard: true, vendor_id: 1, product_id: 2 }, ignore: true },
+        ],
+      },
+    ],
+  };
+  strictEqual(karabinerGrabsBuiltIn(external), true);
+  strictEqual(karabinerGrabsBuiltIn(JSON.parse(readFixture("karabiner-baseline.json"))), true);
+  strictEqual(karabinerGrabsBuiltIn({}), true);
+});
+
+test("appliedTappingTermMs は所有するファイルの閾値を読み、無ければ null", () => {
+  const { text } = planMacApply(undefined, { ...DESIRED, tappingTermMs: 170 });
+  strictEqual(appliedTappingTermMs(text), 170);
+  strictEqual(appliedTappingTermMs(""), null);
+});
+
+test("diffKanataText はコメントと閉じ括弧を差分にしない", () => {
+  const text = "(deflayermap (base)\n  a b\n)\n";
+  deepStrictEqual(diffKanataText(`;; 手で足した\n${text}`, text), []);
 });

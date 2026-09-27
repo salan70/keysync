@@ -1,287 +1,235 @@
 /**
- * `karabiner.json` への適用を組み立てる純関数。
+ * kanata の設定ファイル（`kanata.kbd`）への適用を組み立てる純関数。
  *
- * ADR 0008 の状態機械（`src/core/apply/plan.ts`）は**再利用しない**。あちらは実機への
- * 往復する write を扱い「部分的に書けた状態」からの復旧を型で表すが、こちらは
- * 1 ファイルの atomic 置換なのでその状態が原理的に生じない（ADR 0022）。
- *
- * **diff と verify は構造で行う**。`karabiner_cli --format-json` が独自整形で
- * ファイルを書き換えるため、テキスト比較では毎回「変更あり」になる（D-007 で実証済み）。
- * ここで比較するのは parse 済みの値で、object の key 順は正規化してから突き合わせる。
- *
- * filesystem には触らない。read / backup / write は adapter の責務。
- *
+ * KeySync はこのファイル全体を所有し、kanata は設定ファイルを書き戻さない。したがって
+ * diff と verify はテキストで行う（ADR 0042 の keyd と同じ、ADR 0049）。表示用の diff だけは
+ * layer とキーの単位に分けて出す。filesystem・kanata・Karabiner には触らない。
  */
 
 import { createDiagnostic, summarize, type Diagnostic } from "../validation/types.ts";
-import { generateOwnedProfile } from "./generate.ts";
-import type { KarabinerConfig, KarabinerManipulator, KarabinerProfile } from "./karabiner.ts";
+import { generateKanataConfig, kanataLayerName, TAPPING_TERM_VARIABLE } from "./kanata/generate.ts";
+import { KANATA_KEY_NAMES } from "./kanata/key-names.ts";
+import type { MacKeymapDocument } from "./types.ts";
 import { validateMacKeymap, type MacValidationResult } from "./validate.ts";
-import { LEGACY_PROFILE_NAME, type MacKeymapDocument } from "./types.ts";
 
-/** manipulator 1 件の差分。位置は rule の description と `from` の `key_code` で指す。 */
-export interface ManipulatorDiff {
-  readonly rule: string;
+/**
+ * 差分 1 件。キーの割り当ては layer と位置（Karabiner の `key_code` 名）で指す。
+ * layer の外の設定（閾値や手の割り当て）は `layer` が `null` で、`keyCode` に設定の名前を置く。
+ */
+export interface MacDiffEntry {
+  readonly layer: number | null;
   readonly keyCode: string;
   readonly change: "added" | "removed" | "changed";
-  readonly before?: KarabinerManipulator;
-  readonly after?: KarabinerManipulator;
+  readonly before?: string;
+  readonly after?: string;
 }
 
-/** 所有 profile の構造 diff。 */
-export interface OwnedProfileDiff {
-  /** 適用前に所有 profile が存在したか。無ければ末尾へ追加する。 */
-  readonly present: boolean;
-  readonly changed: boolean;
-  readonly entries: readonly ManipulatorDiff[];
-}
-
-/** 適用時の選択肢。 */
-export interface MacApplyOptions {
+/** 計画を組むときに外から渡す、このマシンの状態。 */
+export interface MacApplyEnvironment {
+  /** 生成物の先頭に書く元ファイルの名前。 */
+  readonly source?: string;
   /**
-   * 適用後に所有 profile を選択するか。既定は `true`（ADR 0028）。
-   *
-   * `false` にすると診断が warning へ変わり、診断 id が指紋へ入るので
-   * **fingerprint も変わる**。確認文字列がフラグを含むのはこのため。
+   * Karabiner-Elements が内蔵キーボードを掴むか。掴むと kanata へ入力が届かない（ADR 0049）。
+   * Karabiner が入っていなければ `false`。
    */
-  readonly selectProfile?: boolean;
-}
-
-/** 適用後に所有 profile を選び直す必要があるか。 */
-export interface MacProfileSelection {
-  readonly required: boolean;
-  readonly profile: string;
+  readonly karabinerGrabsBuiltIn?: boolean;
 }
 
 /** 適用計画。write は行わない。 */
 export interface MacApplyPlan {
   readonly validation: MacValidationResult;
-  /** validation に加えて、profile の選択状態など適用時にだけ分かることを含む。 */
+  /** validation に加えて、このマシンの状態から分かることを含む。 */
   readonly diagnostics: readonly Diagnostic[];
-  readonly diff: OwnedProfileDiff;
-  /** CLI が再導出しなくて済むよう、選択の要否をここで確定させる。 */
-  readonly selection: MacProfileSelection;
-  readonly profile: KarabinerProfile;
-  /** 置き換え後の config 全体。`global` と他 profile と `selected` はそのまま。 */
-  readonly next: KarabinerConfig;
+  /** 適用前にファイルがあったか。 */
+  readonly present: boolean;
+  /** 置き換え後のファイルの内容。 */
+  readonly text: string;
+  readonly changed: boolean;
+  readonly entries: readonly MacDiffEntry[];
   /** 人間の確認と適用を結びつける同一性の指紋。表示用ではない。 */
   readonly fingerprint: string;
 }
 
-/** verify の結果。所有 profile が期待と構造として一致するか。 */
-export interface MacVerifyResult {
-  readonly ok: boolean;
-  readonly entries: readonly ManipulatorDiff[];
-}
-
 /**
- * `karabiner.json` の内容と desired state から適用計画を組む。
+ * 現在のファイルの内容（無ければ `undefined`）と desired state から適用計画を組む。
  *
  * @doc docs/specs/mac-keymap.md#planmacapply
  */
 export function planMacApply(
-  current: KarabinerConfig,
+  current: string | undefined,
   document: MacKeymapDocument,
-  options: MacApplyOptions = {},
+  environment: MacApplyEnvironment = {},
 ): MacApplyPlan {
-  const selectProfile = options.selectProfile ?? true;
   const validation = validateMacKeymap(document);
-  const { profile } = generateOwnedProfile(document);
-  const before = ownedProfile(current, document.profile);
-  const diff = diffOwnedProfile(before, profile);
-
-  // 判定は「適用後に所有 profile が有効な profile になっているか」。profile が既存か
-  // どうかとは独立である。ここを `before !== undefined` で書くと、profile を新規追加する
-  // 初回だけ無診断で通り、**apply は成功したのに何も効かない**（ADR 0028）。
-  const selected = current.profiles.find((one) => one.selected === true);
-  const selection: MacProfileSelection = {
-    required: selected?.name !== document.profile,
-    profile: document.profile,
-  };
-
+  const { text } = generateKanataConfig(document, environment.source);
   const diagnostics = [...validation.diagnostics];
-  if (selection.required) {
-    // `selected` は書き込まない。選択は `karabiner_cli --select-profile` に任せる（ADR 0028）。
-    diagnostics.push(
-      selectProfile
-        ? createDiagnostic(
-            "mac-keymap/profile-will-be-selected",
-            "information",
-            { kind: "field", name: document.profile },
-            `適用後に profile ${document.profile} を選択する`,
-            { profile: document.profile },
-          )
-        : createDiagnostic(
-            "mac-keymap/profile-not-selected",
-            "warning",
-            { kind: "field", name: document.profile },
-            `profile ${document.profile} は選択されていない。karabiner_cli --select-profile で切り替える`,
-            { profile: document.profile },
-          ),
-    );
-  }
-
-  // 改名前の profile は所有していない。置き換えも削除もせず、残っていることを知らせる（ADR 0036）。
-  if (
-    document.profile !== LEGACY_PROFILE_NAME &&
-    current.profiles.some((one) => one.name === LEGACY_PROFILE_NAME)
-  ) {
+  if (environment.karabinerGrabsBuiltIn === true) {
     diagnostics.push(
       createDiagnostic(
-        "mac-keymap/legacy-profile-present",
-        "information",
-        { kind: "field", name: LEGACY_PROFILE_NAME },
-        `改名前の profile ${LEGACY_PROFILE_NAME} が残っている。KeySync は触らないので、不要なら Karabiner-Elements で削除する`,
-        { profile: LEGACY_PROFILE_NAME },
+        "mac-keymap/karabiner-grabs-built-in",
+        "warning",
+        { kind: "document" },
+        "Karabiner-Elements が内蔵キーボードを掴んでいるので、kanata へ入力が届かない。Karabiner-Elements の Devices で内蔵キーボードの Modify events を切る",
       ),
     );
   }
-
   return {
     validation,
     diagnostics,
-    diff,
-    selection,
-    profile,
-    next: replaceOwnedProfile(current, profile),
-    fingerprint: fingerprint(profile, diagnostics),
+    present: current !== undefined,
+    text,
+    changed: current !== text,
+    entries: diffKanataText(current ?? "", text),
+    fingerprint: fingerprint(text, diagnostics),
   };
 }
 
 /**
- * 適用後に読み直した config が期待どおりかを構造で確かめる。
+ * 適用後に読み直したファイルが生成物と一致するか。テキストで比べる。
  *
- * @doc docs/specs/mac-keymap.md#verifymacapply
+ * @doc docs/specs/mac-keymap.md#planmacapply
  */
-export function verifyMacApply(
-  observed: KarabinerConfig,
-  expected: KarabinerProfile,
-): MacVerifyResult {
-  const diff = diffOwnedProfile(ownedProfile(observed, expected.name), expected);
-  return { ok: diff.present && !diff.changed, entries: diff.entries };
+export function verifyMacApply(observed: string | undefined, expected: string): boolean {
+  return observed === expected;
 }
 
 /**
- * 所有 profile の manipulator を構造で突き合わせる。
+ * kanata の設定テキストを、layer とキー・設定の単位で突き合わせる。
  *
- * @doc docs/specs/mac-keymap.md#diffownedprofile
+ * 解釈するのは KeySync が出す形だけで、コメントと閉じ括弧は見ない。`deflayermap` の中は
+ * 1 行を 1 キーとし、外は 1 行を 1 設定とする。
+ *
+ * @doc docs/specs/mac-keymap.md#planmacapply
  */
-export function diffOwnedProfile(
-  before: KarabinerProfile | undefined,
-  after: KarabinerProfile,
-): OwnedProfileDiff {
-  const beforeEntries = indexManipulators(before);
-  const afterEntries = indexManipulators(after);
-  const keys = [...new Set([...beforeEntries.keys(), ...afterEntries.keys()])].sort();
-  const entries: ManipulatorDiff[] = [];
-
-  for (const key of keys) {
-    const one = beforeEntries.get(key);
-    const other = afterEntries.get(key);
+export function diffKanataText(before: string, after: string): readonly MacDiffEntry[] {
+  const left = indexKanata(before);
+  const right = indexKanata(after);
+  const entries: MacDiffEntry[] = [];
+  for (const id of [...new Set([...left.keys(), ...right.keys()])].sort()) {
+    const one = left.get(id);
+    const other = right.get(id);
     if (one !== undefined && other !== undefined) {
-      if (canonical(one.manipulator) === canonical(other.manipulator)) continue;
-      entries.push({
-        rule: other.rule,
-        keyCode: other.keyCode,
-        change: "changed",
-        before: one.manipulator,
-        after: other.manipulator,
-      });
-      continue;
-    }
-    if (other !== undefined) {
-      entries.push({
-        rule: other.rule,
-        keyCode: other.keyCode,
-        change: "added",
-        after: other.manipulator,
-      });
-      continue;
-    }
-    if (one !== undefined) {
-      entries.push({
-        rule: one.rule,
-        keyCode: one.keyCode,
-        change: "removed",
-        before: one.manipulator,
-      });
+      if (one.value !== other.value) {
+        entries.push({ ...place(other), change: "changed", before: one.value, after: other.value });
+      }
+    } else if (other !== undefined) {
+      entries.push({ ...place(other), change: "added", after: other.value });
+    } else if (one !== undefined) {
+      entries.push({ ...place(one), change: "removed", before: one.value });
     }
   }
-
-  return { present: before !== undefined, changed: entries.length > 0, entries };
-}
-
-/** `profiles[]` から所有 profile を探す。名前が一致する最初の 1 個だけ。 */
-export function ownedProfile(config: KarabinerConfig, name: string): KarabinerProfile | undefined {
-  return config.profiles.find((profile) => profile.name === name);
+  return entries;
 }
 
 /**
- * 所有 profile だけを差し替えた config を返す。
+ * 所有するファイルに書かれている mod-tap の閾値（ms）。読めなければ `null`。
  *
- * `global` と他の profile には触らない。所有 profile が持っていた `selected` などの
- * field は残す。生成する profile は `selected` を持たないため、丸ごと置き換えると
- * 選択状態を落としてしまう（ADR 0022）。
+ * 打鍵ログに「記録した時点で効いていた閾値」を残すのに使う（ADR 0046）。
+ *
+ * @doc docs/specs/mac-keymap.md#appliedtappingtermms
  */
-function replaceOwnedProfile(config: KarabinerConfig, profile: KarabinerProfile): KarabinerConfig {
-  let replaced = false;
-  const profiles = config.profiles.map((existing) => {
-    if (existing.name !== profile.name || replaced) return existing;
-    replaced = true;
-    return { ...existing, ...profile };
+export function appliedTappingTermMs(text: string): number | null {
+  const match = new RegExp(`^\\(defvar ${TAPPING_TERM_VARIABLE} ([0-9]+)\\)$`, "m").exec(text);
+  return match?.[1] === undefined ? null : Number(match[1]);
+}
+
+/**
+ * `karabiner.json` の内容から、Karabiner-Elements が内蔵キーボードを掴むかを判定する。
+ *
+ * 選択中の profile の `devices` に、内蔵キーボード（vendor / product id を持たないキーボード）を
+ * `ignore: true` にした項目があれば掴まない。Karabiner の Devices 画面で Modify events を切ると
+ * この項目が書かれる（R-010 で確認）。形が読めなければ掴むとみなす。
+ *
+ * @doc docs/specs/mac-keymap.md#planmacapply
+ */
+export function karabinerGrabsBuiltIn(config: unknown): boolean {
+  const profiles = record(config)?.profiles;
+  if (!Array.isArray(profiles)) return true;
+  const selected = profiles.map(record).find((profile) => profile?.selected === true);
+  const devices = selected?.devices;
+  if (!Array.isArray(devices)) return true;
+  return !devices.map(record).some((device) => {
+    const identifiers = record(device?.identifiers);
+    if (identifiers === undefined || device?.ignore !== true) return false;
+    const builtIn =
+      identifiers.is_built_in_keyboard === true ||
+      (identifiers.is_keyboard === true &&
+        identifiers.vendor_id === undefined &&
+        identifiers.product_id === undefined);
+    return builtIn;
   });
-  return { ...config, profiles: replaced ? profiles : [...profiles, profile] };
 }
 
-interface IndexedManipulator {
-  readonly rule: string;
-  readonly keyCode: string;
-  readonly manipulator: KarabinerManipulator;
+interface IndexedLine {
+  readonly layer: number | null;
+  readonly key: string;
+  readonly value: string;
 }
 
-/** rule の description・`from` の `key_code`・同じキーの中の順番で manipulator を並べる。 */
-function indexManipulators(
-  profile: KarabinerProfile | undefined,
-): ReadonlyMap<string, IndexedManipulator> {
-  const indexed = new Map<string, IndexedManipulator>();
-  if (profile === undefined) return indexed;
-  for (const rule of profile.complex_modifications.rules) {
-    const seen = new Map<string, number>();
-    for (const manipulator of rule.manipulators) {
-      const keyCode = manipulator.from.key_code;
-      const ordinal = seen.get(keyCode) ?? 0;
-      seen.set(keyCode, ordinal + 1);
-      indexed.set(`${rule.description} ${keyCode} ${ordinal}`, {
-        rule: rule.description,
-        keyCode,
-        manipulator,
-      });
+/** kanata のキー名 → 位置（Karabiner の `key_code` 名）。 */
+const POSITION_OF: ReadonlyMap<string, string> = new Map(
+  [...KANATA_KEY_NAMES.entries()].map(([keyCode, name]) => [name, keyCode]),
+);
+
+function place(line: IndexedLine): { layer: number | null; keyCode: string } {
+  return {
+    layer: line.layer,
+    keyCode: line.layer === null ? line.key : (POSITION_OF.get(line.key) ?? line.key),
+  };
+}
+
+function layerNumber(name: string): number | null {
+  if (name === kanataLayerName(0)) return 0;
+  const match = /^l([0-9]+)$/.exec(name);
+  return match?.[1] === undefined ? null : Number(match[1]);
+}
+
+function indexKanata(text: string): ReadonlyMap<string, IndexedLine> {
+  const indexed = new Map<string, IndexedLine>();
+  let layer: number | null = null;
+  let inLayer = false;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line === "" || line.startsWith(";;") || line === ")") {
+      if (line === ")") inLayer = false;
+      continue;
     }
+    const header = /^\(deflayermap \((.+)\)$/.exec(line);
+    if (header?.[1] !== undefined) {
+      layer = layerNumber(header[1]);
+      inLayer = true;
+      continue;
+    }
+    if (inLayer) {
+      if (line === "___ _") continue;
+      const separator = line.indexOf(" ");
+      const key = separator < 0 ? line : line.slice(0, separator);
+      const value = separator < 0 ? "" : line.slice(separator + 1);
+      indexed.set(`${layer}\u0000${key}`, { layer, key, value });
+      continue;
+    }
+    // layer の外。`(defvar name value)` は name を、それ以外は先頭の語を設定の名前にする。
+    const words = line.replace(/^\(+/, "").replace(/\)+$/, "").split(/\s+/);
+    const [first, second, ...rest] = words;
+    if (first === undefined || ["defcfg", "defsrc", "defhands"].includes(first)) continue;
+    const key = first === "defvar" && second !== undefined ? second : first;
+    const value = (first === "defvar" ? rest : [second, ...rest]).filter(Boolean).join(" ");
+    indexed.set(`setting\u0000${key}`, { layer: null, key, value });
   }
   return indexed;
 }
 
-/** object の key 順を正規化した表現。**ファイルのテキストとは比較しない**（ADR 0022）。 */
-function canonical(value: unknown): string {
-  return JSON.stringify(normalize(value));
-}
-
-function normalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(normalize);
-  if (value === null || typeof value !== "object") return value;
-  const record = value as Record<string, unknown>;
-  return Object.fromEntries(
-    Object.keys(record)
-      .sort()
-      .map((key) => [key, normalize(record[key])]),
-  );
+function record(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 /** 計画の全入力を順序を固定して表現する。表示用ではなく同一性確認用。 */
-function fingerprint(profile: KarabinerProfile, diagnostics: readonly Diagnostic[]): string {
+function fingerprint(text: string, diagnostics: readonly Diagnostic[]): string {
   const source = JSON.stringify([
-    "mac-apply-plan-v1",
-    normalize(profile),
+    "mac-kanata-apply-plan-v1",
+    text,
     diagnostics.map((diagnostic) => diagnostic.id),
     summarize(diagnostics),
   ]);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { macKeycodeSupport } from "../core/mac-keymap/generate.ts";
+import { macKeycodeSupport } from "../core/mac-keymap/kanata/generate.ts";
 import { isKnownKeycode } from "../core/validation/keycode-vocabulary.ts";
 import {
   EXTRA_ROW,

@@ -105,9 +105,9 @@ export interface TrialLog {
 }
 
 /**
- * 打鍵テスト（Mac）。閾値を変えて Karabiner へ適用し、課題を打って採点する（ADR 0045）。
+ * 打鍵テスト（Mac）。閾値を変えて kanata へ適用し、課題を打って採点する（ADR 0045）。
  *
- * ブラウザが受け取るのは Karabiner が処理した後の入力なので、誤爆や取りこぼしを
+ * ブラウザが受け取るのは kanata が処理した後の入力なので、誤爆や取りこぼしを
  * そのまま観測できる。入力欄では既定動作をすべて止め、⌘A などをブラウザに渡さない。
  */
 export function TypingPanel({
@@ -122,7 +122,7 @@ export function TypingPanel({
   onClearRecords,
 }: {
   readonly document: MacKeymapDocument;
-  /** Karabiner で効いていると確かめた閾値。確かめていなければ `undefined`。 */
+  /** kanata で効いていると確かめた閾値。確かめていなければ `undefined`。 */
   readonly effectiveTappingTermMs: number | undefined;
   readonly applyBlockedReason: string | undefined;
   readonly records: readonly TrialRecord[];
@@ -200,10 +200,10 @@ export function TypingPanel({
 
   const status =
     effectiveTappingTermMs === undefined
-      ? `Karabiner で効いている閾値をまだ確かめていない。適用すると確かめられる（差分が無ければ書き込まない）。`
+      ? `kanata で効いている閾値をまだ確かめていない。適用すると確かめられる（差分が無ければ書き込まない）。`
       : effectiveTappingTermMs === yaml
-        ? `Karabiner に ${yaml} ms が効いている。`
-        : `yaml は ${yaml} ms、Karabiner は ${effectiveTappingTermMs} ms。打つ前に適用する。`;
+        ? `kanata に ${yaml} ms が効いている。`
+        : `yaml は ${yaml} ms、kanata は ${effectiveTappingTermMs} ms。打つ前に適用する。`;
 
   return (
     <div className="typing">
@@ -224,7 +224,7 @@ export function TypingPanel({
             {status}
           </p>
           <Button size="small" disabled={applyBlockedReason !== undefined} onClick={onApply}>
-            Karabiner へ適用…
+            kanata へ適用…
           </Button>
           {applyBlockedReason === undefined ? null : <p className="hint">{applyBlockedReason}</p>}
         </section>

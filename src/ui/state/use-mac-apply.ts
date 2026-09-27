@@ -12,7 +12,6 @@ import {
   applyMacRemote,
   fetchMacStatus,
   planMacApplyRemote,
-  selectMacProfileRemote,
   type MacServerUnreachable,
 } from "../mac-server.ts";
 
@@ -20,9 +19,9 @@ import {
 export type MacApplyStopped = MacPlanBlocked | MacApiFailure | MacServerUnreachable;
 
 /**
- * Karabiner で効いていると確かめた mod-tap の閾値。適用が成功したとき、または差分が
- * 無く profile も選択済みと分かったときにだけ記録する。打鍵テストが、どの閾値で
- * 打った結果かを示すのに使う（ADR 0045）。
+ * kanata で効いていると確かめた mod-tap の閾値。適用して kanata が読み直したとき、または
+ * 差分が無く kanata が常駐していると分かったときにだけ記録する。打鍵テストが、どの閾値で
+ * 打った結果かを示すのに使う（ADR 0045・0049）。
  *
  * @doc docs/specs/ui.md#typing-panel
  */
@@ -43,10 +42,10 @@ export type MacApplyView =
   | { readonly phase: "stopped"; readonly reason: MacApplyStopped }
   | { readonly phase: "review"; readonly plan: MacPlanned; readonly changed: boolean }
   | { readonly phase: "applying"; readonly plan: MacPlanned }
-  | { readonly phase: "result"; readonly outcome: MacApplyOutcome; readonly retrying: boolean };
+  | { readonly phase: "result"; readonly outcome: MacApplyOutcome };
 
 /**
- * `Karabiner へ適用…` の状態。ローカルサーバーへの問い合わせだけを持ち、ファイルには触れない。
+ * `kanata へ適用…` の状態。ローカルサーバーへの問い合わせだけを持ち、ファイルには触れない。
  *
  * このマシンの配列は起動時に 1 回だけ訊く。内蔵配列は起動中に変わらない。
  *
@@ -92,7 +91,7 @@ export function useMacApply() {
     const digest = await macKeymapDigest(document, globalThis.crypto);
     target.current = { layout, digest, tappingTermMs: document.tappingTermMs };
     const result = await planMacApplyRemote({ layout, digest });
-    if (result.kind === "planned" && result.entries.length === 0 && !result.selection.required) {
+    if (result.kind === "planned" && result.entries.length === 0 && result.running) {
       markEffective();
     }
     setView(
@@ -113,33 +112,8 @@ export function useMacApply() {
       setView({ phase: "review", plan: result.plan, changed: true });
       return;
     }
-    if (result.kind === "applied") markEffective();
-    setView({ phase: "result", outcome: result, retrying: false });
-  }
-
-  /** profile の切り替えだけをやり直す。書き込みはしない。 */
-  async function retrySelect(): Promise<void> {
-    if (view.phase !== "result" || view.outcome.kind !== "select-failed") return;
-    if (target.current === undefined) return;
-    const failed = view.outcome;
-    setView({ phase: "result", outcome: failed, retrying: true });
-    const result = await selectMacProfileRemote(target.current.layout);
-    if (result.kind === "selected" && result.ok) {
-      markEffective();
-      setView({
-        phase: "result",
-        outcome: { kind: "applied", backup: failed.backup, selected: true },
-        retrying: false,
-      });
-      return;
-    }
-    const output =
-      result.kind === "selected"
-        ? result.output
-        : result.kind === "failed"
-          ? result.message
-          : result.kind;
-    setView({ phase: "result", outcome: { ...failed, output }, retrying: false });
+    if (result.kind === "applied" && result.reloaded) markEffective();
+    setView({ phase: "result", outcome: result });
   }
 
   function close(): void {
@@ -147,5 +121,5 @@ export function useMacApply() {
     setView({ phase: "closed" });
   }
 
-  return { machine, view, effective, open, apply, retrySelect, close };
+  return { machine, view, effective, open, apply, close };
 }

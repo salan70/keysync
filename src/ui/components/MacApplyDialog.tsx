@@ -15,20 +15,16 @@ const CHANGE_VIEW: Readonly<
   removed: { label: "削除", className: "tag tag-remove" },
 };
 
-/** `karabiner.json` を backup から戻す手順。書き込みの後に失敗したときに示す。 */
-const KARABINER_PATH = "~/.config/karabiner/karabiner.json";
-
 /**
- * Karabiner への適用。差分確認 → 適用 → 結果の modal。
+ * kanata への適用。差分確認 → 適用 → 結果の modal。
  *
- * 書き込みと profile の切り替えはローカルサーバーが行う（ADR 0034）。適用中は閉じられない。
+ * 書き込みと kanata の読み直しはローカルサーバーが行う（ADR 0034・0049）。適用中は閉じられない。
  */
 export function MacApplyDialog({
   view,
   layout,
   document,
   onApply,
-  onRetrySelect,
   onReload,
   onClose,
 }: {
@@ -36,16 +32,12 @@ export function MacApplyDialog({
   readonly layout: MacKeyboardLayout;
   readonly document: MacKeymapDocument | undefined;
   readonly onApply: () => void;
-  readonly onRetrySelect: () => void;
   readonly onReload: () => void;
   readonly onClose: () => void;
 }): React.JSX.Element {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const busy =
-    view.phase === "planning" ||
-    view.phase === "applying" ||
-    (view.phase === "result" && view.retrying);
+  const busy = view.phase === "planning" || view.phase === "applying";
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -60,8 +52,7 @@ export function MacApplyDialog({
     headingRef.current?.focus();
   }, [view.phase]);
 
-  const upToDate =
-    view.phase === "review" && view.plan.entries.length === 0 && !view.plan.selection.required;
+  const upToDate = view.phase === "review" && view.plan.entries.length === 0;
 
   return (
     <dialog
@@ -77,7 +68,7 @@ export function MacApplyDialog({
     >
       <header className="apply-head">
         <h2 id="mac-apply-title" ref={headingRef} tabIndex={-1}>
-          Karabiner へ適用（Mac {LAYOUT_LABEL[layout]}）
+          kanata へ適用（Mac {LAYOUT_LABEL[layout]}）
         </h2>
       </header>
 
@@ -106,9 +97,7 @@ export function MacApplyDialog({
           </p>
         ) : null}
 
-        {view.phase === "result" ? (
-          <Result outcome={view.outcome} retrying={view.retrying} onReload={onReload} />
-        ) : null}
+        {view.phase === "result" ? <Result outcome={view.outcome} onReload={onReload} /> : null}
       </div>
 
       <footer className="apply-foot">
@@ -123,16 +112,7 @@ export function MacApplyDialog({
             適用
           </Button>
         ) : null}
-        {view.phase === "result" && view.outcome.kind === "select-failed" ? (
-          <Button appearance="secondary" disabled={view.retrying} onClick={onRetrySelect}>
-            切り替えを再試行
-          </Button>
-        ) : null}
-        {view.phase === "result" ? (
-          <Button disabled={view.retrying} onClick={onClose}>
-            閉じる
-          </Button>
-        ) : null}
+        {view.phase === "result" ? <Button onClick={onClose}>閉じる</Button> : null}
       </footer>
     </dialog>
   );
@@ -160,9 +140,14 @@ function Review({
         </p>
       ) : null}
       <p className="hint">
-        <code>{plan.source}</code> → <code>{plan.karabiner}</code> の「{plan.selection.profile}
-        」profile
+        <code>{plan.source}</code> → <code>{plan.config}</code>
       </p>
+      {plan.running ? null : (
+        <p className="bad">
+          kanata が常駐していない。適用しても、kanata を起動するまで効かない。ターミナルで just mac
+          service install を実行して登録する。
+        </p>
+      )}
       {upToDate ? (
         <p className="ok">
           <Icon name="check" /> このマシンは最新。適用する差分は無い。
@@ -184,7 +169,9 @@ function Review({
                 {plan.entries.map((entry) => (
                   <tr key={`${entry.layer} ${entry.keyCode}`}>
                     <td>{entry.layer ?? "—"}</td>
-                    <td>{macKeycapLabel(entry.keyCode, layout)}</td>
+                    <td>
+                      {entry.layer === null ? entry.keyCode : macKeycapLabel(entry.keyCode, layout)}
+                    </td>
                     <td>
                       <code>
                         {entry.change === "removed" || entry.layer === null
@@ -209,7 +196,7 @@ function Review({
               ))}
             </ul>
           )}
-          <p className="hint">適用の前に現在の karabiner.json を keysync/backups/ へ退避する。</p>
+          <p className="hint">適用の前に現在の kanata の設定を keysync/backups/ へ退避する。</p>
         </>
       )}
     </section>
@@ -226,7 +213,7 @@ function Stopped({
   return (
     <section role="alert">
       <h3 className="section-title bad">
-        <Icon name="error" /> 適用できない（karabiner.json には触れていない）
+        <Icon name="error" /> 適用できない（kanata の設定には触れていない）
       </h3>
       <StoppedDetail reason={reason} onReload={onReload} />
     </section>
@@ -281,12 +268,12 @@ function StoppedDetail({
             ))}
         </ul>
       );
-    case "karabiner-missing":
-      return <p>Karabiner-Elements が見つからない。</p>;
-    case "lint-failed":
+    case "kanata-missing":
+      return <p>kanata が見つからない。brew install --HEAD kanata で入れる。</p>;
+    case "check-failed":
       return (
         <>
-          <p>Karabiner の lint が通らない。</p>
+          <p>kanata --check が通らない。</p>
           <pre className="code-block">{reason.output}</pre>
         </>
       );
@@ -301,11 +288,9 @@ function StoppedDetail({
 
 function Result({
   outcome,
-  retrying,
   onReload,
 }: {
   readonly outcome: MacApplyOutcome;
-  readonly retrying: boolean;
   readonly onReload: () => void;
 }): React.JSX.Element {
   switch (outcome.kind) {
@@ -315,12 +300,21 @@ function Result({
           <h3 className="section-title ok">
             <Icon name="check" /> 適用した
           </h3>
-          <p className="backup-row">
-            <span>
-              適用前の設定を <code>{outcome.backup}</code> に退避した
-            </span>
-          </p>
-          {outcome.selected ? <p>KeySync profile へ切り替えた。</p> : null}
+          {outcome.backup === null ? null : (
+            <p className="backup-row">
+              <span>
+                適用前の設定を <code>{outcome.backup}</code> に退避した
+              </span>
+            </p>
+          )}
+          {outcome.reloaded ? (
+            <p>kanata が新しい設定を読み直した。</p>
+          ) : (
+            <p className="bad">
+              kanata が常駐していないので、まだ効いていない。ターミナルで just mac service install
+              を実行して登録する。
+            </p>
+          )}
         </section>
       );
     case "verify-failed":
@@ -332,16 +326,13 @@ function Result({
           <Restore backup={outcome.backup} />
         </section>
       );
-    case "select-failed":
+    case "reload-failed":
       return (
-        <section role="alert" aria-busy={retrying}>
+        <section role="alert">
           <h3 className="section-title bad">
-            <Icon name="warning" /> 書き込みは完了した。profile の切り替えに失敗した
+            <Icon name="warning" /> 書き込みは完了した。kanata の読み直しに失敗した
           </h3>
-          <p>
-            書き込みは巻き戻していない。「切り替えを再試行」するか、Karabiner-Elements で「
-            {outcome.profile}」を選ぶ。
-          </p>
+          <p>書き込みは巻き戻していない。kanata のログを確かめる。</p>
           {outcome.output === "" ? null : <pre className="code-block">{outcome.output}</pre>}
           <Restore backup={outcome.backup} />
         </section>
@@ -363,10 +354,16 @@ function Result({
   }
 }
 
-function Restore({ backup }: { readonly backup: string }): React.JSX.Element {
+function Restore({ backup }: { readonly backup: string | null }): React.JSX.Element {
   return (
     <p className="hint">
-      元に戻すには <code>{backup}</code> を <code>{KARABINER_PATH}</code> へコピーする。
+      {backup === null ? (
+        "適用前の設定は無かった。"
+      ) : (
+        <>
+          元に戻すには <code>{backup}</code> を kanata の設定ファイルへコピーし、もう一度適用する。
+        </>
+      )}
     </p>
   );
 }

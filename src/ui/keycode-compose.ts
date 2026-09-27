@@ -24,7 +24,7 @@ export const BEHAVIOR_OPTIONS = [
   "none",
 ] as const;
 
-/** Karabiner へ落とせる動作だけ。判定の定義元は `macKeycodeSupport`。 */
+/** kanata へ落とせる動作だけ。判定の定義元は `macKeycodeSupport`。 */
 export const MAC_BEHAVIOR_OPTIONS = ["basic", "modified", "modTap", "layerSwitch", "none"] as const;
 
 export function macBehaviorOptions(current: string): readonly string[] {

@@ -8,7 +8,7 @@ import type { Diagnostic } from "../../../core/validation/types.ts";
 import type { RoundTripProgress } from "../../../device/protocol.ts";
 import { macKeymapPath, WORKSPACE_LAYOUT } from "../../../workspace/layout.ts";
 import { subjectLabel } from "../../diagnostics.ts";
-import { describeDevices, deviceIfText } from "../../mac-references.ts";
+import { describeDevices, kanataDeviceText } from "../../mac-references.ts";
 import type { MacWorkspaceState } from "../../mac-workspace.ts";
 import { Button } from "../Button.tsx";
 import { Icon } from "../Icon.tsx";
@@ -220,7 +220,7 @@ export function CornixDevicePanel({
 }
 
 /**
- * 実機と適用（Mac）。Karabiner への適用の入口と、適用先と Karabiner asset の書き出しを置く。
+ * 実機と適用（Mac）。kanata への適用の入口と、適用先と kanata の設定の書き出しを置く。
  *
  * 書き込みはローカルサーバーが行い、Web UI は差分を見せて承認を送るだけ（ADR 0034）。
  */
@@ -231,7 +231,7 @@ export function MacDevicePanel({
   onApply,
   onTappingTerm,
   onFlowTapTerm,
-  onExportKarabiner,
+  onExportKanata,
 }: {
   readonly layout: MacKeyboardLayout;
   readonly mac: MacWorkspaceState;
@@ -241,19 +241,19 @@ export function MacDevicePanel({
   readonly onTappingTerm: (value: string) => string | undefined;
   /** 保存できなければ理由を返す。 */
   readonly onFlowTapTerm: (value: string) => string | undefined;
-  readonly onExportKarabiner: () => void;
+  readonly onExportKanata: () => void;
 }): React.JSX.Element {
   const path = mac.kind === "ready" ? mac.path : macKeymapPath(layout);
   return (
     <div className="steps">
       <section className="step is-info">
-        <h3 className="section-title">Karabiner へ適用</h3>
+        <h3 className="section-title">kanata へ適用</h3>
         <p>
-          <code>{path}</code> と、この Mac の Karabiner の設定との差分を確かめてから適用する。
-          適用の前に自動で backup を取り、適用後は KeySync profile へ切り替える。
+          <code>{path}</code> と、この Mac の kanata の設定との差分を確かめてから適用する。
+          適用の前に自動で backup を取り、適用後は常駐している kanata に読み直させる。
         </p>
         <Button size="small" disabled={applyBlockedReason !== undefined} onClick={onApply}>
-          Karabiner へ適用…
+          kanata へ適用…
         </Button>
         {applyBlockedReason === undefined ? null : <p className="hint">{applyBlockedReason}</p>}
         <p className="hint">ターミナルからは just mac apply でも適用できる。</p>
@@ -263,12 +263,11 @@ export function MacDevicePanel({
         {mac.kind === "ready" ? (
           <p>
             {describeDevices(mac.document.devices)}{" "}
-            <code>{deviceIfText(mac.document.devices)}</code>
+            <code>{kanataDeviceText(mac.document.devices)}</code>
           </p>
         ) : (
           <p className="muted">{path} を読み込めていない。</p>
         )}
-        <p className="hint">適用先を増やすときは CLI の keysync mac devices を使う。</p>
       </section>
       <section className="step">
         <h3 className="section-title">mod-tap の閾値</h3>
@@ -296,23 +295,23 @@ export function MacDevicePanel({
         )}
         <p className="hint">
           tapping term より前に離すか次のキーを押すと文字、押し続けると修飾キー。直前の文字キーから
-          flow tap より短い間隔で押した文字の mod-tap は、押し続けても文字になる。Karabiner
+          flow tap より短い間隔で押した文字の mod-tap は、押し続けても文字になる。kanata
           への適用で反映する。
         </p>
       </section>
       <section className="step">
-        <h3 className="section-title">Karabiner asset</h3>
+        <h3 className="section-title">kanata の設定</h3>
         <p>
-          編集中の内容から complex_modifications の定義を keysync/generated/ へ書き出す。error
+          編集中の内容から kanata の設定を keysync/generated/ へ書き出す。error
           があると書き出さない。
         </p>
         <Button
           size="small"
           appearance="secondary"
           disabled={mac.kind !== "ready"}
-          onClick={onExportKarabiner}
+          onClick={onExportKanata}
         >
-          Karabiner asset を書き出す
+          kanata の設定を書き出す
         </Button>
       </section>
     </div>

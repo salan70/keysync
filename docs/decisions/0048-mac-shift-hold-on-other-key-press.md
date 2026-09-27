@@ -1,6 +1,6 @@
 # Mac keyboard の Shift の mod-tap は、次のキーを押した時点で hold にする
 
-状態: 採用
+状態: 廃止（ADR 0049 が上書き。Mac の engine を kanata へ替え、Shift は Permissive Hold になった）
 
 2026-09-27 に、MacBook 内蔵キーボードで Shift の反応が Cornix より悪いという報告を受けて決めた。
 ADR 0047 で予定した 2 段階のうち、第 2 段階にあたる。

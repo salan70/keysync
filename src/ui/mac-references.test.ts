@@ -1,7 +1,7 @@
 import { strictEqual } from "node:assert/strict";
 import { test } from "node:test";
 
-import { describeDevices, deviceIfText } from "./mac-references.ts";
+import { describeDevices, kanataDeviceText } from "./mac-references.ts";
 
 test("適用先の文言は内蔵と外付けを並べる", () => {
   strictEqual(describeDevices([{ builtIn: true }]), "内蔵キーボード");
@@ -12,10 +12,13 @@ test("適用先の文言は内蔵と外付けを並べる", () => {
   strictEqual(describeDevices([]), "なし");
 });
 
-test("device_if の文言は Karabiner の identifiers と同じ語彙", () => {
-  strictEqual(deviceIfText([{ builtIn: true }]), "[{ is_built_in_keyboard: true }]");
+test("適用先の指定は kanata の macos-dev-names-include と同じ語彙", () => {
   strictEqual(
-    deviceIfText([{ builtIn: true }, { vendorId: 1452, productId: 630 }]),
-    "[{ is_built_in_keyboard: true }, { vendor_id: 1452, product_id: 630 }]",
+    kanataDeviceText([{ builtIn: true }]),
+    'macos-dev-names-include ("Apple Internal Keyboard / Trackpad")',
+  );
+  strictEqual(
+    kanataDeviceText([{ vendorId: 1452, productId: 630 }]),
+    "macos-dev-names-include (外付け 1452:630（kanata で指せない）)",
   );
 });

@@ -7,7 +7,7 @@ import {
   setMacFlowTapTerm,
   setMacTappingTerm,
 } from "../core/mac-keymap/edit.ts";
-import { macKeycodeSupport } from "../core/mac-keymap/generate.ts";
+import { macKeycodeSupport } from "../core/mac-keymap/kanata/generate.ts";
 import { passthroughKeycode } from "../core/mac-keymap/key-codes.ts";
 import {
   isMacFlowTapTerm,
@@ -647,7 +647,7 @@ export function App({
                   layers={[...jumpableLayers]}
                   disabled={selection === undefined}
                   isKeycodeEnabled={(keycode) => macKeycodeSupport(keycode).ok}
-                  disabledReason="Karabiner で表現できない"
+                  disabledReason="kanata で表現できない"
                   onPick={pick}
                 />
               </section>
@@ -779,7 +779,7 @@ export function App({
                   onApply={() => closePanel(startMacApply)}
                   onTappingTerm={editTappingTerm}
                   onFlowTapTerm={editFlowTapTerm}
-                  onExportKarabiner={() => void ws.exportKarabiner(macLayout)}
+                  onExportKanata={() => void ws.exportKanata(macLayout)}
                 />
               ) : null
             ) : null}
@@ -850,7 +850,6 @@ export function App({
           layout={macLayout}
           document={macReady?.document}
           onApply={() => void macApply.apply()}
-          onRetrySelect={() => void macApply.retrySelect()}
           onReload={() => {
             macApply.close();
             void ws.reload();

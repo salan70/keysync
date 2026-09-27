@@ -44,7 +44,7 @@ export type StatusBarMode =
 /**
  * 画面下の status bar。診断の件数、保存状態と保存先、通知、実機との差分と Apply の入口。
  *
- * Apply を開始できないときはボタンを無効にし、理由を文字で並べる。Mac では Karabiner への適用を出す（ADR 0034）。
+ * Apply を開始できないときはボタンを無効にし、理由を文字で並べる。Mac では kanata への適用を出す（ADR 0034・0049）。
  */
 export function StatusBar({
   summary,
@@ -118,7 +118,7 @@ export function StatusBar({
             aria-describedby={mode.applyBlockedReason === undefined ? undefined : "apply-reason"}
             onClick={mode.onApply}
           >
-            Karabiner へ適用…
+            kanata へ適用…
           </Button>
           {mode.applyBlockedReason === undefined ? null : (
             <span id="apply-reason" className="status-why">

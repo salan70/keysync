@@ -14,7 +14,7 @@ import {
 import { generatedPath, macKeymapPath, WORKSPACE_LAYOUT } from "../../workspace/layout.ts";
 import { createSaveQueue, type SaveQueue } from "../../workspace/save-queue.ts";
 import {
-  generateBrowserKarabinerFromDocument,
+  generateBrowserKanataFromDocument,
   parseBrowserVil,
   renderBrowserPdf,
   renderBrowserSvg,
@@ -377,17 +377,17 @@ export function useWorkspace({ say, onAdopt }: WorkspaceOptions) {
   }
 
   /**
-   * 編集中の Mac の目標状態から Karabiner の asset を書き出す。
+   * 編集中の Mac の目標状態から kanata の設定を keysync/generated/ へ書き出す。
    *
    * ディスクを再読せず in-memory の document から生成し、保存キューに未 flush の編集がある瞬間の
-   * stale read を避ける（ADR 0025）。`karabiner.json` へ触るのは CLI だけ（ADR 0022）。
+   * stale read を避ける（ADR 0025）。kanata が読む設定ファイルへ書くのは適用だけ（ADR 0049）。
    */
-  async function exportKarabiner(layout: MacKeyboardLayout): Promise<void> {
+  async function exportKanata(layout: MacKeyboardLayout): Promise<void> {
     const state = workspace?.mac[layout];
     if (workspace === undefined || state?.kind !== "ready") return;
     try {
-      const { asset, diagnostics, summary } = generateBrowserKarabinerFromDocument(state.document);
-      if (asset === undefined) {
+      const { config, diagnostics, summary } = generateBrowserKanataFromDocument(state.document);
+      if (config === undefined) {
         say(
           `${state.path}にerrorが${summary.error}件ある: ${diagnostics
             .filter((diagnostic) => diagnostic.severity === "error")
@@ -396,13 +396,13 @@ export function useWorkspace({ say, onAdopt }: WorkspaceOptions) {
         );
         return;
       }
-      const path = generatedPath("karabiner-complex-modifications.json");
-      await workspace.store.writeText(path, asset);
+      const path = generatedPath("kanata.kbd");
+      await workspace.store.writeText(path, config);
       const rest =
         diagnostics.length === 0
           ? ""
           : `（warning ${summary.warning}件・information ${summary.information}件）`;
-      say(`${path}へ書き出した${rest}。適用は「Karabiner へ適用」で行う`);
+      say(`${path}へ書き出した${rest}。適用は「kanata へ適用」で行う`);
     } catch (error) {
       say(errorMessage(error));
     }
@@ -435,6 +435,6 @@ export function useWorkspace({ say, onAdopt }: WorkspaceOptions) {
     exportVil,
     exportSvg,
     exportPdf,
-    exportKarabiner,
+    exportKanata,
   };
 }
