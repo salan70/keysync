@@ -48,8 +48,14 @@ export interface KeyRecording {
  * @doc docs/specs/typing-log.md#keyrecorder
  */
 export interface KeyRecorder {
-  /** `seconds` 秒、または SIGINT まで記録する。`onStart` は記録が始まったときに呼ぶ。 */
-  record(seconds: number, onStart: () => void): Promise<KeyRecording>;
+  /**
+   * `seconds` 秒、`stop` が解決するまで、または SIGINT まで記録する。
+   * `onStart` は記録が始まったときに呼ぶ。
+   */
+  record(
+    options: { readonly seconds: number; readonly stop?: Promise<void> },
+    onStart: () => void,
+  ): Promise<KeyRecording>;
 }
 
 /** Xcode の SDK を使わせるため、nix の devShell が固定した変数を外した環境。 */
@@ -115,9 +121,12 @@ type RecorderLine =
  */
 export function createKeyRecorder(): KeyRecorder {
   return {
-    async record(seconds, onStart) {
+    async record({ seconds, stop }, onStart) {
       const binary = await ensureBinary();
       const child = spawn(binary, [String(seconds)], { stdio: ["ignore", "pipe", "inherit"] });
+      void stop?.then(() => {
+        if (child.exitCode === null) child.kill("SIGINT");
+      });
       const keepAlive = () => {};
       process.on("SIGINT", keepAlive);
       let originNs: string | undefined;

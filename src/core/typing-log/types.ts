@@ -94,6 +94,14 @@ export interface KeyLogMeta {
   readonly tappingTermMs: number | null;
   /** `hid` / `os` の時刻の原点（起動からの ns を 10 進の文字列で）。CLI だけが書く。 */
   readonly originNs?: string;
+  /** CLI の課題つき記録の課題ごとの結果。区間は Return で区切った順に並ぶ。 */
+  readonly trials?: readonly {
+    readonly taskId: string;
+    readonly prompt: string;
+    /** ターミナルが受け取った行。IME を通った後の文字列で、採点には使わない。 */
+    readonly typed: string;
+    readonly summary: unknown;
+  }[];
   readonly trial?: {
     readonly taskId: string;
     /** 文章課題の本文。hold 課題では押し続ける位置と相手の文字。 */

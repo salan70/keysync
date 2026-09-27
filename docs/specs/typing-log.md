@@ -37,6 +37,8 @@ Karabiner が内蔵キーボードを seize しているため、物理的な押
 
 CLI は `originNs`（`hid` / `os` の時刻の原点、起動からの ns を 10 進の文字列で）を書きます。
 Web UI は `trial`（課題の id、本文、採点の集計）を書きます。
+CLI の課題つき記録は `trials`（課題ごとの id、本文、ターミナルが受け取った行、採点の集計）を書きます。
+ターミナルの行は IME を通った後の文字列なので、採点には使いません。
 
 <!-- @code src/core/typing-log/format.ts#keyLogPath -->
 <!-- @code src/core/typing-log/format.ts#serializeKeyLog -->
@@ -93,6 +95,27 @@ tap 側のキーの出力は、長さで分けます。
 2 つの閾値（20ms と 5ms）は Inference です。
 R-009 の実測では、tap の出力は 3.9〜5.7ms、次の押下までは最短 68.5ms でした。
 
+<!-- @code src/core/typing-log/trial.ts#typedEventsFromHid -->
+<!-- @code src/core/typing-log/trial.ts#splitAtReturn -->
+
+## 課題つき記録の採点
+
+`keysync mac record` は、課題をターミナルで打たせ、Enter で次へ進めます。
+記録は通しで 1 本なので、HID の Return の押下で課題ごとに区切ります（`splitAtReturn`）。
+区切りの Return の押下は、その区間の最後に入れます。
+採点では 1 文字でない `key` として捨てられ、判定の推定では最後の tap の「次の押下」として使えます。
+
+区切った HID の出力は、Web UI と同じ `gradeTypingTrial` で採点します。
+そのために `typedEventsFromHid` で `TypedEvent` の列へ変えます。
+
+- 修飾キーは押下と離しで状態を追い、それ以外の押下 1 回を 1 件にします
+- 英字・数字・空白は文字にし、Shift が押されていれば英字を大文字にします
+- それ以外のキーは `key_code` 名を `key` に置き、採点で捨てられます
+
+HID は IME より前の層なので、IME の状態に左右されずに採点できます。
+区間に文字が 1 つも無い課題は飛ばしたものとして扱います。
+Return の区切りの数と進めた課題の数が合わなければ、先頭から順に対応させて警告を出します。
+
 <!-- @code src/mac/key-recorder.ts#KeyRecording -->
 <!-- @code src/mac/key-recorder.ts#KeyRecorder -->
 <!-- @code src/mac/key-recorder.ts#createKeyRecorder -->
@@ -100,6 +123,7 @@ R-009 の実測では、tap の出力は 3.9〜5.7ms、次の押下までは最�
 ## KeyRecorder
 
 `keysync mac record` の記録の口です。
+`stop` が解決すると子プロセスへ SIGINT を送り、記録を閉じます。課題つき記録は、課題を進め終えたときにこれで止めます。
 実物（`createKeyRecorder`）は Swift のレコーダーをビルドして起動し、テストは偽物を注入します。
 
 レコーダーの source は `src/mac/key-recorder/KeyRecorder.swift` です。

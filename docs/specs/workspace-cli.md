@@ -174,9 +174,13 @@ Linuxで使うApple製キーボードは`keysync linux devices|generate|diff|app
 `linux apply`は`--confirm`が無いうちは生成と`keyd check`、差分、fingerprintを出して終わる。
 `--config <path>`の既定は`/etc/keyd/keysync.conf`。
 
-`keysync mac record [秒数]`は打鍵を記録して`keysync/typing-logs/`へ書く（ADR 0046）。
-既定は30秒で、Ctrl-Cで早く止められる。`karabiner.json`は、記録した時点で効いていた閾値を残すために読むだけである。
-出力は記録した件数、開けたキーボードと開けなかったキーボード、警告、mod-tapの判定の推定である。
+`keysync mac record`は打鍵を記録して`keysync/typing-logs/`へ書く（ADR 0046）。
+既定は課題つきで、Web UIの打鍵テストと同じ課題を1つずつstderrへ出す。利用者はターミナルで打ち、Enterで次へ進む。
+何も打たずにEnterを押した課題は飛ばしたものとして扱い、入力が尽きるかCtrl-Cで終える。
+`--tasks roll|hold|all`で課題を選ぶ（既定はall）。記録の上限は1800秒である。
+`--free [秒数]`は課題を出さずに秒数だけ記録する（既定30秒）。
+`karabiner.json`は、記録した時点で効いていた閾値を残すために読むだけである。
+出力は記録した件数、開けたキーボードと開けなかったキーボード、警告、課題ごとの採点と判定の推定、全体の判定の推定である。
 仕様は`typing-log.md`にある。
 
 `--no-select`を渡すとprofileの選択を行わない。診断が変わるのでfingerprintも変わり、

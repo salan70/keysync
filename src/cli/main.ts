@@ -2,6 +2,7 @@
 import { webcrypto } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
+import { createInterface } from "node:readline";
 import { parseDefinition } from "../core/definition/parse.ts";
 import { canonicalDefinitionText } from "../core/definition/identity.ts";
 import { diffDocuments } from "../core/diff/diff.ts";
@@ -19,6 +20,10 @@ import type { MacKeyboardLayout, MacKeymapDocument } from "../core/mac-keymap/ty
 import { appliedTappingTermMs } from "../core/mac-keymap/applied.ts";
 import { analyzeModTapOutput } from "../core/typing-log/analyze.ts";
 import { keyLogPath, serializeKeyLog, TYPING_LOG_DIR } from "../core/typing-log/format.ts";
+import { splitAtReturn, typedEventsFromHid } from "../core/typing-log/trial.ts";
+import { gradeTypingTrial, tokenizeTypedEvents } from "../core/typing-trial/grade.ts";
+import { HOLD_REPEAT, holdTasksFor, ROLL_TASKS } from "../core/typing-trial/tasks.ts";
+import type { TypingTask } from "../core/typing-trial/types.ts";
 import { applyMacPlan, planMacApplyAt, writeAndLintAsset } from "../mac/apply-service.ts";
 import { createKeyRecorder, type KeyRecorder } from "../mac/key-recorder.ts";
 import { detectBuiltInLayout } from "../mac/keyboard-type.ts";
@@ -62,6 +67,8 @@ interface CliDeps {
   readonly karabinerCli?: KarabinerCli;
   readonly keydHost?: KeydHost;
   readonly keyRecorder?: KeyRecorder;
+  /** 課題つき記録で行を読む入力。既定は標準入力。 */
+  readonly input?: NodeJS.ReadableStream;
   /** 記録を始めた時刻。テストで固定する。 */
   readonly now?: () => Date;
 }
@@ -442,11 +449,61 @@ async function macGenerate(
   return lint !== undefined && !lint.ok ? 1 : 0;
 }
 
-/** 記録の既定の長さ（秒）。Ctrl-C で早く止められる。 */
-const DEFAULT_RECORD_SECONDS = 30;
+/** 自由記録（`--free`）の既定の長さ（秒）。Ctrl-C で早く止められる。 */
+const DEFAULT_FREE_SECONDS = 30;
+
+/** 課題つき記録の上限（秒）。課題を放置したまま記録し続けないための安全弁。 */
+const GUIDED_LIMIT_SECONDS = 1800;
+
+/** 課題の表示に使うキーの名前。刻印の語彙は UI 層にあるため、CLI では最小限の写像にする。 */
+function positionLabel(keyCode: string): string {
+  if (/^[a-z]$/.test(keyCode)) return keyCode.toUpperCase();
+  const named: Readonly<Record<string, string>> = {
+    spacebar: "space",
+    return_or_enter: "return",
+    left_shift: "左 shift",
+    right_shift: "右 shift",
+    caps_lock: "caps lock",
+  };
+  return named[keyCode] ?? keyCode;
+}
+
+function taskPrompt(task: TypingTask): string {
+  if (task.kind === "text") return task.text;
+  return `${positionLabel(task.holdKeyCode)} を押し続けて ${task.partner.toUpperCase()} を押し、両方離す。これを ${HOLD_REPEAT} 回`;
+}
+
+function describeTask(task: TypingTask, index: number, total: number): string {
+  const head = `[${index + 1}/${total}]`;
+  if (task.kind === "text") return `\n${head} ${task.title}\n  ${task.focus}\n  > ${task.text}`;
+  const expected = task.expected[0];
+  const chord =
+    expected === undefined
+      ? ""
+      : expected.kind === "char"
+        ? expected.char
+        : `${expected.modifiers.ctrl ? "⌃" : ""}${expected.modifiers.alt ? "⌥" : ""}${expected.modifiers.shift ? "⇧" : ""}${expected.modifiers.meta ? "⌘" : ""}${expected.key.toUpperCase()}`;
+  return `\n${head} hold: ${taskPrompt(task)}（期待は ${chord}）`;
+}
+
+/** `--tasks roll|hold|all` で課題を選ぶ。既定は all。 */
+function recordTasks(args: ParsedArgs, document: MacKeymapDocument): readonly TypingTask[] {
+  const which = args.tasks ?? "all";
+  if (which !== "roll" && which !== "hold" && which !== "all") {
+    throw new Error(`--tasks は roll|hold|all（${String(which)} が渡された）`);
+  }
+  return [
+    ...(which === "hold" ? [] : ROLL_TASKS),
+    ...(which === "roll" ? [] : holdTasksFor(document)),
+  ];
+}
 
 /**
  * 打鍵を記録して workspace の `keysync/typing-logs/` へ書き、mod-tap の判定の推定を出す。
+ *
+ * 既定は課題つきで、Web UI の打鍵テストと同じ課題を 1 つずつ出す。利用者はターミナルで打ち、
+ * Enter で次へ進む。記録は通しで 1 本にし、HID の Return で課題ごとに区切って採点する。
+ * `--free` は課題を出さずに秒数だけ記録する。
  *
  * 記録するのは Karabiner が処理した後の入力（HID と OS の 2 層）で、何も書き換えない。
  * `karabiner.json` は、記録した時点で効いていた閾値を残すために読むだけ（ADR 0046）。
@@ -457,11 +514,19 @@ async function macRecord(
   args: ParsedArgs,
   deps: CliDeps,
 ): Promise<number> {
-  const raw = args.seconds ?? args._[1] ?? DEFAULT_RECORD_SECONDS;
+  // `--free 10` のように秒数を続けて書くと、parseArgs は秒数を `free` の値として取る。
+  const free = args.free !== undefined;
+  const freeSeconds = typeof args.free === "string" ? args.free : undefined;
+  const raw =
+    args.seconds ??
+    freeSeconds ??
+    args._[1] ??
+    (free ? DEFAULT_FREE_SECONDS : GUIDED_LIMIT_SECONDS);
   const seconds = Number(raw);
   if (!Number.isFinite(seconds) || seconds <= 0) {
     throw new Error(`記録する秒数は正の数（${String(raw)} が渡された）`);
   }
+  const tasks = free ? [] : recordTasks(args, loaded.document);
   const karabiner = karabinerPath(args);
   let tappingTermMs: number | null = null;
   try {
@@ -472,14 +537,81 @@ async function macRecord(
   }
   const startedAt = (deps.now ?? (() => new Date()))();
   const recorder = deps.keyRecorder ?? createKeyRecorder();
-  const recording = await recorder.record(seconds, () => {
-    console.error(`${seconds} 秒記録する。Ctrl-C で早く止められる。打鍵を始めてよい。`);
+
+  let stopRecording = () => {};
+  const stop = new Promise<void>((resolve) => {
+    stopRecording = resolve;
   });
+  let markStarted = () => {};
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  const recordingPromise = recorder.record({ seconds, stop }, () => {
+    if (free) {
+      console.error(`${seconds} 秒記録する。Ctrl-C で早く止められる。打鍵を始めてよい。`);
+    } else {
+      console.error(
+        [
+          "課題をこのターミナルで打ち、Enter で次へ進む。何も打たずに Enter で飛ばす。Ctrl-C で終える。",
+          "IME は英数にする。打ち間違えても直さずに進める。",
+        ].join("\n"),
+      );
+    }
+    markStarted();
+  });
+  const finished = recordingPromise.then(() => undefined);
+  await Promise.race([started, finished]);
+
+  const answered: { readonly task: TypingTask; readonly typed: string }[] = [];
+  if (!free) {
+    // cooked mode のまま読む。raw にすると Ctrl-C がレコーダーへ届かない。
+    const lines = createInterface({ input: deps.input ?? process.stdin, terminal: false });
+    const iterator = lines[Symbol.asyncIterator]();
+    for (const [index, task] of tasks.entries()) {
+      console.error(describeTask(task, index, tasks.length));
+      const next = await Promise.race([iterator.next(), finished.then(() => undefined)]);
+      if (next === undefined || next.done === true) break;
+      answered.push({ task, typed: String(next.value) });
+    }
+    lines.close();
+    stopRecording();
+  }
+  const recording = await recordingPromise;
   if (recording.hidOpened.length === 0 && !recording.tapOk) {
     throw new Error(
       "キーボードの入力を読めない。システム設定の「入力監視」で、この端末アプリを許可する",
     );
   }
+
+  const warnings = [...recording.warnings];
+  if (recording.hidOpened.length === 0) warnings.push("HID の層を読めなかった");
+  if (!recording.tapOk) warnings.push("OS の層を読めなかった（入力監視の許可を確かめる）");
+
+  const { segments } = splitAtReturn(recording.events);
+  if (!free && segments.length !== answered.length) {
+    warnings.push(
+      `Return の区切り（${segments.length}）と進めた課題（${answered.length}）の数が合わない。先頭から順に対応させた`,
+    );
+  }
+  const trials = answered.map(({ task, typed }, index) => {
+    const segment = segments[index] ?? [];
+    const events = typedEventsFromHid(segment);
+    const skipped = tokenizeTypedEvents(events).tokens.length === 0;
+    const grade = skipped ? undefined : gradeTypingTrial(task, events);
+    const analysis = analyzeModTapOutput(segment, loaded.document);
+    return {
+      taskId: task.id,
+      prompt: taskPrompt(task),
+      typed,
+      summary: skipped
+        ? { skipped: true }
+        : grade?.kind === "graded"
+          ? grade.summary
+          : { ime: true },
+      taps: analysis.taps,
+      holds: analysis.holds,
+    };
+  });
 
   const path = keyLogPath(startedAt, "cli");
   const store = new NodeWorkspaceStore(root);
@@ -494,14 +626,21 @@ async function macRecord(
         layout: loaded.layout,
         tappingTermMs,
         ...(recording.originNs === undefined ? {} : { originNs: recording.originNs }),
+        ...(free
+          ? {}
+          : {
+              trials: trials.map(({ taskId, prompt, typed, summary }) => ({
+                taskId,
+                prompt,
+                typed,
+                summary,
+              })),
+            }),
       },
       recording.events,
     ),
   );
 
-  const warnings = [...recording.warnings];
-  if (recording.hidOpened.length === 0) warnings.push("HID の層を読めなかった");
-  if (!recording.tapOk) warnings.push("OS の層を読めなかった（入力監視の許可を確かめる）");
   console.log(
     JSON.stringify(
       {
@@ -516,6 +655,7 @@ async function macRecord(
           blockedDevices: recording.hidBlocked,
         },
         warnings,
+        ...(free ? {} : { trials }),
         analysis: analyzeModTapOutput(recording.events, loaded.document),
       },
       null,
@@ -928,7 +1068,7 @@ function mapReplacer(_key: string, value: unknown): unknown {
 }
 function printHelp(): void {
   console.log(
-    `keysync validate|analyze|diff|render|export vil\n  --workspace <dir>\n  diff --against <file.vil>\n  render --format svg|pdf --out <file> --layer <n>\n  import vil <file.vil> --definition <definition.json>\n  migrate （改名前の cornix/ を keysync/ へ移す）\n  mac generate --out <file>\n  mac diff --karabiner <karabiner.json>\n  mac apply --karabiner <karabiner.json> --confirm <fingerprint> [--no-select]\n  mac devices [--devices <observed.json>] [--add <vendor_id>:<product_id>]\n  mac record [秒数] （打鍵を記録して keysync/typing-logs/ へ書く。既定 30 秒）\n  mac ... --layout ansi|jis （既定は実行中のMacの内蔵配列を検出）\n  linux devices [--devices <file>] [--add <vendor>:<product>]\n  linux generate|diff\n  linux apply [--confirm <fingerprint>] [--config <keysync.conf>]\n  linux ... --layout ansi|jis （linux-keyboard.*.yaml が 1 つだけなら省略可）\n  --workspace の既定は $KEYSYNC_WORKSPACE（未設定ならエラー）`,
+    `keysync validate|analyze|diff|render|export vil\n  --workspace <dir>\n  diff --against <file.vil>\n  render --format svg|pdf --out <file> --layer <n>\n  import vil <file.vil> --definition <definition.json>\n  migrate （改名前の cornix/ を keysync/ へ移す）\n  mac generate --out <file>\n  mac diff --karabiner <karabiner.json>\n  mac apply --karabiner <karabiner.json> --confirm <fingerprint> [--no-select]\n  mac devices [--devices <observed.json>] [--add <vendor_id>:<product_id>]\n  mac record [--tasks roll|hold|all] （課題を打って記録し keysync/typing-logs/ へ書く）\n  mac record --free [秒数] （課題なしで記録する。既定 30 秒）\n  mac ... --layout ansi|jis （既定は実行中のMacの内蔵配列を検出）\n  linux devices [--devices <file>] [--add <vendor>:<product>]\n  linux generate|diff\n  linux apply [--confirm <fingerprint>] [--config <keysync.conf>]\n  linux ... --layout ansi|jis （linux-keyboard.*.yaml が 1 つだけなら省略可）\n  --workspace の既定は $KEYSYNC_WORKSPACE（未設定ならエラー）`,
   );
 }
 

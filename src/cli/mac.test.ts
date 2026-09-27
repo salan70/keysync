@@ -8,6 +8,7 @@
 import { deepStrictEqual, strictEqual } from "node:assert/strict";
 import { copyFile, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { Readable } from "node:stream";
 import { join } from "node:path";
 import { test } from "node:test";
 import { main } from "./main.ts";
@@ -623,15 +624,20 @@ test("macの出力は解決済みのworkspaceを必ず載せる", async () => {
 });
 
 /** 固定の打鍵を返すレコーダー。実物は入力監視の許可と実際の打鍵が要る。 */
-function fakeKeyRecorder(recording: Partial<KeyRecording> = {}): KeyRecorder & {
+function fakeKeyRecorder(
+  recording: Partial<KeyRecording> = {},
+  options: { readonly waitForStop?: boolean } = {},
+): KeyRecorder & {
   readonly calls: number[];
 } {
   const calls: number[] = [];
   return {
     calls,
-    async record(seconds, onStart) {
+    async record({ seconds, stop }, onStart) {
       calls.push(seconds);
       onStart();
+      // 課題つき記録は、課題を進め終えて CLI が止めるまで記録し続ける。
+      if (options.waitForStop === true) await stop;
       return {
         originNs: "1000",
         hidOpened: ["Karabiner DriverKit VirtualHIDKeyboard 1.8.0"],
@@ -654,6 +660,7 @@ function fakeKeyRecorder(recording: Partial<KeyRecording> = {}): KeyRecorder & {
 async function captureRecord(
   argv: readonly string[],
   recorder: KeyRecorder,
+  input?: NodeJS.ReadableStream,
 ): Promise<{ readonly code: number; readonly json: Record<string, unknown> }> {
   const lines: string[] = [];
   const original = console.log;
@@ -665,6 +672,7 @@ async function captureRecord(
       karabinerCli: fakeKarabinerCli({ absent: true }),
       keyRecorder: recorder,
       now: () => new Date("2026-09-27T01:02:03.456Z"),
+      ...(input === undefined ? {} : { input }),
     });
     return { code, json: JSON.parse(lines.join("\n")) as Record<string, unknown> };
   } finally {
@@ -673,11 +681,22 @@ async function captureRecord(
   }
 }
 
-test("mac record は打鍵ログを typing-logs/ へ書き、効いている閾値と判定の推定を出す", async () => {
+test("mac record --free は打鍵ログを typing-logs/ へ書き、効いている閾値と判定の推定を出す", async () => {
   const { root, karabiner } = await workspace();
   const recorder = fakeKeyRecorder();
   const { code, json } = await captureRecord(
-    ["mac", "record", "5", "--layout", "jis", "--workspace", root, "--karabiner", karabiner],
+    [
+      "mac",
+      "record",
+      "--free",
+      "5",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+    ],
     recorder,
   );
   strictEqual(code, 0);
@@ -703,7 +722,7 @@ test("mac record はどちらの層も読めなければ、入力監視の許可
   console.error = (...args: unknown[]) => void lines.push(args.map(String).join(" "));
   try {
     const code = await main(
-      ["mac", "record", "--layout", "jis", "--workspace", root, "--karabiner", karabiner],
+      ["mac", "record", "--free", "--layout", "jis", "--workspace", root, "--karabiner", karabiner],
       {
         karabinerCli: fakeKarabinerCli({ absent: true }),
         keyRecorder: fakeKeyRecorder({ hidOpened: [], tapOk: false, events: [] }),
@@ -714,6 +733,91 @@ test("mac record はどちらの層も読めなければ、入力監視の許可
       lines.some((line) => line.includes("入力監視")),
       true,
     );
+  } finally {
+    console.error = originalError;
+  }
+});
+
+test("mac record は課題を順に出し、Return で区切った区間を課題ごとに採点する", async () => {
+  const { root, karabiner } = await workspace();
+  const hid = (ms: number, usage: number, down: boolean) =>
+    ({ type: "hid", ns: ms * 1_000_000, usage, down, device: "Karabiner" }) as const;
+  // 1 つ目の課題は「ka」を ⌥A と誤爆してから「ki」を打ち、2 つ目は何も打たずに飛ばした。
+  const events = [
+    hid(0, 0xe2, true),
+    hid(10, 0x04, true),
+    hid(20, 0x04, false),
+    hid(30, 0xe2, false),
+    hid(40, 0x0e, true),
+    hid(44, 0x0e, false),
+    hid(50, 0x0c, true),
+    hid(60, 0x0c, false),
+    hid(100, 0x28, true),
+    hid(104, 0x28, false),
+    hid(200, 0x28, true),
+    hid(204, 0x28, false),
+  ];
+  const recorder = fakeKeyRecorder({ events }, { waitForStop: true });
+  const { code, json } = await captureRecord(
+    [
+      "mac",
+      "record",
+      "--tasks",
+      "roll",
+      "--layout",
+      "jis",
+      "--workspace",
+      root,
+      "--karabiner",
+      karabiner,
+    ],
+    recorder,
+    Readable.from(["åki\n", "\n"]),
+  );
+  strictEqual(code, 0);
+  deepStrictEqual(recorder.calls, [1800]);
+  const trials = json.trials as readonly {
+    readonly taskId: string;
+    readonly typed: string;
+    readonly summary: {
+      readonly misfire?: number;
+      readonly ok?: number;
+      readonly skipped?: boolean;
+    };
+  }[];
+  deepStrictEqual(
+    trials.map((one) => one.taskId),
+    ["romaji-kg", "romaji-sdh"],
+  );
+  strictEqual(trials[0]?.typed, "åki");
+  strictEqual(trials[0]?.summary.misfire, 1);
+  strictEqual(trials[0]?.summary.ok, 2);
+  strictEqual(trials[1]?.summary.skipped, true);
+  const log = parseKeyLog(await readFile(join(root, String(json.log)), "utf8"));
+  strictEqual(log.meta.trials?.length, 2);
+});
+
+test("mac record の --tasks は roll|hold|all だけを受ける", async () => {
+  const { root, karabiner } = await workspace();
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    const code = await main(
+      [
+        "mac",
+        "record",
+        "--tasks",
+        "some",
+        "--layout",
+        "jis",
+        "--workspace",
+        root,
+        "--karabiner",
+        karabiner,
+      ],
+      { karabinerCli: fakeKarabinerCli({ absent: true }), keyRecorder: fakeKeyRecorder() },
+    );
+    strictEqual(code, 1);
   } finally {
     console.error = originalError;
   }
