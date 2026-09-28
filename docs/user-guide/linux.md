@@ -124,7 +124,7 @@ sudo keyd reload
 
 ## Mac との違い
 
-- 2 つの layer を同時に押したとき、keyd は後から押した layer を優先します。Mac（Karabiner）は番号の大きい layer を優先します。
+- 2 つの layer を同時に押したとき、keyd は後から押した layer を優先します。Mac（kanata）での優先順位は確認していません。
 - 右 Control / 右 Command の mod-tap は、hold 側が左右を区別しません。
 - `backslash` と `non_us_pound` は Linux では同じキーです。同じ layer に両方を書くと error になります。
 - 内蔵キーボードの配列は自動で検出しません。`--layout` かファイル名で決まります。

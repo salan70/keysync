@@ -23,14 +23,15 @@ KeySync の設定ファイル構造と重要用語を説明します。
 
 Mac の設定も Cornix LP と同じく、workspace 直下に置きます。
 
-| パス                     | 内容                              | Git 管理 |
-| ------------------------ | --------------------------------- | -------- |
-| `mac-keyboard.ansi.yaml` | ANSI 配列の Mac 向け目標設定      | 管理対象 |
-| `mac-keyboard.jis.yaml`  | JIS 配列の Mac 向け目標設定       | 管理対象 |
-| `keysync/generated/`     | Karabiner 向けに書き出した JSON   | 管理外   |
-| `keysync/backups/`       | 適用前に退避した `karabiner.json` | 管理外   |
+| パス                     | 内容                           | Git 管理 |
+| ------------------------ | ------------------------------ | -------- |
+| `mac-keyboard.ansi.yaml` | ANSI 配列の Mac 向け目標設定   | 管理対象 |
+| `mac-keyboard.jis.yaml`  | JIS 配列の Mac 向け目標設定    | 管理対象 |
+| `keysync/generated/`     | 書き出した kanata の設定       | 管理外   |
+| `keysync/backups/`       | 適用前に退避した kanata の設定 | 管理外   |
 
 どちらのファイルを使うかは、実行している Mac の内蔵配列から自動で決まります。
+kanata が読む設定ファイルは workspace の外（`~/Library/Application Support/keysync/kanata.kbd`）にあり、Git では管理しません。
 workspace は `$KEYSYNC_WORKSPACE` で指定し、keysync リポジトリには置きません。
 改名前の `$CORNIX_WORKSPACE` は読まないため、設定していた場合は名前を変えます。
 

@@ -3,7 +3,7 @@
 CLI は Web UI と同じ Core を共有します。
 設定の検証、解析、差分計算、ファイル生成を行います。
 CLI には Cornix LP への実機書き込み機能はありません。
-MacBook 内蔵キーボードの設定のみ、CLI から差分確認と適用を行えます（macOS は Karabiner、Linux は keyd）。
+MacBook 内蔵キーボードの設定のみ、CLI から差分確認と適用を行えます（macOS は kanata、Linux は keyd）。
 
 ## サブコマンド一覧
 
@@ -15,7 +15,7 @@ MacBook 内蔵キーボードの設定のみ、CLI から差分確認と適用�
 | `render`     | Cornix LP  | レイヤー図面を SVG または PDF 形式で書き出します。    |
 | `import vil` | Cornix LP  | `.vil` と定義から workspace を新規生成します。        |
 | `export vil` | Cornix LP  | workspace の設定を `.vil` 形式で書き出します。        |
-| `mac`        | Mac 内蔵   | Karabiner 設定の生成、差分確認、適用を行います。      |
+| `mac`        | Mac 内蔵   | kanata 設定の生成、差分確認、適用を行います。         |
 | `linux`      | Linux 内蔵 | keyd 設定の生成、差分確認、適用を行います。           |
 
 ## セットアップ
@@ -123,90 +123,137 @@ just keysync export vil --out keymap.vil --workspace /path/to/workspace
 
 ## MacBook 内蔵キーボード管理（mac）
 
-Mac のキーボード設定は、Karabiner-Elements を介して管理します。
+Mac のキーボード設定は kanata を介して管理します。
 設定は workspace 直下の `mac-keyboard.<layout>.yaml` に置き、Git で管理します。
 `$KEYSYNC_WORKSPACE` を設定していれば、`--workspace` は要りません。
 対象の配列は実行中の Mac から自動検出するため、`--layout` も要りません。
 
-Web UI の `Karabiner へ適用…` でも同じ手順で適用できます（[Web UI の使い方](./web-ui.md#karabiner-へ適用する)）。
+Web UI の `kanata へ適用…` でも同じ手順で適用できます（[Web UI の使い方](./web-ui.md#kanata-へ適用する)）。
 ターミナルから適用するときの操作は次の 2 つです。
 
 ```bash
 just mac apply                          # 差分と確認用 fingerprint を表示（何も書き換えない）
-just mac apply --confirm v1-xxxx-yyyy   # 適用してプロファイル選択まで行う
+just mac apply --confirm v1-xxxx-yyyy   # 適用して kanata に読み直させる
 ```
 
 `mac` の出力には、実際に読んだ workspace の絶対パスが必ず含まれます。
 
+### 初回の準備
+
+kanata は root の launchd daemon として常駐させます。
+次の準備は Mac ごとに 1 回だけ行います。
+
+1. Karabiner-Elements を入れたままにします。kanata は Karabiner の仮想キーボードのドライバを使います。
+2. Karabiner-Elements の Devices 設定で、内蔵キーボードの「Modify events」を切ります。切らないと入力が kanata へ届きません。
+3. kanata の開発版を入れます。安定版 v1.12.0 は Karabiner-Elements 16.x のドライバと通信できません。
+
+   ```bash
+   brew install --HEAD kanata
+   ```
+
+4. `just mac apply` と `just mac apply --confirm <fingerprint>` で、kanata の設定ファイルを置きます。
+5. 常駐を登録します。端末で `sudo` のパスワードを求められます。
+
+   ```bash
+   just mac service install
+   ```
+
+6. システム設定の「入力監視」と「アクセシビリティ」で、出力の `next` に表示された kanata の実体を許可します。
+7. `just mac service status` で `running` が `true` になったことを確かめます。
+
+登録に root が要るのはこの 1 回だけです。
+以後の適用は、常駐している kanata に設定を読み直させるだけで、`sudo` は求めません。
+kanata を Homebrew で入れ直すと実体の path が変わるため、手順 5 からやり直します。
+
 ### 設定の適用（apply）
 
-`--confirm` が無いうちは、次を行って終わります。`karabiner.json` は書き換えません。
+`--confirm` が無いうちは、次を行って終わります。kanata の設定ファイルは書き換えません。
 
 1. desired state を検証する。error があればここで止まる。
-2. Karabiner 向けファイルを `keysync/generated/` へ生成し、`karabiner_cli` で lint する。
-3. 現在の設定との構造差分と、確認用の fingerprint を表示する。
+2. kanata の設定を `keysync/generated/kanata.kbd` へ生成し、`kanata --check` で検査する。
+3. 現在の設定とのテキスト差分と、確認用の fingerprint を表示する。
 
 表示された fingerprint をそのまま渡すと、次を行います。
 
-1. lint が通らなければ、`karabiner.json` に触れずに終了する。
-2. 現在の設定をバックアップディレクトリへ退避する。
+1. kanata が見つからないか `kanata --check` が通らなければ、設定ファイルに触れずに終了する。
+2. 現在の設定ファイルを `keysync/backups/kanata-<時刻>.kbd` へ退避する。
 3. 一時ファイルを作成後、アトミックにファイルを置き換える。
 4. 反映後のファイルを再読み込みし、内容の一致を検証する。
-5. `KeySync` プロファイルを選択し、選べたことを読み戻して確認する。
+5. 常駐している kanata に設定を読み直させる。
 
-KeySync は `KeySync` プロファイルのみを変更します。
-他のプロファイルや全体設定は変更しません。
-プロファイルの選択は `karabiner.json` へ直接書かず、`karabiner_cli` に任せます。
-
-`--no-select` を付けると、プロファイルの選択を行いません。
-この場合 fingerprint が変わり、確認用のコマンドにも `--no-select` が含まれます。
+設定ファイルは `~/Library/Application Support/keysync/kanata.kbd` です。
+KeySync はこのファイル全体を所有し、`karabiner.json` には書き込みません。
+kanata が常駐していなければ、書き込みまで行い、`just mac service install` を案内します。
+読み直しが失敗しても、書き込みは巻き戻しません。
 
 ### 差分の確認（diff）
 
-現在の Karabiner 設定と workspace の設定差分だけを見ます。
+現在の kanata の設定ファイルと workspace の設定差分だけを見ます。
 
 ```bash
 just mac diff
 ```
 
 ファイルの読み取りのみ行い、書き換えはしません。
-`KeySync` プロファイルのみを比較対象にします。
 
 ### 設定の生成（generate）
 
-Karabiner 向け complex modifications ファイルだけを生成します。
+kanata の設定ファイルだけを `keysync/generated/kanata.kbd` へ生成します。
 
 ```bash
 just mac generate
 ```
 
-出力先は `keysync/generated/` 配下の JSON です。
-`apply` も内部で同じ生成と lint を行うため、通常は単独で実行する必要はありません。
-変換できないキーコードがある場合は生成を中止し、終了コード 1 を返します。
+kanata が入っていれば `kanata --check` も通します。
+`apply` も内部で同じ生成と検査を行うため、通常は単独で実行する必要はありません。
+error がある場合、または検査が通らない場合は終了コード 1 を返します。
 
-### 適用先デバイスの一覧・登録（devices）
-
-Karabiner が認識しているキーボードを一覧表示します。
+### 常駐の確認と登録（service）
 
 ```bash
-just mac devices                  # 一覧表示（ファイルは変更しない）
-just mac devices --add 1452:630   # 特定のデバイスを設定ファイルへ追加
+just mac service          # 状態を表示（何も書き換えない）
+just mac service install  # launchd へ登録（sudo を求める）
 ```
 
-内蔵キーボードは既定で対象となるため、登録作業は不要です。
-外付けキーボードにも同一設定を適用したい場合は `--add` で登録します。
+`status`（既定）は、登録の有無、常駐しているか、設定ファイルの有無、Karabiner が内蔵キーボードを掴んでいるかを出します。
+`install` は設定ファイルが無ければ登録しません。先に `just mac apply` で設定を置きます。
+
+### 打鍵の記録（record）
+
+打鍵を記録し、課題ごとの採点と mod-tap の判定の推定を出します。
+記録は `keysync/typing-logs/` へ保存します。
+
+```bash
+just mac record               # 課題を 1 つずつ表示（既定は --tasks all）
+just mac record --tasks roll  # roll、hold、all から選ぶ
+just mac record --free 60     # 課題を出さずに 60 秒記録（既定は 30 秒）
+```
+
+課題は Web UI の打鍵テストと同じです。
+ターミナルで打って Enter で次へ進み、Ctrl-C で終えます。
+何も打たずに Enter を押した課題は飛ばします。
+
+### 対象のキーボード
+
+kanata は内蔵キーボードだけを対象にします。
+外付けキーボードは kanata から指定できないため、設定に書くと error になります。
+`TG(n)` も kanata に同等の動作が無いため error になります。
 
 ### 戻し方
 
-プロファイルを戻すと、Karabiner による変換は無効になります。
+以前の設定へ戻すときは、`keysync/backups/kanata-<時刻>.kbd` を
+`~/Library/Application Support/keysync/kanata.kbd` へコピーし、kanata を起動し直します。
 
 ```bash
-karabiner_cli --select-profile "Default profile"
+sudo launchctl kickstart -k system/dev.keysync.kanata
 ```
 
-`karabiner_cli` は `/Library/Application Support/org.pqrs/Karabiner-Elements/bin/` にあります。
-設定ファイルごと戻す場合は、`keysync/backups/karabiner-<時刻>.json` を
-`~/.config/karabiner/karabiner.json` へコピーします。
+kanata による変換を止めるときは、常駐を解除します。
+plist が `/Library/LaunchDaemons/` に残るため、Mac を再起動すると再び常駐します。
+
+```bash
+sudo launchctl bootout system/dev.keysync.kanata
+```
 
 ## Linux の内蔵キーボード管理（linux）
 

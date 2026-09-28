@@ -24,14 +24,14 @@ lint:
 lint-ts:
     oxlint --ignore-pattern '.direnv/**' --ignore-pattern '.claude/**' --ignore-pattern '.agents/**' .
 
-# Markdown を lint する
 # .direnv（flake inputs）と vendor 資産（.claude / .agents）は対象外。
 # pre-commit 側の exclude と範囲を揃えている。
+[doc('Markdown を lint する')]
 lint-md:
     markdownlint-cli2 "**/*.md" "!.direnv/**" "!node_modules/**" "!.claude/**" "!.agents/**"
 
-# Web UI をビルドしてローカルサーバーで開く（http://127.0.0.1:5178/）
 # 日常の起動はこれだけ。GitHub Pages では配布しない（ADR 0033）。
+[doc('Web UI をビルドしてローカルサーバーで開く（http://127.0.0.1:5178/）')]
 ui:
     pnpm build
     pnpm exec tsx src/server/main.ts
@@ -49,21 +49,21 @@ build:
 keysync *ARGS:
     pnpm run keysync -- "$@"
 
-# MacBook内蔵キーボードの設定を扱う（例: just mac apply）
 # workspaceは$KEYSYNC_WORKSPACE。設定していれば --workspace も --layout も要らない。
+[doc('MacBook内蔵キーボードの設定を扱う（例: just mac apply）')]
 [positional-arguments]
 mac *ARGS:
     pnpm run keysync -- mac "$@"
 
-# Linux で使う Apple 製キーボードの設定を扱う（例: just linux apply）
 # 適用は keyd へ行い、書き込みと reload で sudo のパスワードを求める（ADR 0042）。
+[doc('Linux で使う Apple 製キーボードの設定を扱う（例: just linux apply）')]
 [positional-arguments]
 linux *ARGS:
     pnpm run keysync -- linux "$@"
 
-# コードを整形する
 # .claude / .agents は正本からコピーした vendor 資産のため整形しない。
 # 整形すると正本との差分が生まれ、再同期のたびに衝突する。
+[doc('コードを整形する')]
 format:
     oxfmt --write . '!.claude/**' '!.agents/**'
 
