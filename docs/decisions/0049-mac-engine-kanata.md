@@ -91,4 +91,5 @@ R-010 で確かめた事実。
 - `TG(n)` と外付けキーボードの設定は使えなくなる
 - Linux（ADR 0042）は keyd のまま変えない
 - 打鍵ログの `analyzeModTapOutput` は Karabiner の合成 tap（4〜6ms）を前提にしている。kanata の出力で判定が崩れるかは、移行後に記録して確かめる
-- Open Question: launchd から起動した kanata が、入力監視の許可を得たうえで起動時から内蔵キーボードを掴めるか。常駐の登録後に確かめ、結果をこの ADR へ追記する
+- 解決済み（2026-09-28）: `keysync mac service install` で登録した kanata は、入力監視とアクセシビリティの両方を許可すると内蔵キーボードを掴んだ。手で起動した kanata が掴んでいる間は「exclusive access」で開けず、止めてから `launchctl kickstart -k` で起動し直す必要があった
+- 解決済み（2026-09-28）: TCP の Reload は root なしで通った。読み直しには約 5 秒かかったので、待ち時間を 15 秒にした

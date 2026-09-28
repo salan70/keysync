@@ -6,10 +6,10 @@
  */
 
 import { deepStrictEqual, strictEqual } from "node:assert/strict";
-import { copyFile, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { Readable } from "node:stream";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { main } from "./main.ts";
 import type { KanataHost, KanataReload, KanataResult } from "../kanata/node.ts";
@@ -665,7 +665,7 @@ async function captureRecord(
 }
 
 test("mac record --free は打鍵ログを typing-logs/ へ書き、効いている閾値と判定の推定を出す", async () => {
-  const { root, karabiner } = await workspace();
+  const { root, karabiner, config } = await workspace();
   const recorder = fakeKeyRecorder();
   const { code, json } = await captureRecord(
     [
@@ -679,6 +679,8 @@ test("mac record --free は打鍵ログを typing-logs/ へ書き、効いてい
       root,
       "--karabiner",
       karabiner,
+      "--config",
+      config,
     ],
     recorder,
   );
@@ -687,6 +689,14 @@ test("mac record --free は打鍵ログを typing-logs/ へ書き、効いてい
   strictEqual(json.log, "keysync/typing-logs/2026-09-27T01-02-03-456Z-cli.jsonl");
   // kanata の設定がまだ無いので、効いている閾値は分からない。
   strictEqual(json.tappingTermMs, null);
+  // 設定があれば、そこに書かれた閾値を効いている閾値として残す。
+  await mkdir(dirname(config), { recursive: true });
+  await writeFile(config, "(defvar tapping-term 170)\n", "utf8");
+  const again = await captureRecord(
+    ["mac", "record", "--free", "5", "--layout", "jis", "--workspace", root, "--config", config],
+    fakeKeyRecorder(),
+  );
+  strictEqual(again.json.tappingTermMs, 170);
   const log = parseKeyLog(await readFile(join(root, String(json.log)), "utf8"));
   strictEqual(log.meta.recorder, "cli");
   strictEqual(log.meta.originNs, "1000");
@@ -699,13 +709,25 @@ test("mac record --free は打鍵ログを typing-logs/ へ書き、効いてい
 });
 
 test("mac record はどちらの層も読めなければ、入力監視の許可を案内して止まる", async () => {
-  const { root, karabiner } = await workspace();
+  const { root, karabiner, config } = await workspace();
   const lines: string[] = [];
   const originalError = console.error;
   console.error = (...args: unknown[]) => void lines.push(args.map(String).join(" "));
   try {
     const code = await main(
-      ["mac", "record", "--free", "--layout", "jis", "--workspace", root, "--karabiner", karabiner],
+      [
+        "mac",
+        "record",
+        "--free",
+        "--layout",
+        "jis",
+        "--workspace",
+        root,
+        "--karabiner",
+        karabiner,
+        "--config",
+        config,
+      ],
       {
         kanataHost: fakeKanataHost({ absent: true }),
         keyRecorder: fakeKeyRecorder({ hidOpened: [], tapOk: false, events: [] }),
@@ -722,7 +744,7 @@ test("mac record はどちらの層も読めなければ、入力監視の許可
 });
 
 test("mac record は課題を順に出し、Return で区切った区間を課題ごとに採点する", async () => {
-  const { root, karabiner } = await workspace();
+  const { root, karabiner, config } = await workspace();
   const hid = (ms: number, usage: number, down: boolean) =>
     ({ type: "hid", ns: ms * 1_000_000, usage, down, device: "Karabiner" }) as const;
   // 1 つ目の課題は「ka」を ⌥A と誤爆してから「ki」を打ち、2 つ目は何も打たずに飛ばした。
@@ -753,6 +775,8 @@ test("mac record は課題を順に出し、Return で区切った区間を課�
       root,
       "--karabiner",
       karabiner,
+      "--config",
+      config,
     ],
     recorder,
     Readable.from(["åki\n", "\n"]),
@@ -781,7 +805,7 @@ test("mac record は課題を順に出し、Return で区切った区間を課�
 });
 
 test("mac record の --tasks は roll|hold|all だけを受ける", async () => {
-  const { root, karabiner } = await workspace();
+  const { root, karabiner, config } = await workspace();
   const originalError = console.error;
   console.error = () => {};
   try {
@@ -797,6 +821,8 @@ test("mac record の --tasks は roll|hold|all だけを受ける", async () => 
         root,
         "--karabiner",
         karabiner,
+        "--config",
+        config,
       ],
       { kanataHost: fakeKanataHost({ absent: true }), keyRecorder: fakeKeyRecorder() },
     );

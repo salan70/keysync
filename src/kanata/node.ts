@@ -102,8 +102,11 @@ export function createKanataHost(
  *
  * kanata は 1 行 1 JSON で応答する。Reload の結果の前に layer の変化などの通知が混ざることが
  * あるので、`ReloadResult` が来るまで読み進める。
+ *
+ * 読み直しには約 5 秒かかった（2026-09-28、常駐の kanata で計測）。kanata へ渡す待ち時間は
+ * それより十分に長くし、こちらの待ち時間はさらに 1 秒長くする。
  */
-function reloadOverTcp(port: number, timeoutMs = 6000): Promise<KanataReload> {
+function reloadOverTcp(port: number, timeoutMs = 15000): Promise<KanataReload> {
   return new Promise((resolve) => {
     const socket = connect({ host: KANATA_HOST, port });
     let buffer = "";

@@ -27,3 +27,12 @@ ADR 0047 と 0048 の状態欄に、0049 が上書きしたことを書いた。
 - launchd から起動した kanata が、入力監視の許可を得て起動時から内蔵キーボードを掴めるか。利用者の `just mac service install` 待ちである。
 - Web UI からの適用で、TCP の Reload が root なしで通るか。常駐の登録後に確かめる。
 - 打鍵ログの `analyzeModTapOutput` が kanata の出力で正しく判定するか。
+
+## 追記: 常駐の登録（2026-09-28）
+
+- Fact: 利用者が Web UI から適用し、`~/Library/Application Support/keysync/kanata.kbd` が書かれた。kanata が常駐していないので `reloaded: false` になった。
+- Fact: `just mac service install` で plist が登録された。常駐の kanata は、最初は入力監視、次にアクセシビリティの許可が無いため起動に失敗した。
+- Fact: 許可の後も、手で起動した Spike の kanata が内蔵キーボードを掴んでいたため、常駐の kanata は「exclusive access and device already open」で開けなかった。Spike の kanata を止め、`sudo launchctl kickstart -k system/dev.keysync.kanata` で起動し直すと掴んだ。
+- Fact: root なしで TCP の Reload を送り、`ReloadResult` の ok を受けた。kanata のログでは読み直しに約 5 秒かかった。待ち時間を 15 秒にした。
+- Fact: 利用者は `keysync` をコマンドとして打った。CLI は `just mac …` で動かす。
+- Fact: 利用者のシェルで mise の hook がエラーを出した。home-manager が作り直した `~/.zshrc` などに mise の記述は無く、古い設定で起動したままのシェルに hook が残っていたためだった。
