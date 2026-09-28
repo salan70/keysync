@@ -112,10 +112,10 @@ test("Flow Tap と閾値は defcfg と defvar に 1 回だけ書く", () => {
   strictEqual(off.includes("require-prior-idle"), false, "Flow Tap が無効なら option も出さない");
 });
 
-test("layer 1 以上は書かれていないキーを下の layer へ落とし、MO が指す空の layer も出す", () => {
+test("layer 1 以上は書かれていないキーを割り当てなしにし、MO が指す空の layer も出す", () => {
   const layers = bindings(generateKanataConfig(USER).text);
-  deepStrictEqual(layers.get("l1"), ["___ _"]);
-  deepStrictEqual(layers.get("l2"), ["h C-a", "i C-S-tab", "k M-lbrc", "___ _"]);
+  deepStrictEqual(layers.get("l1"), ["___ XX"]);
+  deepStrictEqual(layers.get("l2"), ["h C-a", "i C-S-tab", "k M-lbrc", "___ XX"]);
   deepStrictEqual([...layers.keys()], ["base", "l1", "l2"]);
 });
 
@@ -135,9 +135,17 @@ test("内蔵キーボードだけを名前で指し、外付けは error にす�
   );
 });
 
-test("layer 0 と同値のキーは上の layer に書かない", () => {
+test("layer 0 と同値のキーも上の layer に書く", () => {
   const layers = bindings(generateKanataConfig(documentOf([{ a: "KC_B" }, { a: "KC_B" }])).text);
-  deepStrictEqual(layers.get("l1"), ["___ _"]);
+  deepStrictEqual(layers.get("l1"), ["a b", "___ XX"]);
+});
+
+test("KC_TRNS は layer 1 以上で下の layer へ落とし、layer 0 では書かない", () => {
+  const layers = bindings(
+    generateKanataConfig(documentOf([{ a: "KC_TRNS" }, { a: "KC_TRNS" }])).text,
+  );
+  deepStrictEqual(layers.get("base"), []);
+  deepStrictEqual(layers.get("l1"), ["a _", "___ XX"]);
 });
 
 test("macKeycodeSupport は落とせる keycode を ok にする", () => {

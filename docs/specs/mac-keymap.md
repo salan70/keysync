@@ -20,7 +20,7 @@ kanata.kbd                   kanataの設定（~/Library/Application Support/key
 
 位置の識別はKarabinerの`key_code`名です（ADR 0022で決めた語彙を、engineを替えた後も使います）。
 matrixのrow / colを持ちません。
-kanataは書かれていないキーを素通しするため、**割り当ての無いキーは書きません**。
+**割り当ての無いキーは書きません**。layer 0では素通し、layer 1以上では割り当てなし（何も出さない）になります（ADR 0050）。
 layer番号も`key_code`名も疎で、連続している必要はありません。
 
 <!-- @code src/core/mac-keymap/types.ts#MacKeymapDocument -->
@@ -173,8 +173,8 @@ QMK表記のkeycodeは`kanataKeyName`で引きます。keycodeは`karabinerKeyEv
 すべてcopy-on-writeの純関数で、元のdocumentを変更しません。
 
 Vial側と違いlayersは疎なmapなので「範囲外」という概念が無く、`setMacAssignment`は
-無いlayerへの書き込みでlayerを作ります。`clearMacAssignment`は割り当てを外して素通しへ
-戻します。`KC_NO`（イベントを捨てる）と削除（素通し）は別セマンティクスです（ADR 0022）。
+無いlayerへの書き込みでlayerを作ります。`clearMacAssignment`は割り当てを外し、
+layer 0では素通し、layer 1以上では割り当てなしへ戻します。layer 0では`KC_NO`（イベントを捨てる）と削除（素通し）は別セマンティクスです（ADR 0022）。
 空になったlayerは残します。「割り当てを外したらlayerが消える」という驚きを避けるためです。
 
 `addMacDevice`は適用先デバイスを末尾へ足します。既にあるデバイスは足しません。順序は
@@ -213,7 +213,7 @@ Vial settings（Permissive Hold、Chordal Hold、Flow Tap）に合わせます�
 
 | `KeycodeLexeme`             | kanata                                                                                        |
 | --------------------------- | --------------------------------------------------------------------------------------------- |
-| `transparent`               | 書かない                                                                                      |
+| `transparent`               | layer 0は書かない。layer 1以上は`_`                                                           |
 | `none`                      | `XX`                                                                                          |
 | `basic`                     | キー名。shift済みkeycodeは`S-1`のようなoutput chord                                           |
 | `modified`                  | output chord（`C-a`、`C-S-tab`、`M-lbrc`など）                                                |
@@ -228,9 +228,9 @@ Vial settings（Permissive Hold、Chordal Hold、Flow Tap）に合わせます�
 - `defcfg`で`process-unmapped-keys yes`にし、`macos-dev-names-include`で内蔵キーボード
   （`"Apple Internal Keyboard / Trackpad"`）だけを掴みます。Cornix LPなどの外付けには触りません
 - layerは番号の昇順に`deflayermap`で並べます。layer 0は`base`、それ以外は`l<n>`です。
-  kanataは最初のlayerを起動時のlayerにします。layer 1以上は最後に`___ _`を置き、書かれて
-  いないキーを下のlayerへ落とします。`MO` / `LT`が指すlayerは、割り当てが無くても空のlayerを出します
-- **書かないのは2つだけです。** `KC_TRNS`と、layer 0と同値のキー
+  kanataは最初のlayerを起動時のlayerにします。layer 1以上は最後に`___ XX`を置き、書かれて
+  いないキーを割り当てなしにします（ADR 0050）。`MO` / `LT`が指すlayerは、割り当てが無くても空のlayerを出します
+- **書かないのはlayer 0の`KC_TRNS`だけです。** layer 1以上はlayer 0と同値のキーも書きます
 - 閾値は`(defvar tapping-term <tappingTermMs>)`に1回だけ書き、tap-holdは`$tapping-term`で参照します
 - home mod（Shift以外のmod-tap）は`tap-hold-opposite-hand-release`です。同じ手のキーを押せばtap
   （Chordal Hold）、反対の手のキーを押して離せば閾値の前でもhold（Permissive Hold）、閾値を

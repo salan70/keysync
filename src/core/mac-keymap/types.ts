@@ -85,8 +85,8 @@ export const DEFAULT_MAC_DEVICES: readonly MacDeviceIdentifier[] = [{ builtIn: t
 /**
  * layer 1 枚の割り当て。key は Karabiner の `key_code` 名、値は QMK 表記。
  *
- * **疎な map** である。Karabiner は書かれていないキーを素通しするため、割り当ての無い
- * キーを並べる必要が無い（ADR 0022）。
+ * **疎な map** である。割り当ての無いキーは layer 0 では素通し、layer 1 以上では割り当てなしに
+ * なるため、並べる必要が無い（ADR 0022・0050）。
  */
 export type MacLayerAssignments = ReadonlyMap<string, string>;
 

@@ -25,6 +25,22 @@ const PICK_TARGETS: readonly { readonly id: PickTarget; readonly label: string }
   { id: "hold", label: "Hold" },
 ];
 
+/** Mac で割り当てが無いキーの文言。layer 0 は素通し、layer 1 以上は何も出さない（ADR 0050）。 */
+const UNASSIGNED_TEXT = {
+  passthrough: {
+    raw: "割り当てなし（素通し）",
+    behavior: "入力をそのまま通す",
+    short: "素通し",
+    clear: "割り当てを外す（素通しへ戻す）",
+  },
+  none: {
+    raw: "割り当てなし",
+    behavior: "押しても何も出さない",
+    short: "割り当てなし",
+    clear: "割り当てを外す",
+  },
+} as const;
+
 export interface InspectorSave {
   readonly state: SaveState;
   readonly path: string;
@@ -43,6 +59,7 @@ export function Inspector({
   position,
   keycode,
   passthroughKeycode,
+  unassigned = "passthrough",
   table,
   labels,
   pickTarget,
@@ -65,6 +82,8 @@ export function Inspector({
   readonly keycode: string | undefined;
   /** Mac のキーが素通しで送る keycode。動作を足すときの Tap の初期値。Hold を外してこれに戻るなら素通しへ戻す。 */
   readonly passthroughKeycode?: string | undefined;
+  /** Mac で割り当てが無いときの挙動。layer 0 は素通し、layer 1 以上は割り当てなし（何も出さない）。 */
+  readonly unassigned?: "passthrough" | "none";
   readonly table: ReturnType<typeof createKeycodeTable> | undefined;
   readonly labels: WorkspaceLabels;
   readonly pickTarget: PickTarget;
@@ -117,6 +136,7 @@ export function Inspector({
     );
   }
 
+  const unassignedText = UNASSIGNED_TEXT[unassigned];
   const display =
     keycode === undefined ? undefined : keycodeDisplay(keycode, labels, table, { compact: true });
   const lexeme = keycode === undefined ? undefined : classifyKeycode(keycode);
@@ -158,9 +178,9 @@ export function Inspector({
           {display === undefined ? <span className="keycap-main">—</span> : renderKeycode(display)}
         </span>
         <div>
-          <code className="raw">{keycode ?? "割り当てなし（素通し）"}</code>
+          <code className="raw">{keycode ?? unassignedText.raw}</code>
           <p className="behavior">
-            {keycode === undefined ? "入力をそのまま通す" : describeKeycode(keycode, table)}
+            {keycode === undefined ? unassignedText.behavior : describeKeycode(keycode, table)}
           </p>
           {referencedLayer === undefined ? null : jumpableLayers.has(referencedLayer) ? (
             <button type="button" className="link" onClick={() => onJumpLayer(referencedLayer)}>
@@ -178,7 +198,8 @@ export function Inspector({
         <legend>下の一覧で選ぶ先</legend>
         {PICK_TARGETS.map((option) => {
           const value = slotValue(option.id);
-          const shown = option.id === "whole" && keycode === undefined ? "素通し" : readable(value);
+          const shown =
+            option.id === "whole" && keycode === undefined ? unassignedText.short : readable(value);
           return (
             <div key={option.id} className="seg-cell">
               <label className={pickTarget === option.id ? "is-on" : ""} title={value}>
@@ -246,7 +267,7 @@ export function Inspector({
               id="inspector-raw"
               data-keymap-editor
               value={draftRaw}
-              placeholder={mode === "mac" ? "空 = 素通し" : undefined}
+              placeholder={mode === "mac" ? `空 = ${unassignedText.short}` : undefined}
               spellCheck={false}
               onChange={(event) => setDraftRaw(event.target.value)}
             />
@@ -288,7 +309,7 @@ export function Inspector({
         )}
         {mode === "mac" && keycode !== undefined ? (
           <Button size="small" appearance="danger" onClick={onClear}>
-            割り当てを外す（素通しへ戻す）
+            {unassignedText.clear}
           </Button>
         ) : null}
       </details>

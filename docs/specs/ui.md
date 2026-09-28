@@ -249,15 +249,16 @@ layer の切替は layer 番号と名前の chip で、番号の順に強調色 
 編集パネルは選択中のキーまたは encoder の位置、keycap、raw keycode、挙動の説明を常設する。
 layer を指す keycode は参照先の layer 名と番号を示し、押すとその layer を開く。
 picker の適用先（キー全体、Tap、Hold）は segmented の radio で、各適用先の現在値を keycap と同じ表示名で併記する。
-Mac の素通しのキーは、Tap に素通しで送るキーを初期値として出す。
+Mac の layer 0 の素通しのキーは、Tap に素通しで送るキーを初期値として出す。
+layer 1 以上の割り当ての無いキーは素通ししないため、文言を「割り当てなし」にし、Tap に初期値を出さない。
 Hold に値があるときだけ Hold の欄へ × を重ね、押すと mod-tap と layer-tap を Tap だけの keycode へ戻す（`removeHold`）。
 × は欄の中に重ねるため、出ても高さは変わらない。
 Mac で戻した keycode が素通しで送るキーと同じなら、割り当てを外して素通しへ戻す。
 動作 select、raw keycode、表示名は「詳細」の折りたたみの中に置く。
 動作 select は既存 keycode の分類を使い、Cornix は `BEHAVIOR_OPTIONS`、Mac は `basic` / `modified` / `modTap` / `layerSwitch` / `none` に絞る。
-raw keycode は Enter または「反映」で保存し、Mac では空欄を素通しへ戻す操作として扱う。
+raw keycode は Enter または「反映」で保存し、Mac では空欄を割り当てを外す操作として扱う。
 表示名（任意）は raw keycode 式へ完全一致で割り当て、Enter または blur で `keysync/labels.yaml` へ保存し、空欄はその式の表示名を削除する。
-Mac では「割り当てを外す（素通しへ戻す）」を置く。
+Mac では「割り当てを外す」を置き、layer 0 では「（素通しへ戻す）」を添える。
 
 編集パネルの下端には、対象ファイルとともに保存中、ローカル保存済み、保存失敗、外部変更との競合を記号と文言で出す。
 通常の I/O 失敗は再試行でき、外部変更との競合は再試行を出さず、未保存の編集が失われた警告と再読込の導線を出す。
@@ -328,12 +329,12 @@ parse 失敗は `error` に閉じ込め、例外を外へ出さない。
 
 盤面は Cornix と同じ geometry（`KeyShape`）で描く。
 entry は `macBoardEntries` が物理配列を正として組む。
-割り当ての無いキーは素通しとして物理キャップ名を破線の枠で出す。
+割り当ての無いキーは、layer 0 では素通しとして物理キャップ名を破線の枠で出し、layer 1 以上では割り当てなしとして `—` を出す（ADR 0050）。
 選択は `{kind: "macKey", keyCode}` で、layer 番号空間は Vial と別に持つ。
 layer の切替は疎な layer 番号をそのまま並べ、「+ layer N を追加」を置く。
 
 keycode の選択は同じ picker を使い、`applyPick` の合成と `setMacAssignment` での保存は `App` が持つ。
-素通しのキーへ Hold や動作を足すときは、そのキーが素通しで送る keycode（`passthroughKeycode`）を Tap の初期値にする。
+layer 0 の素通しのキーへ Hold や動作を足すときは、そのキーが素通しで送る keycode（`passthroughKeycode`）を Tap の初期値にする。
 keycode 表示は Vial と同じ label 関数を使うが、layer 名は剥がして渡し、`createKeycodeTable` は呼ばない。
 診断は `validateMacKeymap` の結果を Vial 側と分けて持ち、盤面の印、検証パネル、status bar の件数はすべて Mac の診断で描く。
 kanata への適用はローカルサーバーが行い、Web UI は差分を見せて承認を送るだけである（ADR 0034・0049）。

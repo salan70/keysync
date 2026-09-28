@@ -209,7 +209,8 @@ export function CornixBoard({
 }
 
 /**
- * Mac の物理盤面。物理配列を正として全キーを並べ、割り当ての無いキーは素通しとして刻印を出す。
+ * Mac の物理盤面。物理配列を正として全キーを並べる。割り当ての無いキーは、layer 0 では素通しとして
+ * 刻印を出し、layer 1 以上では割り当てなし（何も出さない）として `—` を出す（ADR 0050）。
  */
 export function MacBoard({
   document,
@@ -248,10 +249,13 @@ export function MacBoard({
       >
         {entries.map((entry) => {
           const cap = macKeycapLabel(entry.keyCode, document.layout);
+          // 割り当ての無いキーは layer 0 だけ素通しになり、layer 1 以上は何も出さない。
+          const unassigned = layer === 0 ? "素通し" : "割り当てなし";
+          const shownKeycode = entry.keycode ?? (layer === 0 ? undefined : "KC_NO");
           const display =
-            entry.keycode === undefined
+            shownKeycode === undefined
               ? undefined
-              : keycodeDisplay(entry.keycode, labels, undefined, { compact: true });
+              : keycodeDisplay(shownKeycode, labels, undefined, { compact: true });
           const selected = selectedKeyCode === entry.keyCode;
           const focusable =
             selected || (selectedKeyCode === undefined && entry.keyCode === firstKeyCode);
@@ -265,18 +269,18 @@ export function MacBoard({
               }}
               type="button"
               data-mac-key={entry.keyCode}
-              className={`key ${kindClass(entry.keycode)}${selected ? " is-selected" : ""}`}
+              className={`key ${kindClass(shownKeycode)}${selected ? " is-selected" : ""}`}
               style={boxStyle(keyBox(entry.physical, metrics, scale), scale)}
               tabIndex={focusable ? 0 : -1}
               aria-pressed={selected}
               aria-label={`${cap}: ${
                 display === undefined || entry.keycode === undefined
-                  ? "素通し"
+                  ? unassigned
                   : `${display.primary.replace(/\n/g, " ")}${display.role === undefined ? "" : ` ${display.role}`}（${entry.keycode}）`
               }${mark === undefined ? "" : `、${DIAGNOSTIC_TEXT[mark]}`}`}
               title={
                 display === undefined || entry.keycode === undefined
-                  ? `${cap} (${entry.keyCode}) — 素通し`
+                  ? `${cap} (${entry.keyCode}) — ${unassigned}`
                   : keycapTitle(display, entry.keycode)
               }
               onClick={() => onSelect({ kind: "macKey", keyCode: entry.keyCode })}

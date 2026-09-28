@@ -106,7 +106,7 @@ interface Context {
  * desired state から kanata の設定を組み立てる。
  *
  * layer は番号の昇順に `deflayermap` で並べる。最初が layer 0（`base`）で、kanata は最初の
- * layer を起動時の layer にする。layer 1 以上は書かれていないキーを `_`（下の layer）へ落とす。
+ * layer を起動時の layer にする。layer 1 以上は書かれていないキーを `XX`（割り当てなし）にする。
  * `MO` / `LT` が指す layer は、割り当てが無くても空の layer を出す。
  *
  * @doc docs/specs/mac-keymap.md#generatekanataconfig
@@ -121,7 +121,6 @@ export function generateKanataConfig(
     referenced: new Set(),
     diagnostics: [],
   };
-  const base = document.layers.get(0);
   const layers = new Map<number, (readonly [string, string])[]>();
 
   for (const layer of [...document.layers.keys()].sort((a, b) => a - b)) {
@@ -131,8 +130,6 @@ export function generateKanataConfig(
     for (const keyCode of [...assignments.keys()].sort()) {
       const keycode = assignments.get(keyCode);
       if (keycode === undefined) continue;
-      // layer 0 と同値なら書かない。`_` で下へ落ちるのと同じ結果になる。
-      if (layer > 0 && base?.get(keyCode) === keycode) continue;
       // 位置の語彙に無いキーは validateMacKeymap の unknown-position が報告する。二重にしない。
       if (!KARABINER_POSITIONS.has(keyCode)) continue;
       const position = kanataPositionName(keyCode);
@@ -248,7 +245,7 @@ function render(
   for (const [layer, bindings] of [...layers.entries()].sort(([a], [b]) => a - b)) {
     lines.push("", `(deflayermap (${kanataLayerName(layer)})`);
     for (const [key, action] of bindings) lines.push(`  ${key} ${action}`);
-    if (layer > 0) lines.push("  ___ _");
+    if (layer > 0) lines.push("  ___ XX");
     lines.push(")");
   }
   return `${lines.join("\n")}\n`;
@@ -316,8 +313,8 @@ function holdAction(modifiers: readonly string[]): string | undefined {
 /**
  * keycode 1 つを kanata の action にする。`undefined` は「書かない」。
  *
- * `KC_TRNS` は書かないことがそのまま正しい。layer 1 以上は `___ _` で下の layer へ落ち、
- * layer 0 は `process-unmapped-keys` で素通しになる。
+ * `KC_TRNS` は layer 1 以上で `_`（下の layer へ落とす）、layer 0 では書かない。layer 0 は
+ * `process-unmapped-keys` で素通しになる。
  */
 function actionFor(
   keyCode: string,
@@ -333,7 +330,7 @@ function actionFor(
 
   switch (lexeme.kind) {
     case "transparent":
-      return undefined;
+      return layer > 0 ? "_" : undefined;
     case "none":
       return "XX";
     case "basic":

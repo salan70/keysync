@@ -9,7 +9,7 @@
 import { macPhysicalLayout, type MacPhysicalKey } from "../core/mac-keymap/physical-layout.ts";
 import type { MacKeymapDocument } from "../core/mac-keymap/types.ts";
 
-/** 盤面キー 1 個の描画 entry。`keycode` が `undefined` のキーは素通し。 */
+/** 盤面キー 1 個の描画 entry。`keycode` が `undefined` のキーは layer 0 なら素通し、layer 1 以上なら割り当てなし。 */
 export interface MacBoardEntry {
   readonly keyCode: string;
   readonly physical: MacPhysicalKey;
