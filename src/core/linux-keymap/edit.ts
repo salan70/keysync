@@ -4,7 +4,11 @@
  * layer と割り当ての編集は Mac 側と同じ形なので、ここには適用先デバイスの追加だけを置く。
  */
 
-import type { MacKeyboardLayout } from "../mac-keymap/types.ts";
+import {
+  DEFAULT_MAC_FLOW_TAP_TERM_MS,
+  DEFAULT_MAC_TAPPING_TERM_MS,
+  type MacKeyboardLayout,
+} from "../mac-keymap/types.ts";
 import type { LinuxDeviceIdentifier, LinuxKeymapDocument } from "./types.ts";
 
 /**
@@ -13,7 +17,13 @@ import type { LinuxDeviceIdentifier, LinuxKeymapDocument } from "./types.ts";
  * @doc docs/specs/linux-keymap.md#linux-edit
  */
 export function initialLinuxKeymap(layout: MacKeyboardLayout): LinuxKeymapDocument {
-  return { layout, devices: [], layers: new Map([[0, new Map()]]) };
+  return {
+    layout,
+    devices: [],
+    tappingTermMs: DEFAULT_MAC_TAPPING_TERM_MS,
+    flowTapTermMs: DEFAULT_MAC_FLOW_TAP_TERM_MS,
+    layers: new Map([[0, new Map()]]),
+  };
 }
 
 /**

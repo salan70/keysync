@@ -2,9 +2,12 @@ schema: keysync/linux-keymap@1
 layout: jis
 devices:
   - { vendor_id: 1452, product_id: 638 }
+tapping_term_ms: 180
+flow_tap_term_ms: 130
 layers:
   0:
     "caps_lock": "LCTL_T(KC_ESC)"
+    "f": "LGUI_T(KC_F)"
     "japanese_eisuu": "MO(2)"
     "japanese_kana": "LT1(KC_LANG1)"
     "right_command": "TG(3)"

@@ -34,6 +34,16 @@ export interface LinuxKeymapDocument {
   readonly layout: MacKeyboardLayout;
   /** 適用するデバイス。空なら `linux-keymap/no-target-device`（error）。 */
   readonly devices: readonly LinuxDeviceIdentifier[];
+  /**
+   * mod-tap と `LT` の tap と hold を分ける閾値（ms）。範囲と既定は Mac 側と同じ
+   * （`DEFAULT_MAC_TAPPING_TERM_MS`）。YAML で省略された場合は parse が埋める（ADR 0051）。
+   */
+  readonly tappingTermMs: number;
+  /**
+   * Flow Tap の閾値（ms）。0 は無効。範囲と既定は Mac 側と同じ
+   * （`DEFAULT_MAC_FLOW_TAP_TERM_MS`）。YAML で省略された場合は parse が埋める（ADR 0051）。
+   */
+  readonly flowTapTermMs: number;
   /** layer 番号 → 割り当て。Mac 側と同じ疎な map。 */
   readonly layers: ReadonlyMap<number, MacLayerAssignments>;
 }

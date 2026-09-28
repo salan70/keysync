@@ -3,7 +3,7 @@
  *
  * `parseMacKeymapYaml` と同じく、serializer が出す部分集合だけを受け付ける。
  * 違いは `profile` が無いことと、`devices` が `vendor_id` / `product_id` の形だけなこと
- * （ADR 0042）。
+ * （ADR 0042）。`tapping_term_ms` / `flow_tap_term_ms` の範囲と既定は Mac 側と同じ（ADR 0051）。
  */
 
 import {
@@ -12,7 +12,15 @@ import {
   type LinuxDeviceIdentifier,
   type LinuxKeymapDocument,
 } from "./types.ts";
-import type { MacKeyboardLayout } from "../mac-keymap/types.ts";
+import {
+  DEFAULT_MAC_FLOW_TAP_TERM_MS,
+  DEFAULT_MAC_TAPPING_TERM_MS,
+  isMacFlowTapTerm,
+  isMacTappingTerm,
+  MAC_FLOW_TAP_TERM_RANGE,
+  MAC_TAPPING_TERM_RANGE,
+  type MacKeyboardLayout,
+} from "../mac-keymap/types.ts";
 
 const LAYER_PATTERN = /^ {2}([0-9]+):$/;
 const ASSIGNMENT_PATTERN = /^ {4}("(?:\\.|[^"\\])*"):(?:\s+)(.*)$/;
@@ -23,6 +31,8 @@ export function parseLinuxKeymapYaml(text: string): LinuxKeymapDocument {
   let schema: string | undefined;
   let layout: MacKeyboardLayout | undefined;
   let devices: LinuxDeviceIdentifier[] | undefined;
+  let tappingTermMs: number | undefined;
+  let flowTapTermMs: number | undefined;
   let sawLayers = false;
   let current: Map<string, string> | undefined;
   const layers = new Map<number, ReadonlyMap<string, string>>();
@@ -45,6 +55,28 @@ export function parseLinuxKeymapYaml(text: string): LinuxKeymapDocument {
         throw new LinuxKeymapParseError(`linux-keyboard.yaml の layout が未対応: ${value}`);
       }
       layout = value;
+      continue;
+    }
+    if (line.startsWith("tapping_term_ms:")) {
+      const value = line.slice("tapping_term_ms:".length).trim();
+      const parsed = /^[0-9]+$/.test(value) ? Number(value) : Number.NaN;
+      if (!isMacTappingTerm(parsed)) {
+        throw new LinuxKeymapParseError(
+          `tapping_term_ms は ${MAC_TAPPING_TERM_RANGE.min}〜${MAC_TAPPING_TERM_RANGE.max} の整数: ${value}`,
+        );
+      }
+      tappingTermMs = parsed;
+      continue;
+    }
+    if (line.startsWith("flow_tap_term_ms:")) {
+      const value = line.slice("flow_tap_term_ms:".length).trim();
+      const parsed = /^[0-9]+$/.test(value) ? Number(value) : Number.NaN;
+      if (!isMacFlowTapTerm(parsed)) {
+        throw new LinuxKeymapParseError(
+          `flow_tap_term_ms は ${MAC_FLOW_TAP_TERM_RANGE.min}〜${MAC_FLOW_TAP_TERM_RANGE.max} の整数: ${value}`,
+        );
+      }
+      flowTapTermMs = parsed;
       continue;
     }
     if (line === "devices:") {
@@ -98,7 +130,13 @@ export function parseLinuxKeymapYaml(text: string): LinuxKeymapDocument {
   if (schema === undefined) throw new LinuxKeymapParseError("linux-keyboard.yaml に schema が無い");
   if (layout === undefined) throw new LinuxKeymapParseError("linux-keyboard.yaml に layout が無い");
   if (!sawLayers) throw new LinuxKeymapParseError("linux-keyboard.yaml に layers が無い");
-  return { layout, devices: devices ?? [], layers };
+  return {
+    layout,
+    devices: devices ?? [],
+    tappingTermMs: tappingTermMs ?? DEFAULT_MAC_TAPPING_TERM_MS,
+    flowTapTermMs: flowTapTermMs ?? DEFAULT_MAC_FLOW_TAP_TERM_MS,
+    layers,
+  };
 }
 
 function unquote(value: string, lineNumber: number): string {

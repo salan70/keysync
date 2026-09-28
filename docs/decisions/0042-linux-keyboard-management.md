@@ -1,6 +1,6 @@
 # Linux の Apple 製キーボードは keyd を engine とし、設定は Mac と別のファイルで持つ
 
-状態: 採用
+状態: 採用（`LT` と mod-tap の展開規則は ADR 0051 が上書き）
 
 2026-09-26 に、Omarchy（Arch Linux + Hyprland）を入れた JIS 配列の MacBook Pro でも KeySync を使うために決めた。
 
@@ -66,7 +66,7 @@ engine は keyd、設定ファイルは Linux 用に別に持つ。
   → 再 read して生成物と一致することを verify
   ```
 
-- **展開規則。** layer 0 は `[main]`、layer n は `[layern]` に置く。`MO(n)` → `layer(layern)`、`LT n(kc)` → `overload(layern, kc)`、`TG(n)` → `toggle(layern)`、mod-tap → `overload(<修飾 layer>, kc)`、`KC_NO` → `noop`。`KC_TRNS` と layer 0 と同値のキーは書かない
+- **展開規則。** layer 0 は `[main]`、layer n は `[layern]` に置く。`MO(n)` → `layer(layern)`、`LT n(kc)` → `overload(layern, kc)`、`TG(n)` → `toggle(layern)`、mod-tap → `overload(<修飾 layer>, kc)`（`LT` と mod-tap は ADR 0051 で `overloadt2` / `lettermod` に変えた）、`KC_NO` → `noop`。`KC_TRNS` と layer 0 と同値のキーは書かない
 - **Karabiner へ落とせても keyd へ落とせないものは error にする。** `international7`〜`9` の位置と、Linux で同じ evdev キーになる位置の重複（`backslash` と `non_us_pound`）が該当する
 - **Cornix LP の WebHID は Linux の Chrome でも同じコードで動かす。** hidraw の権限は udev rule で与え、`docs/user-guide/` で案内する。コードは変えない
 

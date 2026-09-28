@@ -2,6 +2,7 @@
 
 Linux で使う Apple 製キーボードの desired state と、keyd への生成・適用の仕様です。
 判断は ADR 0042 にあります。
+mod-tap と `LT` の判定は ADR 0051 にあります。
 
 Mac 側（`docs/specs/mac-keymap.md`）と同じ語彙を使います。
 位置は Karabiner の `key_code` 名、値は QMK 表記です。
@@ -31,6 +32,10 @@ schema 識別子は `keysync/linux-keymap@1` です。
 `layout` と `devices` に既定値はありません。
 配列も適用先も推測できないため、YAML に明示させます。
 
+`tappingTermMs` と `flowTapTermMs` は Mac 側と同じ範囲と既定を持ちます。
+tapping term は 50〜1000 の整数で、既定は 200 です。
+Flow Tap は 0〜1000 の整数で、0 は無効、既定は 0 です。
+
 <!-- @code src/core/linux-keymap/serialize.ts#serializeLinuxKeymapYaml -->
 
 ## serializeLinuxKeymapYaml
@@ -40,6 +45,8 @@ schema: keysync/linux-keymap@1
 layout: jis
 devices:
   - { vendor_id: 1452, product_id: 638 }
+tapping_term_ms: 180
+flow_tap_term_ms: 130
 layers:
   0:
     "caps_lock": "LCTL_T(KC_ESC)"
@@ -49,6 +56,7 @@ layers:
 ```
 
 並べ方と並び順は `serializeMacKeymapYaml` と同じです。
+`tapping_term_ms` と `flow_tap_term_ms` は、既定と同じ値でも常に書きます。
 
 <!-- @code src/core/linux-keymap/parse.ts#parseLinuxKeymapYaml -->
 
@@ -56,6 +64,7 @@ layers:
 
 serializer が出す部分集合だけを受け付け、それ以外は `LinuxKeymapParseError` で落とします。
 `schema`・`layout`・`layers` のどれかが無ければ落とします。
+`tapping_term_ms` と `flow_tap_term_ms` は、範囲外なら落とし、省略なら既定で埋めます。
 `devices` が無い場合は空として読み、検証が `linux-keymap/no-target-device` を出します。
 
 <!-- @code src/core/linux-keymap/key-names.ts#keydPositionName -->
@@ -85,18 +94,23 @@ JIS の英数 / かなは HID の LANG2 / LANG1 で、Linux では `hanja` / `ha
 desired state から keyd の設定を組み立てます。
 出力の先頭に「生成物なので直接編集しない」というコメントを置きます。
 
-| desired state             | keyd                     |
-| ------------------------- | ------------------------ |
-| layer 0                   | `[main]`                 |
-| layer n                   | `[layern]`               |
-| `devices` の 1 件         | `[ids]` の `k:vvvv:pppp` |
-| `KC_A` など               | `a`                      |
-| `MO(n)`                   | `layer(layern)`          |
-| `LT n(kc)`                | `overload(layern, kc)`   |
-| `TG(n)`                   | `toggle(layern)`         |
-| `LCTL_T(kc)` など mod-tap | `overload(control, kc)`  |
-| `KC_NO`                   | `noop`                   |
-| `KC_TRNS`                 | 書かない                 |
+| desired state             | keyd                         |
+| ------------------------- | ---------------------------- |
+| layer 0                   | `[main]`                     |
+| layer n                   | `[layern]`                   |
+| `devices` の 1 件         | `[ids]` の `k:vvvv:pppp`     |
+| `KC_A` など               | `a`                          |
+| `MO(n)`                   | `layer(layern)`              |
+| `LT n(kc)`                | `overloadt2(layern, kc, T)`  |
+| `TG(n)`                   | `toggle(layern)`             |
+| `LCTL_T(kc)` など mod-tap | `overloadt2(control, kc, T)` |
+| `KC_NO`                   | `noop`                       |
+| `KC_TRNS`                 | 書かない                     |
+
+`T` は `tappingTermMs` です。
+`flowTapTermMs` が 0 より大きく、tap 側が Flow Tap の対象なら、`LT` と mod-tap は `lettermod(<layer>, kc, F, T)` にします。
+`F` は `flowTapTermMs` です。
+Flow Tap の対象は Mac 側と同じく、修飾なしの `a`〜`z`、`comma`、`period`、`semicolon`、`slash`、`spacebar` です。
 
 section は `[ids]`・`[main]`・`[layer<n>]`（n 昇順）の順に並べます。
 section の中は位置の `key_code` 名の昇順です。
@@ -109,7 +123,7 @@ keyd は存在しない layer を指す設定を読み込まないためです�
 
 mod-tap の hold 側は keyd の修飾 layer（`control` / `shift` / `alt` / `altgr` / `meta`）に落とします。
 右 Alt だけが `altgr` で、他は左右を区別しません。
-`SGUI_T` のような複合 modifier は keyd の `overload` で表せないため error です。
+`SGUI_T` のような複合 modifier は、keyd の `overloadt2` / `lettermod` が 1 つの layer しか取れないため error です。
 
 `[ids]` の id に `k:` を付けるのは、trackpad と id を共有する機種で trackpad を掴まないためです。
 

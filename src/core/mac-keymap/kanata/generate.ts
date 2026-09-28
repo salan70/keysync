@@ -255,8 +255,11 @@ function unsupported(
   });
 }
 
-/** tap 側が Flow Tap の対象か。修飾キー付き（`KC_EXLM` など）は対象外。 */
-function isFlowTapKey(keycode: string): boolean {
+/**
+ * tap 側が Flow Tap の対象か。修飾キー付き（`KC_EXLM` など）は対象外。
+ * Linux の keyd の生成器も同じ集合を使う（ADR 0051）。
+ */
+export function isFlowTapKey(keycode: string): boolean {
   const event = karabinerKeyEvent(keycode);
   return (
     event !== undefined && FLOW_TAP_KEY_CODES.has(event.key_code) && event.modifiers === undefined

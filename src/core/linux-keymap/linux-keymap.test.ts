@@ -14,10 +14,15 @@ import { validateLinuxKeymap } from "./validate.ts";
 const FIXTURES = join(import.meta.dirname, "../../../fixtures/linux-keyboard");
 const readFixture = (name: string) => readFileSync(join(FIXTURES, name), "utf8");
 
-function documentOf(layers: Record<number, Record<string, string>>): LinuxKeymapDocument {
+function documentOf(
+  layers: Record<number, Record<string, string>>,
+  terms: { tappingTermMs?: number; flowTapTermMs?: number } = {},
+): LinuxKeymapDocument {
   return {
     layout: "jis",
     devices: [{ vendorId: 0x05ac, productId: 0x027e }],
+    tappingTermMs: terms.tappingTermMs ?? 200,
+    flowTapTermMs: terms.flowTapTermMs ?? 0,
     layers: new Map(
       Object.entries(layers).map(([layer, assignments]) => [
         Number(layer),
@@ -35,6 +40,25 @@ test("desired.yaml は round-trip する", () => {
   const document = parseLinuxKeymapYaml(text);
   strictEqual(serializeLinuxKeymapYaml(document), text);
   deepStrictEqual(document.devices, [{ vendorId: 1452, productId: 638 }]);
+  strictEqual(document.tappingTermMs, 180);
+  strictEqual(document.flowTapTermMs, 130);
+});
+
+test("閾値を省略した設定は Mac と同じ既定で読み、書き出すときは明示する", () => {
+  const document = parseLinuxKeymapYaml(
+    "schema: keysync/linux-keymap@1\nlayout: jis\nlayers:\n  0:\n",
+  );
+  strictEqual(document.tappingTermMs, 200);
+  strictEqual(document.flowTapTermMs, 0);
+  ok(serializeLinuxKeymapYaml(document).includes("tapping_term_ms: 200\nflow_tap_term_ms: 0\n"));
+});
+
+test("範囲外の閾値は読まない", () => {
+  const withLine = (line: string) =>
+    `schema: keysync/linux-keymap@1\nlayout: jis\n${line}\nlayers:\n  0:\n`;
+  throws(() => parseLinuxKeymapYaml(withLine("tapping_term_ms: 49")), LinuxKeymapParseError);
+  throws(() => parseLinuxKeymapYaml(withLine("tapping_term_ms: abc")), LinuxKeymapParseError);
+  throws(() => parseLinuxKeymapYaml(withLine("flow_tap_term_ms: 1001")), LinuxKeymapParseError);
 });
 
 test("layout・schema を省略した設定は読まない。推測できないので明示させる", () => {
@@ -85,17 +109,42 @@ test("KC_TRNS と layer 0 と同値のキーは書かない", () => {
   deepStrictEqual(sections[1]?.bindings, []);
 });
 
-test("mod-tap の hold 側は keyd の修飾 layer へ落とす", () => {
+test("mod-tap の hold 側は keyd の修飾 layer へ落とし、tapping term で分ける", () => {
   const { sections } = generateKeydConfig(
-    documentOf({
-      0: { a: "RALT_T(KC_A)", s: "LGUI_T(KC_S)", d: "RCTL_T(KC_D)", f: "LSFT_T(KC_F)" },
-    }),
+    documentOf(
+      { 0: { a: "RALT_T(KC_A)", s: "LGUI_T(KC_S)", d: "RCTL_T(KC_D)", f: "LSFT_T(KC_F)" } },
+      { tappingTermMs: 180 },
+    ),
   );
   deepStrictEqual(sections[0]?.bindings, [
-    ["a", "overload(altgr, a)"],
-    ["d", "overload(control, d)"],
-    ["f", "overload(shift, f)"],
-    ["s", "overload(meta, s)"],
+    ["a", "overloadt2(altgr, a, 180)"],
+    ["d", "overloadt2(control, d, 180)"],
+    ["f", "overloadt2(shift, f, 180)"],
+    ["s", "overloadt2(meta, s, 180)"],
+  ]);
+});
+
+test("Flow Tap が有効なら、tap 側が文字キーの mod-tap と LT だけを lettermod にする", () => {
+  const { sections } = generateKeydConfig(
+    documentOf(
+      {
+        0: {
+          f: "LGUI_T(KC_F)",
+          spacebar: "LT1(KC_SPC)",
+          left_shift: "LSFT_T(KC_LANG1)",
+          return_or_enter: "RGUI_T(KC_ENT)",
+          caps_lock: "LCTL_T(KC_ESC)",
+        },
+      },
+      { tappingTermMs: 180, flowTapTermMs: 130 },
+    ),
+  );
+  deepStrictEqual(sections[0]?.bindings, [
+    ["capslock", "overloadt2(control, esc, 180)"],
+    ["f", "lettermod(meta, f, 130, 180)"],
+    ["leftshift", "overloadt2(shift, hangeul, 180)"],
+    ["enter", "overloadt2(meta, enter, 180)"],
+    ["space", "lettermod(layer1, space, 130, 180)"],
   ]);
 });
 

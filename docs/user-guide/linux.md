@@ -27,13 +27,19 @@ Cornix LP は登録しません。\
 割り当ての書き方は Mac の設定と同じです。
 
 ```yaml
+tapping_term_ms: 180
+flow_tap_term_ms: 130
 layers:
   0:
     "caps_lock": "LCTL_T(KC_ESC)"
+    "f": "LGUI_T(KC_F)"
     "japanese_kana": "LT1(KC_LANG1)"
   1:
     "h": "KC_LEFT"
 ```
+
+`tapping_term_ms` と `flow_tap_term_ms` で tap-hold の判定時間を設定します。\
+Cornix LP と同じ値（180 と 130）にすると、home mod がロール打鍵で誤爆しにくくなります。
 
 次の keycode は使えません。
 
@@ -65,3 +71,6 @@ sudo keyd reload
 - 右 Control と右 Command の mod-tap は、hold 側が左右を区別しません。
 - `backslash` と `non_us_pound` は同じキーになるため、同じ layer に両方を書くと error になります。
 - 2 つの layer を同時に押すと、後から押した layer が優先されます。
+- mod-tap の判定に Chordal Hold がありません。\
+  tapping term の中で、mod-tap を押したまま同じ手のキーを押して離すと hold になります。\
+  Cornix LP では tap になります。

@@ -2,6 +2,7 @@
  * desired state → `linux-keyboard.<layout>.yaml` テキスト。
  *
  * 並べ方と並び順は `serializeMacKeymapYaml` と同じ。layer 昇順・`key_code` 名昇順で固定する。
+ * `tapping_term_ms` / `flow_tap_term_ms` は既定と同じ値でも常に書く（ADR 0051）。
  */
 
 import { LINUX_KEYMAP_SCHEMA, type LinuxKeymapDocument } from "./types.ts";
@@ -15,6 +16,8 @@ export function serializeLinuxKeymapYaml(document: LinuxKeymapDocument): string 
     ...document.devices.map(
       (device) => `  - { vendor_id: ${device.vendorId}, product_id: ${device.productId} }`,
     ),
+    `tapping_term_ms: ${document.tappingTermMs}`,
+    `flow_tap_term_ms: ${document.flowTapTermMs}`,
     "layers:",
   ];
   for (const [layer, assignments] of [...document.layers.entries()].sort(([a], [b]) => a - b)) {

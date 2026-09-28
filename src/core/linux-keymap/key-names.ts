@@ -115,7 +115,7 @@ export const KEYD_KEY_NAMES: ReadonlyMap<string, string> = new Map<string, strin
  * mod-tap の `<MOD>`（`LCTL` など）→ keyd の修飾 layer。
  *
  * keyd の修飾 layer は左右を区別しない。右 Alt だけは `altgr` が別にある。
- * `SGUI` のような複合は keyd の `overload` が 1 つの layer しか取れないので載せない。
+ * `SGUI` のような複合は keyd の `overloadt2` / `lettermod` が 1 つの layer しか取れないので載せない。
  */
 const KEYD_MODIFIER_LAYERS: ReadonlyMap<string, string> = new Map([
   ["LCTL", "control"],

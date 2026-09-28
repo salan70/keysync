@@ -1,11 +1,13 @@
 /**
  * desired state → keyd の設定ファイル（`/etc/keyd/keysync.conf`）。
  *
- * 展開規則は ADR 0042。落とせない keycode は Mac 側と同じく黙って捨てず、error の
+ * 展開規則は ADR 0042、tap-hold の判定は ADR 0051。落とせない keycode は Mac 側と同じく黙って捨てず、error の
  * diagnostic にする。keyd は書かれていないキーを `main` へ落とすため、捨てると
  * 「効かないキー」として静かに残る。
  */
 
+import { isFlowTapKey } from "../mac-keymap/kanata/generate.ts";
+import { DEFAULT_MAC_FLOW_TAP_TERM_MS, DEFAULT_MAC_TAPPING_TERM_MS } from "../mac-keymap/types.ts";
 import { classifyKeycode } from "../validation/keycode-vocabulary.ts";
 import { createDiagnostic, type Diagnostic } from "../validation/types.ts";
 import { keydKeyName, keydModifierLayer, keydPositionName } from "./key-names.ts";
@@ -53,6 +55,12 @@ export function generateKeydConfig(
   const diagnostics: Diagnostic[] = [];
   const base = document.layers.get(0);
   const referenced = new Set<number>();
+  const context: Context = {
+    tappingTermMs: document.tappingTermMs,
+    flowTapTermMs: document.flowTapTermMs,
+    diagnostics,
+    referenced,
+  };
   const sections = new Map<number, KeydSection>();
 
   for (const layer of [...document.layers.keys()].sort((a, b) => a - b)) {
@@ -77,7 +85,7 @@ export function generateKeydConfig(
         );
         continue;
       }
-      const action = actionFor(keyCode, keycode, layer, diagnostics, referenced);
+      const action = actionFor(keyCode, keycode, layer, context);
       if (action === undefined) continue;
       const owner = owners.get(position);
       if (owner !== undefined) {
@@ -120,7 +128,12 @@ export type LinuxKeycodeSupport =
  */
 export function linuxKeycodeSupport(keycode: string): LinuxKeycodeSupport {
   const diagnostics: Diagnostic[] = [];
-  actionFor("spacebar", keycode, 0, diagnostics, new Set());
+  actionFor("spacebar", keycode, 0, {
+    tappingTermMs: DEFAULT_MAC_TAPPING_TERM_MS,
+    flowTapTermMs: DEFAULT_MAC_FLOW_TAP_TERM_MS,
+    diagnostics,
+    referenced: new Set(),
+  });
   const first = diagnostics[0];
   return first === undefined
     ? { ok: true }
@@ -155,6 +168,28 @@ function unsupported(
   });
 }
 
+/** 生成中に keycode をまたいで共有する値。 */
+interface Context {
+  readonly tappingTermMs: number;
+  readonly flowTapTermMs: number;
+  readonly diagnostics: Diagnostic[];
+  readonly referenced: Set<number>;
+}
+
+/**
+ * tap-hold 1 つ。Cornix（QMK）の判定に近づける（ADR 0051）。
+ *
+ * - `overloadt2` は tapping term まで押し続けるか、押している間に別のキーを押して離すと hold。
+ *   QMK の Permissive Hold に当たる。keyd には Chordal Hold に当たる手の区別が無い
+ * - Flow Tap が有効で tap 側が対象なら `lettermod`。直前の文字の打鍵から閾値未満なら即 tap
+ */
+function tapHold(layer: string, tap: string, tapKeycode: string, context: Context): string {
+  if (context.flowTapTermMs > 0 && isFlowTapKey(tapKeycode)) {
+    return `lettermod(${layer}, ${tap}, ${context.flowTapTermMs}, ${context.tappingTermMs})`;
+  }
+  return `overloadt2(${layer}, ${tap}, ${context.tappingTermMs})`;
+}
+
 /**
  * keycode 1 つを keyd の action にする。`undefined` は「書かない」。
  *
@@ -165,9 +200,9 @@ function actionFor(
   keyCode: string,
   keycode: string,
   layer: number,
-  diagnostics: Diagnostic[],
-  referenced: Set<number>,
+  context: Context,
 ): string | undefined {
+  const { diagnostics, referenced } = context;
   const lexeme = classifyKeycode(keycode);
   const fail = (code: string, message: string) => {
     diagnostics.push(unsupported(code, layer, keyCode, keycode, message));
@@ -201,15 +236,16 @@ function actionFor(
         return `toggle(${target})`;
       }
       if (lexeme.action === "layerTap") {
-        const inner = lexeme.inner === undefined ? undefined : keydKeyName(lexeme.inner);
-        if (inner === undefined) {
+        const tapKeycode = lexeme.inner;
+        const inner = tapKeycode === undefined ? undefined : keydKeyName(tapKeycode);
+        if (tapKeycode === undefined || inner === undefined) {
           return fail(
             "linux-keymap/unsupported-layer-tap-inner",
             `${keycode} の tap 側を keyd のキーへ落とせない`,
           );
         }
         referenced.add(lexeme.layer);
-        return `overload(${target}, ${inner})`;
+        return tapHold(target, inner, tapKeycode, context);
       }
       return fail(
         "linux-keymap/unsupported-keycode",
@@ -225,7 +261,7 @@ function actionFor(
           `${keycode} を keyd の mod-tap へ落とせない`,
         );
       }
-      return `overload(${modifier}, ${inner})`;
+      return tapHold(modifier, inner, lexeme.inner, context);
     }
     case "modified":
     case "oneShotMod":
