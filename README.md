@@ -9,17 +9,18 @@
 
 ## 使い始める
 
-Nix と direnv が必要です。
+Nix が必要です。
 設定は keysync リポジトリの外のディレクトリ（workspace）に置き、`KEYSYNC_WORKSPACE` で指定します。
 
 ```bash
-git clone https://github.com/salan70/keysync.git
-cd keysync
-direnv allow     # direnv 未設定の場合は nix develop
 export KEYSYNC_WORKSPACE="$HOME/dotfiles/config/keysync"   # 普段はシェルの設定に書く
+nix run github:salan70/keysync#install   # clone から OS ごとの準備まで行う
+cd ~/Projects/Tools/keysync
 just ui          # Web UI をビルドして起動（http://127.0.0.1:5178/）
 ```
 
+- **導入**: `install` は Mac と Omarchy に対応し、何度実行しても構いません。clone 先は `KEYSYNC_REPO` で変えられます。OS ごとに行う内容は [Mac の初回の準備](./docs/user-guide/cli.md#初回の準備) と [Linux（Omarchy）で使う](./docs/user-guide/linux.md#準備) を参照。
+- **起動**: direnv を使わない場合は `nix develop -c just ui` で起動する。
 - **動作環境**: macOS 上の Chrome または Chromium。Linux（Omarchy）は [Linux（Omarchy）で使う](./docs/user-guide/linux.md) を参照。
 - **非対応環境**: Safari と Firefox は WebHID に非対応のため実機接続不可。
 - **更新**: `git pull` のあと `just ui` を起動し直す。
@@ -42,7 +43,7 @@ just ui          # Web UI をビルドして起動（http://127.0.0.1:5178/）
 
 依存関係とツールチェーンは Nix flake で固定しています。
 コマンドは justfile が唯一の定義元で、`just` で一覧を表示できます。
-開発を始めるときは、上記の手順に加えて `just setup` で pre-commit / pre-push フックを導入します。
+pre-commit / pre-push フック（`just setup`）は導入スクリプトが入れます。
 
 | コマンド               | 用途                                                 |
 | ---------------------- | ---------------------------------------------------- |

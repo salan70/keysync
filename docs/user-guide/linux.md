@@ -12,26 +12,21 @@ Web UI はまだ Linux の設定を表示・編集できません。
 
 ## 準備
 
-Nix と direnv を入れ、リポジトリを clone します。
-手順は [README](../../README.md#初回セットアップと起動) と同じです。
-
-keyd を入れて起動します。
+Nix が入った状態で、導入スクリプトを実行します。
 
 ```bash
-sudo pacman -S keyd
-sudo systemctl enable --now keyd
+nix run github:salan70/keysync#install
 ```
+
+clone、依存パッケージ、Git フックに加えて、次を行います。
+sudo が要る手順はまとめて実行するので、パスワードの入力は 1 回です。
+
+- keyd を pacman で入れ、`systemctl enable --now keyd` で起動する
+- Chrome / Chromium が Cornix LP へ接続できるよう、hidraw の権限を与える udev rule（`docs/user-guide/linux/99-vial.rules`）を置いて読み直す
+
+済んでいる手順は飛ばすので、何度実行しても構いません。
 
 ## Cornix LP を Web UI から使う
-
-Chrome / Chromium が Cornix LP へ接続するには、hidraw の権限を与える udev rule が要ります。
-リポジトリの rule を置いて読み直します。
-
-```bash
-sudo cp docs/user-guide/linux/99-vial.rules /etc/udev/rules.d/
-sudo udevadm control --reload
-sudo udevadm trigger
-```
 
 Cornix LP を接続し直してから `just ui` を実行します。
 既定のブラウザで <http://127.0.0.1:5178/> が開きます。

@@ -269,7 +269,7 @@ function StoppedDetail({
         </ul>
       );
     case "kanata-missing":
-      return <p>kanata が見つからない。brew install --HEAD kanata で入れる。</p>;
+      return <p>kanata が見つからない。nix run github:salan70/keysync#install で入れる。</p>;
     case "check-failed":
       return (
         <>

@@ -15,8 +15,8 @@ KeySyncは複数のキーボードのキーマップを1か所で管理し、実
 `.envrc` は Git 管理対象で、秘匿情報を含めません。マシン固有の設定や秘匿情報が必要に
 なったら、`.envrc.local` を gitignore 対象として追加する方式を検討します。
 
-コマンドは justfile が唯一の定義元です。`flake.nix` はツールチェーンの固定のみを担うため、
-新しいコマンドは justfile に追加してください。
+コマンドは justfile が唯一の定義元です。`flake.nix` はツールチェーンの固定と、clone 前に動く
+導入の入口（`nix run .#install`、`tools/install.sh`）だけを担うため、新しいコマンドは justfile に追加してください。
 
 ```bash
 nix develop            # direnv 未設定の場合の devShell

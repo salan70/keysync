@@ -300,7 +300,7 @@ interfaceにしているのは**testから差し替えるため**です。CIのm
 実物を通すと開発機でtestを回しただけで常駐しているkanataがreloadされます。
 
 kanataはPATH、`/opt/homebrew/bin/kanata`、`/usr/local/bin/kanata`の順に探します。`just ui`は
-nixのdevShellから起動するため、PATHにHomebrewが無いことがあります。見つからなければ
+nixのdevShellから起動し、MacのdevShellはflakeで固定したkanataをPATHに持ちます（ADR 0051）。見つからなければ
 `check`は`undefined`を返し、呼び出し側は「kanata不在」として扱います。
 
 Reloadは`127.0.0.1:5179`のTCP serverへ`{"Reload":{"wait":true}}`を1行で送り、`ReloadResult`を

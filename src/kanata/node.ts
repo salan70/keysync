@@ -23,7 +23,7 @@ export const KANATA_PORT = 5179;
 
 /**
  * kanata の実行ファイルを探す順。PATH の次に Homebrew の既定の場所を見る。
- * `just ui` は nix の devShell から起動するため、PATH に Homebrew が無いことがある。
+ * Mac の devShell は flake で固定した kanata を PATH に持つ（ADR 0051）。
  */
 const KANATA_CANDIDATES = ["kanata", "/opt/homebrew/bin/kanata", "/usr/local/bin/kanata"];
 

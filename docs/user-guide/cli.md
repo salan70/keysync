@@ -23,12 +23,10 @@ MacBook 内蔵キーボードの設定のみ、CLI から差分確認と適用�
 CLI は clone したリポジトリの Nix 環境から実行します。
 
 ```bash
-git clone https://github.com/salan70/keysync.git
-cd keysync
-direnv allow
-just setup
+nix run github:salan70/keysync#install
 ```
 
+導入スクリプトが clone、依存パッケージ、Git フック、OS ごとの準備を行います。
 direnv を使わない場合は、先に `nix develop` へ入ってから実行してください。
 
 ## 共通規則
@@ -141,29 +139,26 @@ just mac apply --confirm v1-xxxx-yyyy   # 適用して kanata に読み直させ
 ### 初回の準備
 
 kanata は root の launchd daemon として常駐させます。
-次の準備は Mac ごとに 1 回だけ行います。
+準備は導入スクリプトがまとめて行います。
 
-1. Karabiner-Elements を入れたままにします。kanata は Karabiner の仮想キーボードのドライバを使います。
-2. Karabiner-Elements の Devices 設定で、内蔵キーボードの「Modify events」を切ります。切らないと入力が kanata へ届きません。
-3. kanata の開発版を入れます。安定版 v1.12.0 は Karabiner-Elements 16.x のドライバと通信できません。
+```bash
+nix run github:salan70/keysync#install
+```
 
-   ```bash
-   brew install --HEAD kanata
-   ```
+導入スクリプトは次を行います。
+済んでいる手順は飛ばすので、何度実行しても構いません。
 
-4. `just mac apply` と `just mac apply --confirm <fingerprint>` で、kanata の設定ファイルを置きます。
-5. 常駐を登録します。端末で `sudo` のパスワードを求められます。
+1. Karabiner-Elements が無ければ Homebrew で入れ、ドライバの許可を待ちます。kanata は Karabiner の仮想キーボードのドライバを使います。
+2. 内蔵キーボードの「Modify events」が切れるまで待ちます。切らないと入力が kanata へ届きません。
+3. flake で固定した kanata を build します。安定版 v1.12.0 は Karabiner-Elements 16.x のドライバと通信できないため、開発版の commit に固定しています。
+4. kanata の設定ファイルが無ければ、差分を表示し、`y` の入力を受けてから置きます。
+5. 常駐を登録します（`just mac service install`）。端末で `sudo` のパスワードを求められます。
+6. 「入力監視」と「アクセシビリティ」の画面を開きます。クリップボードにコピーされた kanata の path を追加して許可します。
+7. kanata が起動したことを確かめます。
 
-   ```bash
-   just mac service install
-   ```
-
-6. システム設定の「入力監視」と「アクセシビリティ」で、出力の `next` に表示された kanata の実体を許可します。
-7. `just mac service status` で `running` が `true` になったことを確かめます。
-
-登録に root が要るのはこの 1 回だけです。
+登録に root が要るのは導入時だけです。
 以後の適用は、常駐している kanata に設定を読み直させるだけで、`sudo` は求めません。
-kanata を Homebrew で入れ直すと実体の path が変わるため、手順 5 からやり直します。
+flake で kanata の commit を上げると実体の path が変わるため、導入スクリプトを実行し直して許可し直します。
 
 ### 設定の適用（apply）
 

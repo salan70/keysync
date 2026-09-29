@@ -125,8 +125,8 @@
 - **原因**: kanata が常駐していないか、内蔵キーボードの入力が kanata へ届いていません。
 - **対処**:
   1. `just mac service` を実行し、出力を確認します。
-  2. `installed` が `false` なら、`just mac service install` で登録します。
-  3. システム設定の「入力監視」と「アクセシビリティ」で、kanata の実体が許可されているか確認します。Homebrew で入れ直した後は許可し直します。
+  2. `installed` が `false` なら、`nix run github:salan70/keysync#install` を実行し直します。登録と許可の手順を案内します。
+  3. システム設定の「入力監視」と「アクセシビリティ」で、kanata の実体が許可されているか確認します。kanata の commit を上げた後は許可し直します。
   4. `karabinerGrabsBuiltIn` が `true` なら、Karabiner-Elements で内蔵キーボードの「Modify events」を切ります。
   5. それでも効かないときは、`/var/log/keysync-kanata.log` を確認します。
 

@@ -666,7 +666,7 @@ async function macApply(
     throw new Error(`fingerprint が一致しない: expected=${plan.fingerprint} actual=${confirmed}`);
   }
   if (planning.check === undefined) {
-    throw new Error("kanata が見つからない。brew install --HEAD kanata で入れる");
+    throw new Error("kanata が見つからない。nix run github:salan70/keysync#install で入れる");
   }
   if (!planning.check.ok) throw new Error(`kanata --check が通らない: ${planning.check.output}`);
 
@@ -727,7 +727,7 @@ async function macService(
   }
   const kanata = await host.binary();
   if (kanata === undefined) {
-    throw new Error("kanata が見つからない。brew install --HEAD kanata で入れる");
+    throw new Error("kanata が見つからない。nix run github:salan70/keysync#install で入れる");
   }
   const binary = await absoluteBinary(kanata);
   const plist = generatedPath(`${KANATA_SERVICE_LABEL}.plist`);
