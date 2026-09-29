@@ -9,35 +9,12 @@
 
 ## 使い始める
 
-Nix が必要です。
-設定は keysync リポジトリの外のディレクトリ（workspace）に置き、`KEYSYNC_WORKSPACE` で指定します。
-
 ```bash
-export KEYSYNC_WORKSPACE="$HOME/dotfiles/config/keysync"   # 普段はシェルの設定に書く
-nix run github:salan70/keysync#install   # clone から OS ごとの準備まで行う
-cd ~/Projects/Tools/keysync
-just ui          # Web UI をビルドして起動（http://127.0.0.1:5178/）
+nix run github:salan70/keysync#install   # 導入（Mac / Omarchy）
+just ui                                  # clone したリポジトリで Web UI を起動
 ```
 
-- **導入**: `install` は Mac と Omarchy に対応し、何度実行しても構いません。clone 先は `KEYSYNC_REPO` で変えられます。OS ごとに行う内容は [Mac の初回の準備](./docs/user-guide/cli.md#初回の準備) と [Linux（Omarchy）で使う](./docs/user-guide/linux.md#準備) を参照。
-- **起動**: direnv を使わない場合は `nix develop -c just ui` で起動する。
-- **動作環境**: macOS 上の Chrome または Chromium。Linux（Omarchy）は [Linux（Omarchy）で使う](./docs/user-guide/linux.md) を参照。
-- **非対応環境**: Safari と Firefox は WebHID に非対応のため実機接続不可。
-- **更新**: `git pull` のあと `just ui` を起動し直す。
-
-編集から Apply までの手順は [利用者ガイドのクイックスタート](./docs/user-guide/README.md#クイックスタート) を参照してください。
-
-## 利用者向けドキュメント
-
-| ドキュメント                                                   | 内容                                                   |
-| -------------------------------------------------------------- | ------------------------------------------------------ |
-| [利用者ガイド](./docs/user-guide/README.md)                    | 全体概要、対応環境、クイックスタート                   |
-| [Web UI の使い方](./docs/user-guide/web-ui.md)                 | 画面構成、各タブの操作、VIL 入出力                     |
-| [CLI の使い方](./docs/user-guide/cli.md)                       | 検証、到達性解析、差分確認、Mac 内蔵キーボード管理     |
-| [Linux（Omarchy）で使う](./docs/user-guide/linux.md)           | udev rule、keyd による内蔵キーボードの設定と適用       |
-| [Safe Apply と復旧](./docs/user-guide/safe-apply.md)           | 実機書き込み手順、エラーと警告の基準、バックアップ復元 |
-| [workspace と用語](./docs/user-guide/workspace-and-terms.md)   | ファイル配置、Git 管理対象、重要用語の一覧             |
-| [トラブルシューティング](./docs/user-guide/troubleshooting.md) | 接続失敗、保存不可、権限エラーなどの対処手順           |
+手順は [利用者ガイド](./docs/user-guide/README.md) を参照してください。
 
 ## 開発
 
