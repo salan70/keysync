@@ -1,6 +1,6 @@
 # CLI の使い方
 
-CLI はリポジトリの中で `just` から実行します。
+CLI はリポジトリの中で `just` から実行します。\
 workspace は `KEYSYNC_WORKSPACE` を使い、`--workspace <dir>` で別の場所を指定できます。
 
 ## Cornix LP
@@ -29,7 +29,7 @@ CLI は Cornix LP へ書き込みません。
 
 ### 戻し方
 
-反映の前の設定は、workspace の `keysync/backups/kanata-<時刻>.kbd` に残っています。
+反映の前の設定は、workspace の `keysync/backups/kanata-<時刻>.kbd` に残っています。\
 戻すときは、このファイルを kanata の設定ファイルへコピーし、kanata を起動し直します。
 
 ```bash
@@ -37,7 +37,7 @@ cp "$KEYSYNC_WORKSPACE/keysync/backups/kanata-<時刻>.kbd" ~/Library/Applicatio
 sudo launchctl kickstart -k system/dev.keysync.kanata
 ```
 
-kanata を止めるときは `sudo launchctl bootout system/dev.keysync.kanata` を実行します。
+kanata を止めるときは `sudo launchctl bootout system/dev.keysync.kanata` を実行します。\
 Mac を再起動すると、再び常駐します。
 
 ## Linux

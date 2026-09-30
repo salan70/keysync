@@ -1,32 +1,34 @@
 # KeySync 利用者ガイド
 
-KeySync は Cornix LP と Mac のキーボードの割り当てを 1 か所で編集し、反映するツールです。
+KeySync は Cornix LP と Mac のキーボードの割り当てを 1 か所で編集し、反映するツールです。\
 設定は `KEYSYNC_WORKSPACE` で指定したディレクトリ（workspace）に置き、Git で管理します。
 
 ## 導入
 
-`KEYSYNC_WORKSPACE` をシェルの設定で export してから、次を実行します。
+`KEYSYNC_WORKSPACE` をシェルの設定で export してから、次を実行します。\
 Nix が入った Mac と Omarchy で使えます。
 
 ```bash
 nix run github:salan70/keysync#install
 ```
 
-リポジトリは `~/Projects/Tools/keysync` に clone されます（`KEYSYNC_REPO` で変更できます）。
-途中で許可や確認を求められたら、表示に従います。
+リポジトリは `~/Projects/Tools/keysync` に clone されます（`KEYSYNC_REPO` で変更できます）。\
+途中で許可や確認を求められたら、表示に従います。\
 何度実行しても構いません。
 
 ## 使い方
 
 1. リポジトリで `just ui` を実行し、Chrome で <http://127.0.0.1:5178/> を開きます。
-2. ヘッダーで編集対象を選び、キーを割り当てます。編集はすぐ workspace へ保存されます。
-3. 反映します。Cornix LP は `実機へ Apply…`、Mac は `kanata へ適用…` を押し、差分を確かめて実行します。
+2. ヘッダーで編集対象を選び、キーを割り当てます。\
+   編集はすぐ workspace へ保存されます。
+3. 反映します。\
+   Cornix LP は `実機へ Apply…`、Mac は `kanata へ適用…` を押し、差分を確かめて実行します。
 4. workspace の変更を commit します。
 
-別の端末では、workspace を `git pull` してから手順 3 で反映します。
+別の端末では、workspace を `git pull` してから手順 3 で反映します。\
 ツールを更新するときは、リポジトリで `git pull` してから `just ui` を起動し直します。
 
-反映を実行するまで、キーボードの設定は変わりません。
+反映を実行するまで、キーボードの設定は変わりません。\
 反映の直前には、元の状態が `keysync/backups/` へ自動で保存されます。
 
 ## workspace のファイル

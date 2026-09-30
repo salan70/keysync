@@ -1,7 +1,7 @@
 # Linux（Omarchy）で使う
 
-Omarchy でも、導入と Cornix LP の操作は Mac と同じです（[利用者ガイド](./README.md)）。
-内蔵キーボードは keyd で設定します。
+Omarchy でも、導入と Cornix LP の操作は Mac と同じです（[利用者ガイド](./README.md)）。\
+内蔵キーボードは keyd で設定します。\
 Web UI では編集できないため、設定ファイルを直接書いて CLI で反映します。
 
 ## 内蔵キーボードの設定を作る
@@ -12,7 +12,8 @@ Web UI では編集できないため、設定ファイルを直接書いて CLI
    just linux devices --layout jis
    ```
 
-2. id を登録します。`linux-keyboard.jis.yaml` が無ければ作られます。
+2. id を登録します。\
+   `linux-keyboard.jis.yaml` が無ければ作られます。
 
    ```bash
    just linux devices --layout jis --add 05ac:027e
@@ -20,7 +21,7 @@ Web UI では編集できないため、設定ファイルを直接書いて CLI
 
 3. `$KEYSYNC_WORKSPACE/linux-keyboard.jis.yaml` の `layers` に割り当てを書きます。
 
-Cornix LP は登録しません。
+Cornix LP は登録しません。\
 登録すると、firmware の割り当てと二重に効きます。
 
 割り当ての書き方は Mac の設定と同じです。
@@ -51,7 +52,7 @@ just linux apply --confirm <fingerprint>  # 反映する（sudo のパスワー�
 
 ## 元に戻す
 
-以前の設定へ戻すときは、`keysync/backups/keyd-<時刻>.conf` を `/etc/keyd/keysync.conf` へコピーし、`sudo keyd reload` を実行します。
+以前の設定へ戻すときは、`keysync/backups/keyd-<時刻>.conf` を `/etc/keyd/keysync.conf` へコピーし、`sudo keyd reload` を実行します。\
 KeySync の設定を外すときは、次を実行します。
 
 ```bash

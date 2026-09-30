@@ -1,10 +1,10 @@
 # KeySync
 
-複数のキーボードのキーマップを 1 か所で管理し、実機と OS へ同期するローカルファーストなツールです。
-対象は Cornix LP と Mac のキーボード（MacBook 内蔵、Magic Keyboard）です。
+複数のキーボードのキーマップを 1 か所で管理し、実機と OS へ同期するローカルファーストなツールです。\
+対象は Cornix LP と Mac のキーボード（MacBook 内蔵、Magic Keyboard）です。\
 ブラウザ、CLI、Git、AI から設定の読み取り、編集、検証、可視化、版管理を行えます。
 
-実機の読み取り（read）は設定を変更しません。
+実機の読み取り（read）は設定を変更しません。\
 実機が変更されるのは、人間が差分を確認して明示的に Apply を実行したときだけです。
 
 ## 使い始める
@@ -18,8 +18,8 @@ just ui                                  # clone したリポジトリで Web UI
 
 ## 開発
 
-依存関係とツールチェーンは Nix flake で固定しています。
-コマンドは justfile が唯一の定義元で、`just` で一覧を表示できます。
+依存関係とツールチェーンは Nix flake で固定しています。\
+コマンドは justfile が唯一の定義元で、`just` で一覧を表示できます。\
 pre-commit / pre-push フック（`just setup`）は導入スクリプトが入れます。
 
 | コマンド               | 用途                                                 |
@@ -42,6 +42,6 @@ pre-commit / pre-push フック（`just setup`）は導入スクリプトが入�
 - 実機書き込みはバックアップと検証を伴い、人間の明示操作に限定します。
 - AI は設定編集や検証を行えますが、実機へ直接書き込む権限を持ちません。
 
-重要な設計判断は [docs/decisions/](./docs/decisions/README.md)（ADR）に記録します。
-コードと 1:1 で対応する実装仕様は [docs/specs/](./docs/specs/README.md) に置きます。
+重要な設計判断は [docs/decisions/](./docs/decisions/README.md)（ADR）に記録します。\
+コードと 1:1 で対応する実装仕様は [docs/specs/](./docs/specs/README.md) に置きます。\
 ドキュメントの責務分担は [docs/README.md](./docs/README.md) を参照してください。
