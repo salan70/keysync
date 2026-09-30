@@ -7,6 +7,7 @@ import {
   appliedTappingTermMs,
   diffKanataText,
   karabinerGrabsBuiltIn,
+  karabinerGrabsExternal,
   planMacApply,
   verifyMacApply,
 } from "./apply.ts";
@@ -124,6 +125,41 @@ test("karabinerGrabsBuiltIn は選択中の profile が内蔵キーボードを 
   strictEqual(karabinerGrabsBuiltIn(external), true);
   strictEqual(karabinerGrabsBuiltIn(JSON.parse(readFixture("karabiner-baseline.json"))), true);
   strictEqual(karabinerGrabsBuiltIn({}), true);
+});
+
+test("適用先デバイスが変わるなら kanata の再起動を求める warning を出す", () => {
+  const { text } = planMacApply(undefined, DESIRED);
+  const external = { ...DESIRED, devices: [...DESIRED.devices, { name: "Magic Keyboard" }] };
+  const found = planMacApply(text, external).diagnostics.find(
+    (one) => one.code === "mac-keymap/devices-need-restart",
+  );
+  strictEqual(found?.severity, "warning");
+  const codes = (current: string | undefined, document: typeof DESIRED) =>
+    planMacApply(current, document).diagnostics.map((one) => one.code);
+  strictEqual(
+    codes(text, { ...DESIRED, tappingTermMs: 150 }).includes("mac-keymap/devices-need-restart"),
+    false,
+  );
+  // 初回の適用は kanata がまだ設定を読んでいないので、再起動の案内は要らない。
+  strictEqual(codes(undefined, external).includes("mac-keymap/devices-need-restart"), false);
+});
+
+test("karabinerGrabsExternal は vendor / product id が一致する ignore の項目があれば false", () => {
+  const config = {
+    profiles: [
+      {
+        selected: true,
+        devices: [
+          { identifiers: { is_keyboard: true, vendor_id: 76, product_id: 614 }, ignore: true },
+          { identifiers: { is_keyboard: true, vendor_id: 1452, product_id: 630 }, ignore: false },
+        ],
+      },
+    ],
+  };
+  strictEqual(karabinerGrabsExternal(config, 76, 614), false);
+  strictEqual(karabinerGrabsExternal(config, 1452, 630), true);
+  strictEqual(karabinerGrabsExternal(config, 1, 2), true, "項目が無ければ Karabiner の既定で掴む");
+  strictEqual(karabinerGrabsExternal({}, 76, 614), true);
 });
 
 test("appliedTappingTermMs は所有するファイルの閾値を読み、無ければ null", () => {

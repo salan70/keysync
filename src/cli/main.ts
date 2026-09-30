@@ -15,8 +15,12 @@ import { serializeKeymapYaml } from "../core/keymap-yaml/serialize.ts";
 import {
   appliedTappingTermMs,
   karabinerGrabsBuiltIn,
+  karabinerGrabsExternal,
   planMacApply,
 } from "../core/mac-keymap/apply.ts";
+import { addMacDevice } from "../core/mac-keymap/edit.ts";
+import { BUILT_IN_KEYBOARD_NAME } from "../core/mac-keymap/kanata/generate.ts";
+import { serializeMacKeymapYaml } from "../core/mac-keymap/serialize.ts";
 import { validateMacKeymap } from "../core/mac-keymap/validate.ts";
 import type { MacKeyboardLayout, MacKeymapDocument } from "../core/mac-keymap/types.ts";
 import { analyzeModTapOutput } from "../core/typing-log/analyze.ts";
@@ -295,9 +299,93 @@ async function mac(root: string, args: ParsedArgs, deps: CliDeps): Promise<numbe
   if (sub === "generate") return await macGenerate(root, loaded, args, host);
   if (sub === "diff") return await macDiff(root, loaded, args);
   if (sub === "apply") return await macApply(root, loaded, args, host);
+  if (sub === "devices") return await macDevices(root, loaded, args, host);
   if (sub === "service") return await macService(root, args, host, deps);
   if (sub === "record") return await macRecord(root, loaded, args, deps);
-  throw new Error("keysync mac generate|diff|apply|service|record が必要");
+  throw new Error("keysync mac generate|diff|apply|devices|service|record が必要");
+}
+
+/**
+ * 適用先デバイスの一覧と登録。
+ *
+ * `--add` が無ければ、kanata が今見ているキーボードを出して終わる。kanata は製品名の完全一致で
+ * 掴むので、登録できるのはこの一覧に出た名前だけにする（ADR 0052）。Cornix LP もここに並ぶ。
+ * 登録すると firmware keymap と二重に効く（ADR 0022 の隔離）。
+ */
+async function macDevices(
+  root: string,
+  loaded: LoadedMacKeymap,
+  args: ParsedArgs,
+  host: KanataHost,
+): Promise<number> {
+  const observed = await host.keyboards();
+  if (observed === undefined) {
+    throw new Error("kanata が見つからない。nix run github:salan70/keysync#install で入れる");
+  }
+  if (args.add !== undefined) {
+    const name = String(args.add);
+    if (!observed.some((keyboard) => keyboard.name === name)) {
+      throw new Error(
+        `${JSON.stringify(name)} は今つながっているキーボードに無い。keysync mac devices で名前を確かめる`,
+      );
+    }
+    const next = addMacDevice(loaded.document, { name });
+    await new NodeWorkspaceStore(root).writeText(loaded.path, serializeMacKeymapYaml(next));
+    console.log(
+      JSON.stringify(
+        {
+          workspace: root,
+          path: loaded.path,
+          layout: loaded.layout,
+          devices: next.devices,
+          next: [
+            "keysync mac apply で適用する",
+            "適用後に keysync mac service restart で kanata を起動し直す（掴むデバイスは起動時に決まる）",
+          ],
+        },
+        null,
+        2,
+      ),
+    );
+    return 0;
+  }
+
+  const karabiner = await readKarabinerConfig(karabinerPath(args));
+  const registered = new Set(
+    loaded.document.devices.map((device) =>
+      "builtIn" in device ? BUILT_IN_KEYBOARD_NAME : device.name,
+    ),
+  );
+  console.log(
+    JSON.stringify(
+      {
+        workspace: root,
+        path: loaded.path,
+        layout: loaded.layout,
+        devices: loaded.document.devices,
+        observed: observed.map((keyboard) => {
+          const builtIn = keyboard.name === BUILT_IN_KEYBOARD_NAME;
+          return {
+            name: keyboard.name,
+            vendorId: keyboard.vendorId,
+            productId: keyboard.productId,
+            registered: registered.has(keyboard.name),
+            karabinerGrabs:
+              karabiner !== undefined &&
+              (builtIn
+                ? karabinerGrabsBuiltIn(karabiner)
+                : karabinerGrabsExternal(karabiner, keyboard.vendorId, keyboard.productId)),
+            add: builtIn
+              ? null
+              : `keysync mac devices --layout ${loaded.layout} --add ${JSON.stringify(keyboard.name)}`,
+          };
+        }),
+      },
+      null,
+      2,
+    ),
+  );
+  return 0;
 }
 
 /** `--layout` の明示指定。検出できない環境と、別配列の設定を触りたいときの入口。 */
@@ -702,10 +790,18 @@ async function macService(
   deps: CliDeps,
 ): Promise<number> {
   const action = args._[1] ?? "status";
-  if (action !== "status" && action !== "install") {
-    throw new Error("keysync mac service status|install が必要");
+  if (action !== "status" && action !== "install" && action !== "restart") {
+    throw new Error("keysync mac service status|install|restart が必要");
   }
   const service = deps.serviceHost ?? createServiceHost();
+  if (action === "restart") {
+    if (!(await service.installed())) {
+      throw new Error("kanata が登録されていない。keysync mac service install で登録する");
+    }
+    const restart = await service.restart();
+    console.log(JSON.stringify({ workspace: root, label: KANATA_SERVICE_LABEL, restart }, null, 2));
+    return restart.ok ? 0 : 1;
+  }
   const config = kanataConfigPath(args);
   const karabiner = await readKarabinerConfig(karabinerPath(args));
   const status = {
@@ -1061,7 +1157,7 @@ function mapReplacer(_key: string, value: unknown): unknown {
 }
 function printHelp(): void {
   console.log(
-    `keysync validate|analyze|diff|render|export vil\n  --workspace <dir>\n  diff --against <file.vil>\n  render --format svg|pdf --out <file> --layer <n>\n  import vil <file.vil> --definition <definition.json>\n  migrate （改名前の cornix/ を keysync/ へ移す）\n  mac generate [--out <file>]\n  mac diff [--config <kanata.kbd>]\n  mac apply [--confirm <fingerprint>] [--config <kanata.kbd>]\n  mac service status|install （kanata を launchd に登録する。install は sudo を使う）\n  mac record [--tasks roll|hold|all] （課題を打って記録し keysync/typing-logs/ へ書く）\n  mac record --free [秒数] （課題なしで記録する。既定 30 秒）\n  mac ... --layout ansi|jis （既定は実行中のMacの内蔵配列を検出）\n  linux devices [--devices <file>] [--add <vendor>:<product>]\n  linux generate|diff\n  linux apply [--confirm <fingerprint>] [--config <keysync.conf>]\n  linux ... --layout ansi|jis （linux-keyboard.*.yaml が 1 つだけなら省略可）\n  --workspace の既定は $KEYSYNC_WORKSPACE（未設定ならエラー）`,
+    `keysync validate|analyze|diff|render|export vil\n  --workspace <dir>\n  diff --against <file.vil>\n  render --format svg|pdf --out <file> --layer <n>\n  import vil <file.vil> --definition <definition.json>\n  migrate （改名前の cornix/ を keysync/ へ移す）\n  mac generate [--out <file>]\n  mac diff [--config <kanata.kbd>]\n  mac apply [--confirm <fingerprint>] [--config <kanata.kbd>]\n  mac devices [--add <name>] （kanata が見ているキーボードを出し、外付けを適用先に足す）\n  mac service status|install|restart （kanata を launchd に登録・再起動する。sudo を使う）\n  mac record [--tasks roll|hold|all] （課題を打って記録し keysync/typing-logs/ へ書く）\n  mac record --free [秒数] （課題なしで記録する。既定 30 秒）\n  mac ... --layout ansi|jis （既定は実行中のMacの内蔵配列を検出）\n  linux devices [--devices <file>] [--add <vendor>:<product>]\n  linux generate|diff\n  linux apply [--confirm <fingerprint>] [--config <keysync.conf>]\n  linux ... --layout ansi|jis （linux-keyboard.*.yaml が 1 つだけなら省略可）\n  --workspace の既定は $KEYSYNC_WORKSPACE（未設定ならエラー）`,
   );
 }
 

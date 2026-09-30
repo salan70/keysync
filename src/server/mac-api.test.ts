@@ -60,6 +60,9 @@ async function setup(
     async binary() {
       return absent ? undefined : "/opt/homebrew/bin/kanata";
     },
+    async keyboards() {
+      return absent ? undefined : [];
+    },
   };
   const machine = "machine" in options ? options.machine : "jis";
   const config = join(root, "live", "kanata.kbd");

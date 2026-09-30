@@ -9,6 +9,7 @@
  */
 
 import {
+  isMacDeviceName,
   isMacFlowTapTerm,
   isMacTappingTerm,
   MAC_FLOW_TAP_TERM_RANGE,
@@ -97,7 +98,7 @@ export function addMacLayer(document: MacKeymapDocument, layer: number): MacKeym
 /** 2 つの識別子が同じデバイスを指すか。内蔵は 1 種類しか無いので種別だけで決まる。 */
 function sameDevice(left: MacDeviceIdentifier, right: MacDeviceIdentifier): boolean {
   if ("builtIn" in left || "builtIn" in right) return "builtIn" in left && "builtIn" in right;
-  return left.vendorId === right.vendorId && left.productId === right.productId;
+  return left.name === right.name;
 }
 
 /**
@@ -112,14 +113,10 @@ export function addMacDevice(
   document: MacKeymapDocument,
   device: MacDeviceIdentifier,
 ): MacKeymapDocument {
-  if (!("builtIn" in device)) {
-    for (const value of [device.vendorId, device.productId]) {
-      if (!Number.isInteger(value) || value < 0) {
-        throw new MacKeymapEditError(
-          `vendor_id / product_id は 0 以上の整数（${value} が渡された）`,
-        );
-      }
-    }
+  if (!("builtIn" in device) && !isMacDeviceName(device.name)) {
+    throw new MacKeymapEditError(
+      `デバイス名は空でなく " と \\ を含まない文字列（${JSON.stringify(device.name)} が渡された）`,
+    );
   }
   if (document.devices.some((existing) => sameDevice(existing, device))) return document;
   return { ...document, devices: [...document.devices, device] };

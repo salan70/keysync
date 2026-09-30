@@ -90,20 +90,21 @@ test("空layerを含むdocumentはserialize→parseをround-tripする", () => {
 
 test("addMacDevice は追加順のまま末尾へ足す", () => {
   const before = baseDocument();
-  const after = addMacDevice(before, { vendorId: 1452, productId: 630 });
-  deepStrictEqual(after.devices, [{ builtIn: true }, { vendorId: 1452, productId: 630 }]);
+  const after = addMacDevice(before, { name: "Magic Keyboard" });
+  deepStrictEqual(after.devices, [{ builtIn: true }, { name: "Magic Keyboard" }]);
   deepStrictEqual(before.devices, DEFAULT_MAC_DEVICES, "入力は変えない");
 });
 
 test("addMacDevice は同じデバイスを二重に足さない", () => {
-  const once = addMacDevice(baseDocument(), { vendorId: 1452, productId: 630 });
-  strictEqual(addMacDevice(once, { vendorId: 1452, productId: 630 }), once);
+  const once = addMacDevice(baseDocument(), { name: "Magic Keyboard" });
+  strictEqual(addMacDevice(once, { name: "Magic Keyboard" }), once);
   strictEqual(addMacDevice(once, { builtIn: true }), once);
 });
 
-test("addMacDevice は整数でない id を拒む", () => {
-  throws(() => addMacDevice(baseDocument(), { vendorId: 1.5, productId: 1 }), MacKeymapEditError);
-  throws(() => addMacDevice(baseDocument(), { vendorId: -1, productId: 1 }), MacKeymapEditError);
+test("addMacDevice は kanata の文字列に書けない名前を拒む", () => {
+  for (const name of ["", "  ", 'a"b', "a\\b", "a\nb"]) {
+    throws(() => addMacDevice(baseDocument(), { name }), MacKeymapEditError, JSON.stringify(name));
+  }
 });
 
 test("setMacTappingTerm は閾値を差し替え、元の document を壊さない", () => {

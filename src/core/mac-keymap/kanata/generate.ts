@@ -153,7 +153,7 @@ export function generateKanataConfig(
   for (const layer of context.referenced) if (!layers.has(layer)) layers.set(layer, []);
   if (!layers.has(0)) layers.set(0, []);
 
-  const devices = deviceNames(document.devices, context.diagnostics);
+  const devices = deviceNames(document.devices);
   const text = render(document, source, devices, layers, context);
   return { text, diagnostics: context.diagnostics };
 }
@@ -188,30 +188,17 @@ export function macKeycodeSupport(keycode: string): MacKeycodeSupport {
 /**
  * 適用先デバイスを kanata の名前にする。
  *
- * kanata は macOS のデバイスを名前でしか指せない。外付けの vendor / product id は写せないので
- * error にする（ADR 0049）。
+ * kanata は macOS のデバイスを製品名の完全一致で指す。内蔵は固定の名前、外付けは宣言した
+ * 名前をそのまま使う（ADR 0052）。同じ名前は 1 つにまとめる。
+ *
+ * @doc docs/specs/mac-keymap.md#generatekanataconfig
  */
-function deviceNames(
-  devices: readonly MacDeviceIdentifier[],
-  diagnostics: Diagnostic[],
-): readonly string[] {
-  const names: string[] = [];
-  for (const device of devices) {
-    if ("builtIn" in device) {
-      names.push(BUILT_IN_KEYBOARD_NAME);
-      continue;
-    }
-    diagnostics.push(
-      createDiagnostic(
-        "mac-keymap/unsupported-device",
-        "error",
-        { kind: "document" },
-        `外付けキーボード（vendor_id ${device.vendorId}、product_id ${device.productId}）は kanata で指せない`,
-        { vendorId: device.vendorId, productId: device.productId },
-      ),
-    );
-  }
-  return names;
+export function deviceNames(devices: readonly MacDeviceIdentifier[]): readonly string[] {
+  return [
+    ...new Set(
+      devices.map((device) => ("builtIn" in device ? BUILT_IN_KEYBOARD_NAME : device.name)),
+    ),
+  ];
 }
 
 function render(

@@ -58,6 +58,35 @@ export interface KanataHost {
   reachable(): Promise<boolean>;
   /** kanata の実行ファイルの path。見つからなければ `undefined`。 */
   binary(): Promise<string | undefined>;
+  /** `kanata --list` が出す、今つながっているキーボード。kanata が入っていなければ `undefined`。 */
+  keyboards(): Promise<readonly KanataKeyboard[] | undefined>;
+}
+
+/** `kanata --list` に出たキーボード 1 台。`name` は kanata が照合する製品名。 */
+export interface KanataKeyboard {
+  readonly name: string;
+  readonly vendorId: number;
+  readonly productId: number;
+}
+
+/**
+ * `kanata --list` の出力からキーボードを取り出す。
+ *
+ * 表の行（`0x<hash> <vendor_id> <product_id> <product_key>`、id は 10 進）だけを読む。
+ * Karabiner の VirtualHIDKeyboard は kanata の出力先なので外す。一覧は root なしで読める
+ * （2026-09-30 に確認）。
+ *
+ * @doc docs/specs/mac-keymap.md#kanatahost
+ */
+export function parseKanataList(text: string): readonly KanataKeyboard[] {
+  const keyboards: KanataKeyboard[] = [];
+  for (const line of text.split("\n")) {
+    const match = /^0x[0-9A-Fa-f]+\s+([0-9]+)\s+([0-9]+)\s+(.+?)\s*$/.exec(line);
+    if (match?.[1] === undefined || match[2] === undefined || match[3] === undefined) continue;
+    if (match[3].includes("Karabiner")) continue;
+    keyboards.push({ name: match[3], vendorId: Number(match[1]), productId: Number(match[2]) });
+  }
+  return keyboards;
 }
 
 /**
@@ -94,6 +123,12 @@ export function createKanataHost(
     },
     reload: () => reloadOverTcp(port),
     reachable: () => reachable(port),
+    async keyboards() {
+      const kanata = await binary();
+      if (kanata === undefined) return undefined;
+      const { stdout } = await execFileAsync(kanata, ["--list"]);
+      return parseKanataList(stdout);
+    },
   };
 }
 

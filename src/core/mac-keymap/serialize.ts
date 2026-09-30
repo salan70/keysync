@@ -41,12 +41,10 @@ export function serializeMacKeymapYaml(document: MacKeymapDocument): string {
  * device 1 個を 1 行の flow mapping にする。
  *
  * 疎な map を 1 行ずつ置くこの file の方針に合わせ、block mapping へは展開しない。
- * parser が受ける形もこの 2 形だけ（ADR 0026）。
+ * parser が受ける形もこの 2 形だけ（ADR 0026・0052）。
  */
 function deviceFlow(device: MacDeviceIdentifier): string {
-  return "builtIn" in device
-    ? "{ built_in: true }"
-    : `{ vendor_id: ${device.vendorId}, product_id: ${device.productId} }`;
+  return "builtIn" in device ? "{ built_in: true }" : `{ name: ${quote(device.name)} }`;
 }
 
 function quote(value: string): string {

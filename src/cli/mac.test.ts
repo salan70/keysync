@@ -12,7 +12,7 @@ import { Readable } from "node:stream";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { main } from "./main.ts";
-import type { KanataHost, KanataReload, KanataResult } from "../kanata/node.ts";
+import type { KanataHost, KanataKeyboard, KanataReload, KanataResult } from "../kanata/node.ts";
 import type { ServiceHost, ServiceResult } from "../kanata/service.ts";
 import type { KeyRecorder, KeyRecording } from "../mac/key-recorder.ts";
 import { parseKeyLog } from "../core/typing-log/format.ts";
@@ -46,6 +46,7 @@ function fakeKanataHost(
     readonly reload?: KanataReload;
     readonly running?: boolean;
     readonly absent?: boolean;
+    readonly keyboards?: readonly KanataKeyboard[];
   } = {},
 ): KanataHost & { readonly calls: string[] } {
   const calls: string[] = [];
@@ -66,6 +67,13 @@ function fakeKanataHost(
     async binary() {
       return absent ? undefined : "/opt/homebrew/bin/kanata";
     },
+    async keyboards() {
+      return absent
+        ? undefined
+        : (options.keyboards ?? [
+            { name: "Apple Internal Keyboard / Trackpad", vendorId: 0, productId: 0 },
+          ]);
+    },
   };
 }
 
@@ -85,6 +93,10 @@ function fakeServiceHost(
     },
     async bootstrap() {
       calls.push("bootstrap");
+      return { ok: true, output: "" };
+    },
+    async restart() {
+      calls.push("restart");
       return { ok: true, output: "" };
     },
   };
@@ -830,4 +842,87 @@ test("mac record の --tasks は roll|hold|all だけを受ける", async () => 
   } finally {
     console.error = originalError;
   }
+});
+
+/** 内蔵と、外付けの Magic Keyboard がつながっている Mac。 */
+const WITH_MAGIC_KEYBOARD: readonly KanataKeyboard[] = [
+  { name: "Apple Internal Keyboard / Trackpad", vendorId: 0, productId: 0 },
+  { name: "Magic Keyboard", vendorId: 76, productId: 614 },
+];
+
+test("mac devices は kanata が見ているキーボードを出し、何も書かない", async () => {
+  const { root, karabiner, desired } = await workspace();
+  const before = await readFile(desired, "utf8");
+  const { code, out } = await capture(
+    ["mac", "devices", "--layout", "jis", "--workspace", root, "--karabiner", karabiner],
+    fakeKanataHost({ keyboards: WITH_MAGIC_KEYBOARD }),
+  );
+  strictEqual(code, 0);
+  const json = JSON.parse(out) as {
+    observed: readonly {
+      name: string;
+      registered: boolean;
+      karabinerGrabs: boolean;
+      add: string | null;
+    }[];
+  };
+  deepStrictEqual(
+    json.observed.map(({ name, registered, karabinerGrabs, add }) => ({
+      name,
+      registered,
+      karabinerGrabs,
+      add,
+    })),
+    [
+      {
+        name: "Apple Internal Keyboard / Trackpad",
+        registered: true,
+        karabinerGrabs: true,
+        add: null,
+      },
+      {
+        name: "Magic Keyboard",
+        registered: false,
+        karabinerGrabs: true,
+        add: 'keysync mac devices --layout jis --add "Magic Keyboard"',
+      },
+    ],
+  );
+  strictEqual(await readFile(desired, "utf8"), before);
+});
+
+test("mac devices --add は一覧に出た名前を適用先に足す", async () => {
+  const { root, desired } = await workspace();
+  const { code } = await capture(
+    ["mac", "devices", "--layout", "jis", "--workspace", root, "--add", "Magic Keyboard"],
+    fakeKanataHost({ keyboards: WITH_MAGIC_KEYBOARD }),
+  );
+  strictEqual(code, 0);
+  const text = await readFile(desired, "utf8");
+  strictEqual(
+    text.includes('devices:\n  - { built_in: true }\n  - { name: "Magic Keyboard" }\n'),
+    true,
+  );
+});
+
+test("mac devices --add は今つながっていない名前を拒み、何も書かない", async () => {
+  const { root, desired } = await workspace();
+  const before = await readFile(desired, "utf8");
+  const { code } = await capture(
+    ["mac", "devices", "--layout", "jis", "--workspace", root, "--add", "Magic Keybord"],
+    fakeKanataHost({ keyboards: WITH_MAGIC_KEYBOARD }),
+  );
+  strictEqual(code, 1);
+  strictEqual(await readFile(desired, "utf8"), before);
+});
+
+test("mac service restart は登録済みの kanata だけを起動し直す", async () => {
+  const { root } = await workspace();
+  const argv = ["mac", "service", "restart", "--layout", "jis", "--workspace", root];
+  const installed = fakeServiceHost({ installed: true });
+  strictEqual((await capture(argv, fakeKanataHost(), installed)).code, 0);
+  deepStrictEqual(installed.calls, ["restart"]);
+  const missing = fakeServiceHost({ installed: false });
+  strictEqual((await capture(argv, fakeKanataHost(), missing)).code, 1);
+  deepStrictEqual(missing.calls, []);
 });

@@ -73,6 +73,16 @@ export function planMacApply(
       ),
     );
   }
+  if (current !== undefined && includedDevices(current) !== includedDevices(text)) {
+    diagnostics.push(
+      createDiagnostic(
+        "mac-keymap/devices-need-restart",
+        "warning",
+        { kind: "document" },
+        "適用先デバイスが変わる。kanata は掴むデバイスを起動時に決め、Reload では変えないので、適用後に keysync mac service restart で kanata を起動し直す",
+      ),
+    );
+  }
   return {
     validation,
     diagnostics,
@@ -82,6 +92,15 @@ export function planMacApply(
     entries: diffKanataText(current ?? "", text),
     fingerprint: fingerprint(text, diagnostics),
   };
+}
+
+/**
+ * kanata の設定の `macos-dev-names-include` の行。無ければ `undefined`。
+ *
+ * kanata は掴むデバイスを起動時に決め、Reload では読み直さない（ADR 0052）。
+ */
+function includedDevices(text: string): string | undefined {
+  return /^ {2}macos-dev-names-include .*$/m.exec(text)?.[0];
 }
 
 /**
@@ -143,21 +162,45 @@ export function appliedTappingTermMs(text: string): number | null {
  * @doc docs/specs/mac-keymap.md#planmacapply
  */
 export function karabinerGrabsBuiltIn(config: unknown): boolean {
-  const profiles = record(config)?.profiles;
-  if (!Array.isArray(profiles)) return true;
-  const selected = profiles.map(record).find((profile) => profile?.selected === true);
-  const devices = selected?.devices;
-  if (!Array.isArray(devices)) return true;
-  return !devices.map(record).some((device) => {
-    const identifiers = record(device?.identifiers);
-    if (identifiers === undefined || device?.ignore !== true) return false;
-    const builtIn =
+  return !ignoredDevices(config).some(
+    (identifiers) =>
       identifiers.is_built_in_keyboard === true ||
       (identifiers.is_keyboard === true &&
         identifiers.vendor_id === undefined &&
-        identifiers.product_id === undefined);
-    return builtIn;
-  });
+        identifiers.product_id === undefined),
+  );
+}
+
+/**
+ * `karabiner.json` の内容から、Karabiner-Elements が外付けキーボードを掴むかを判定する。
+ *
+ * 内蔵と同じく、選択中の profile で vendor / product id が一致する項目が `ignore: true` なら
+ * 掴まない。掴んでいると kanata がそのキーボードを開けない（ADR 0052）。
+ *
+ * @doc docs/specs/mac-keymap.md#planmacapply
+ */
+export function karabinerGrabsExternal(
+  config: unknown,
+  vendorId: number,
+  productId: number,
+): boolean {
+  return !ignoredDevices(config).some(
+    (identifiers) => identifiers.vendor_id === vendorId && identifiers.product_id === productId,
+  );
+}
+
+/** 選択中の profile で `ignore: true` の項目の `identifiers`。形が読めなければ空。 */
+function ignoredDevices(config: unknown): readonly Record<string, unknown>[] {
+  const profiles = record(config)?.profiles;
+  if (!Array.isArray(profiles)) return [];
+  const selected = profiles.map(record).find((profile) => profile?.selected === true);
+  const devices = selected?.devices;
+  if (!Array.isArray(devices)) return [];
+  return devices
+    .map(record)
+    .filter((device) => device?.ignore === true)
+    .map((device) => record(device?.identifiers))
+    .filter((identifiers) => identifiers !== undefined);
 }
 
 interface IndexedLine {

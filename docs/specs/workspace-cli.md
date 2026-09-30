@@ -153,7 +153,7 @@ Web UIの移行と同じ`planLayoutMigration`と`writeLayoutMigration`を通る�
 移す必要が無ければ`migrated: false`を返して何も書かない。
 `cornix/`を指したままのworkspaceへ他のcommandを使うと、`keysync migrate`を案内して止まる。
 
-MacBook内蔵キーボードは`keysync mac generate|diff|apply|service|record`で扱う。engineはkanataで（ADR 0049）、仕様は
+MacBook内蔵キーボードと同じ配列の外付けキーボードは`keysync mac generate|diff|apply|devices|service|record`で扱う。engineはkanataで（ADR 0049）、仕様は
 `mac-keymap.md`にある。`keymap.yaml`もdefinitionも要らないため、`import vil`と同じく
 **workspaceを読み込む手前で分岐**する。`--config <path>`（kanataの設定ファイル）の既定は
 `~/Library/Application Support/keysync/kanata.kbd`、`--karabiner <path>`（内蔵キーボードを掴んでいないかを
@@ -168,9 +168,13 @@ MacBook内蔵キーボードは`keysync mac generate|diff|apply|service|record`�
 kanataの設定ファイルを書き、常駐しているkanataに読み直させる。手順は`mac-keymap.md`の「適用の境界」にある。
 error diagnosticが1件でもあれば適用せず、checkが落ちても書き込まない。
 
-`keysync mac service status|install`はkanataの常駐（launchd）を扱う。`status`（既定）は登録・常駐・設定ファイルの有無と、
+`keysync mac devices`は`kanata --list`でつながっているキーボードを出し、登録済みかとKarabinerが掴んでいるかを添えて何も書かない。
+`--add <name>`は一覧に出た名前だけを`devices`へ足す（ADR 0052）。
+
+`keysync mac service status|install|restart`はkanataの常駐（launchd）を扱う。`status`（既定）は登録・常駐・設定ファイルの有無と、
 Karabinerが内蔵キーボードを掴んでいるかを出して何も書かない。`install`はplistを`keysync/generated/`へ生成し、
 端末の`sudo`で`/Library/LaunchDaemons/`へ置いて登録する。kanataの設定ファイルが無ければ登録しない。
+`restart`は登録済みのkanataを端末の`sudo`で起動し直す。
 
 Linuxで使うApple製キーボードは`keysync linux devices|generate|diff|apply`で扱う（ADR 0042）。
 仕様は`linux-keymap.md`にある。`mac`と同じくworkspaceを読み込む手前で分岐する。

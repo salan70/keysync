@@ -286,14 +286,14 @@ test("範囲外や整数でない tapping_term_ms は読まずに落ちる", () 
 test("内蔵と外付けを並べた devices が round-trip する", () => {
   const document: MacKeymapDocument = {
     layout: "ansi",
-    devices: [{ builtIn: true }, { vendorId: 1452, productId: 630 }],
+    devices: [{ builtIn: true }, { name: "Tetsuo's Magic Keyboard" }],
     tappingTermMs: 200,
     flowTapTermMs: 0,
     layers: new Map([[0, new Map([["a", "KC_A"]])]]),
   };
   const text = serializeMacKeymapYaml(document);
   strictEqual(
-    text.includes("devices:\n  - { built_in: true }\n  - { vendor_id: 1452, product_id: 630 }\n"),
+    text.includes('devices:\n  - { built_in: true }\n  - { name: "Tetsuo\'s Magic Keyboard" }\n'),
     true,
   );
   deepStrictEqual(parseMacKeymapYaml(text), document);
@@ -310,6 +310,23 @@ test("devices を 2 回書いた設定は落ちる", () => {
     "layers:",
   ].join("\n");
   throws(() => parseMacKeymapYaml(text), MacKeymapParseError);
+});
+
+test("外付けを vendor_id / product_id で書いた設定は、名前で書き直すよう落ちる", () => {
+  const text = [
+    "schema: keysync/mac-keymap@1",
+    "devices:",
+    "  - { vendor_id: 1452, product_id: 630 }",
+    "layers:",
+  ].join("\n");
+  throws(() => parseMacKeymapYaml(text), /name/);
+});
+
+test("kanata の文字列に書けない名前は落ちる", () => {
+  for (const name of ['""', '"a\\"b"', '"a\\\\b"', '" "']) {
+    const text = ["schema: keysync/mac-keymap@1", "devices:", `  - { name: ${name} }`, "layers:"];
+    throws(() => parseMacKeymapYaml(text.join("\n")), MacKeymapParseError, name);
+  }
 });
 
 test("解釈できない devices の行は落ちる", () => {

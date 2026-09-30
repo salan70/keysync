@@ -1,0 +1,26 @@
+Available keyboard devices:
+===========================
+
+hash                 vendor_id  product_id product_key
+------------------   --------   --------   --------------------------------------------------
+0xD4359520DA829EC8   0          0          Apple Internal Keyboard / Trackpad
+0x2E7E3EBD4C615B55   5824       10203      Karabiner DriverKit VirtualHIDKeyboard 1.8.0
+0x8D934E552394995D   1452       591        Karabiner DriverKit VirtualHIDKeyboard 1.8.0
+------------------   --------   --------   --------------------------------------------------
+
+Note: Karabiner virtual devices detected. Device hashes may not be stable because Karabiner virtualizes HID devices. Prefer name-based matching.
+
+Configuration example:
+  (defcfg
+    macos-dev-names-include (
+      "Apple Internal Keyboard / Trackpad"
+      "Karabiner DriverKit VirtualHIDKeyboard 1.8.0"
+      "Karabiner DriverKit VirtualHIDKeyboard 1.8.0"
+    )
+    or instead:
+    macos-dev-names-include (
+      "0xD4359520DA829EC8"
+      "0x2E7E3EBD4C615B55"
+      "0x8D934E552394995D"
+    )
+  )

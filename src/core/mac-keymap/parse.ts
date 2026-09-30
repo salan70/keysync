@@ -22,6 +22,7 @@ import {
   LEGACY_MAC_KEYMAP_SCHEMA,
   MAC_KEYMAP_SCHEMA,
   MacKeymapParseError,
+  isMacDeviceName,
   type MacDeviceIdentifier,
   type MacKeyboardLayout,
   type MacKeymapDocument,
@@ -30,7 +31,8 @@ import {
 const LAYER_PATTERN = /^ {2}([0-9]+):$/;
 const ASSIGNMENT_PATTERN = /^ {4}("(?:\\.|[^"\\])*"):(?:\s+)(.*)$/;
 const BUILT_IN_DEVICE_PATTERN = /^ {2}- \{ built_in: true \}$/;
-const EXTERNAL_DEVICE_PATTERN = /^ {2}- \{ vendor_id: ([0-9]+), product_id: ([0-9]+) \}$/;
+const NAMED_DEVICE_PATTERN = /^ {2}- \{ name: ("(?:\\.|[^"\\])*") \}$/;
+const ID_DEVICE_PATTERN = /^ {2}- \{ vendor_id: [0-9]+, product_id: [0-9]+ \}$/;
 
 /** @doc docs/specs/mac-keymap.md#parsemackeymapyaml */
 export function parseMacKeymapYaml(text: string): MacKeymapDocument {
@@ -102,10 +104,22 @@ export function parseMacKeymapYaml(text: string): MacKeymapDocument {
         devices.push({ builtIn: true });
         continue;
       }
-      const external = EXTERNAL_DEVICE_PATTERN.exec(line);
-      if (external?.[1] !== undefined && external[2] !== undefined) {
-        devices.push({ vendorId: Number(external[1]), productId: Number(external[2]) });
+      const named = NAMED_DEVICE_PATTERN.exec(line);
+      if (named?.[1] !== undefined) {
+        const name = JSON.parse(named[1]) as string;
+        if (!isMacDeviceName(name)) {
+          throw new MacKeymapParseError(
+            `${lineNumber} 行目の name は空でなく " と \\ を含まない文字列`,
+          );
+        }
+        devices.push({ name });
         continue;
+      }
+      // ADR 0052 より前の形。kanata は id で指せないので、名前で書き直させる。
+      if (ID_DEVICE_PATTERN.test(line)) {
+        throw new MacKeymapParseError(
+          `${lineNumber} 行目: 外付けは vendor_id / product_id ではなく { name: "…" } で書く（keysync mac devices で名前を確かめる）`,
+        );
       }
     }
 

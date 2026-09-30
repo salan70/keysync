@@ -37,8 +37,9 @@ desired stateの内容です。schema識別子は`keysync/mac-keymap@1`で、
 
 `devices`はこの設定を適用するデバイスです。設定の単位は「内蔵キーボード」ではなく
 **物理配列**で、同じ配列の内蔵キーボードと外付けキーボードへ同じ設定を効かせます
-（ADR 0026）。内蔵は`{ builtIn: true }`、外付けは`{ vendorId, productId }`です。
-kanataはmacOSのデバイスを名前でしか指せないため、外付けは生成器がerrorにします（ADR 0049）。`layout`と同じく
+（ADR 0026）。内蔵は`{ builtIn: true }`、外付けは`{ name }`です。kanataはmacOSのデバイスを
+製品名の完全一致でしか指せないため、外付けは`kanata --list`が出す製品名で持ちます（ADR 0052）。
+名前は空でなく、`"`・`\`・制御文字を含みません。`layout`と同じく
 YAMLでは省略でき、省略時は内蔵キーボードだけ（`DEFAULT_MAC_DEVICES`）です。
 
 `tappingTermMs`はmod-tapのtapとholdを分ける閾値（ms）です。全mod-tapで共通の1値で、
@@ -178,7 +179,8 @@ layer 0では素通し、layer 1以上では割り当てなしへ戻します。
 空になったlayerは残します。「割り当てを外したらlayerが消える」という驚きを避けるためです。
 
 `addMacDevice`は適用先デバイスを末尾へ足します。既にあるデバイスは足しません。順序は
-追加順のまま保ちます。並べ替えるとdiffが動くためです。
+追加順のまま保ちます。並べ替えるとdiffが動くためです。kanataの文字列に書けない名前は
+`MacKeymapEditError`で拒みます。
 
 `setMacTappingTerm`はmod-tapの閾値を差し替えます。50〜1000の整数でなければ
 `MacKeymapEditError`で拒みます。同じ値なら元のdocumentをそのまま返します（ADR 0044）。
@@ -204,6 +206,7 @@ fixtureの全from位置を被覆する。座標と幅はApple公開の製品画�
 矩形で近似します。
 
 <!-- @code src/core/mac-keymap/kanata/generate.ts#generateKanataConfig -->
+<!-- @code src/core/mac-keymap/kanata/generate.ts#deviceNames -->
 
 ## generateKanataConfig
 
@@ -225,8 +228,9 @@ Vial settings（Permissive Hold、Chordal Hold、Flow Tap）に合わせます�
 
 設定の組み立ての規則は以下です。
 
-- `defcfg`で`process-unmapped-keys yes`にし、`macos-dev-names-include`で内蔵キーボード
-  （`"Apple Internal Keyboard / Trackpad"`）だけを掴みます。Cornix LPなどの外付けには触りません
+- `defcfg`で`process-unmapped-keys yes`にし、`macos-dev-names-include`で`devices`のキーボードだけを
+  掴みます。内蔵は`"Apple Internal Keyboard / Trackpad"`、外付けは宣言した名前で、同じ名前は
+  1つにまとめます（`deviceNames`、ADR 0052）。宣言していないCornix LPなどには触りません
 - layerは番号の昇順に`deflayermap`で並べます。layer 0は`base`、それ以外は`l<n>`です。
   kanataは最初のlayerを起動時のlayerにします。layer 1以上は最後に`___ XX`を置き、書かれて
   いないキーを割り当てなしにします（ADR 0050）。`MO` / `LT`が指すlayerは、割り当てが無くても空のlayerを出します
@@ -242,7 +246,6 @@ Vial settings（Permissive Hold、Chordal Hold、Flow Tap）に合わせます�
 - `flowTapTermMs`が0より大きいとき、`defcfg`に`tap-hold-require-prior-idle <flowTapTermMs>`を
   書きます（Flow Tap、ADR 0047）。tap側が文字キー（`a`〜`z`、`comma`、`period`、`semicolon`、
   `slash`、`spacebar`で修飾なし）でないtap-holdには`(require-prior-idle 0)`を付けて外します
-- 外付けの`{ vendorId, productId }`はkanataが指せないので、`mac-keymap/unsupported-device`（error）にします
 - 位置の語彙に無いキーは書かずに飛ばします。`validateMacKeymap`の`unknown-position`が報告するためです
 
 `key_code`名の昇順で並べます。生成物が入力の書き順に依存しないようにするためです。
@@ -277,7 +280,6 @@ severityの判定規則はADR 0010のままです。kanataへ落とせず**機�
 | `mac-keymap/no-target-device`            | error       | `devices`が空。どのキーボードにも適用されない    |
 | `mac-keymap/unknown-position`            | error       | 位置の語彙（`KARABINER_POSITIONS`）に無い位置    |
 | `mac-keymap/unsupported-position`        | error       | kanataに対応するキー名が無い位置                 |
-| `mac-keymap/unsupported-device`          | error       | kanataが指せない外付けデバイス                   |
 | `mac-keymap/unsupported-keycode`         | error       | 対応するキーが無い、または落とせない構文（`TG`） |
 | `mac-keymap/unsupported-mod-tap`         | error       | mod-tapのmodifierかtap側を落とせない             |
 | `mac-keymap/unsupported-layer-tap-inner` | error       | `LT`のtap側を落とせない                          |
@@ -290,11 +292,12 @@ severityの判定規則はADR 0010のままです。kanataへ落とせず**機�
 
 <!-- @code src/kanata/node.ts#KanataHost -->
 <!-- @code src/kanata/node.ts#createKanataHost -->
+<!-- @code src/kanata/node.ts#parseKanataList -->
 
 ## KanataHost
 
 kanataの呼び出し口です。`kanata --check`、常駐しているkanataへのReload、TCP serverへの
-到達確認、実行ファイルの探索の4つを持ちます。
+到達確認、実行ファイルの探索、つながっているキーボードの一覧の5つを持ちます。
 
 interfaceにしているのは**testから差し替えるため**です。CIのmacOS runnerでkanataは動かせず、
 実物を通すと開発機でtestを回しただけで常駐しているkanataがreloadされます。
@@ -306,6 +309,9 @@ nixのdevShellから起動し、MacのdevShellはflakeで固定したkanataをPA
 Reloadは`127.0.0.1:5179`のTCP serverへ`{"Reload":{"wait":true}}`を1行で送り、`ReloadResult`を
 待ちます。kanataは1行1 JSONで応答し、結果の前にlayerの変化などの通知が混ざることがあるため、
 `ReloadResult`か`Error`が来るまで読み進めます。接続を拒まれたら`not-running`です。
+
+キーボードの一覧は`kanata --list`の表を`parseKanataList`で読みます。rootは要りません。
+名前はkanataが照合する製品名のままで、Karabinerの仮想キーボードは外します（ADR 0052）。
 
 <!-- @code src/kanata/service.ts#kanataServicePlist -->
 
@@ -322,7 +328,9 @@ kanataを常駐させるlaunchdのplist（label `dev.keysync.kanata`）です。
 ## ServiceHost
 
 launchdとsudoの呼び出し口です。plistが置かれているかの確認、`sudo install`での配置、
-`sudo launchctl bootstrap system`での登録を持ちます。登録済みなら先に`bootout`します。
+`sudo launchctl bootstrap system`での登録、`sudo launchctl kickstart -k`での起動し直しを持ちます。
+登録済みなら登録の前に`bootout`します。kanataは掴むデバイスを起動時に決めるので、適用先を
+変えたときと、起動後に初めて外付けを繋いだときは起動し直します（ADR 0052）。
 
 kanataは内蔵キーボードを掴み、Karabinerの仮想キーボードのdaemonへ出力するためrootで動きます。
 KeySyncはパスワードを扱わず、`sudo`を子プロセスとして起動して端末の認証へ任せます
@@ -402,6 +410,7 @@ backupは読んだテキストをそのまま`keysync/backups/kanata-<時刻>.kb
 <!-- @code src/core/mac-keymap/apply.ts#verifyMacApply -->
 <!-- @code src/core/mac-keymap/apply.ts#diffKanataText -->
 <!-- @code src/core/mac-keymap/apply.ts#karabinerGrabsBuiltIn -->
+<!-- @code src/core/mac-keymap/apply.ts#karabinerGrabsExternal -->
 
 ## planMacApply
 
@@ -418,6 +427,12 @@ writeは行いません。`verifyMacApply`は、適用後に読み直したフ�
 選択中のprofileの`devices`に、vendor / product idを持たないキーボードを`ignore: true`にした項目が
 あれば掴みません。Karabinerの「Modify events」を切るとこの項目が書かれます（R-010で確認）。
 掴むときは`mac-keymap/karabiner-grabs-built-in`（warning）を出します。kanataへ入力が届かないためです。
+`karabinerGrabsExternal`は外付けについて同じことを、vendor / product idが一致する項目で判定します。
+`keysync mac devices`が一覧に載せます。
+
+現在のファイルと生成物で`macos-dev-names-include`の行が違えば、`mac-keymap/devices-need-restart`
+（warning）を出します。kanataは掴むデバイスをReloadで変えないため、適用後に起動し直す必要があります
+（ADR 0052）。現在のファイルが無い初回の適用では出しません。
 
 `fingerprint`は人間の確認と適用を結びつける同一性の指紋で、テキストと診断から作ります。表示用では
 ありません。CLIの`keysync mac apply`は`--confirm <fingerprint>`が一致したときだけ書き込みます。

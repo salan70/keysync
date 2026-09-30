@@ -104,7 +104,7 @@ test("適用先ラベルはdevicesから組む", () => {
       kind: "ready",
       document: {
         ...base,
-        devices: [{ builtIn: true }, { vendorId: 1452, productId: 630 }],
+        devices: [{ builtIn: true }, { name: "Magic Keyboard" }],
         tappingTermMs: 200,
         flowTapTermMs: 0,
       },

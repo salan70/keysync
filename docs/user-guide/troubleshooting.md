@@ -48,3 +48,8 @@ Git で正しい commit に戻し、`ファイル` の `再読込` を押しま�
 1. `nix run github:salan70/keysync#install` を実行し直します。\
    kanata の常駐、許可、Karabiner の設定を確かめ、足りないものを案内します。
 2. それでも効かないときは、`/var/log/keysync-kanata.log` を確かめます。
+
+### 外付けキーボードにだけ効かない
+
+`just mac service restart` で kanata を起動し直します。\
+それでも効かないときは、[外付けキーボードに効かせる](./cli.md#外付けキーボードに効かせる) の手順を確かめます。

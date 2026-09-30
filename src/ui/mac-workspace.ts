@@ -85,7 +85,7 @@ export function macScopeLabel(state: MacWorkspaceState): string {
   if (state.kind === "missing") return "未作成";
   if (state.kind === "error") return "読み込み失敗";
   const builtIn = state.document.devices.some((device) => "builtIn" in device);
-  const external = state.document.devices.some((device) => "vendorId" in device);
+  const external = state.document.devices.some((device) => "name" in device);
   if (state.document.devices.length === 0) return "適用先なし";
   if (builtIn && external) return "内蔵 + 外付け";
   if (builtIn) return "内蔵";

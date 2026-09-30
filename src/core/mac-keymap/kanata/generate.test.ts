@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { DEFAULT_MAC_DEVICES, type MacKeyboardLayout, type MacKeymapDocument } from "../types.ts";
-import { generateKanataConfig, macKeycodeSupport } from "./generate.ts";
+import { deviceNames, generateKanataConfig, macKeycodeSupport } from "./generate.ts";
 import { KANATA_KEY_NAMES } from "./key-names.ts";
 
 function documentOf(
@@ -119,7 +119,7 @@ test("layer 1 以上は書かれていないキーを割り当てなしにし、
   deepStrictEqual([...layers.keys()], ["base", "l1", "l2"]);
 });
 
-test("内蔵キーボードだけを名前で指し、外付けは error にする", () => {
+test("内蔵キーボードは固定の名前、外付けは宣言した名前で指す", () => {
   const { text } = generateKanataConfig(USER);
   strictEqual(
     text.includes('  macos-dev-names-include ("Apple Internal Keyboard / Trackpad")\n'),
@@ -127,11 +127,21 @@ test("内蔵キーボードだけを名前で指し、外付けは error にす�
   );
   const external = generateKanataConfig({
     ...USER,
-    devices: [{ builtIn: true }, { vendorId: 1452, productId: 630 }],
+    devices: [{ builtIn: true }, { name: "Magic Keyboard" }],
   });
+  deepStrictEqual(external.diagnostics, []);
+  strictEqual(
+    external.text.includes(
+      '  macos-dev-names-include ("Apple Internal Keyboard / Trackpad" "Magic Keyboard")\n',
+    ),
+    true,
+  );
+});
+
+test("同じデバイスを指す名前は 1 つにまとめる", () => {
   deepStrictEqual(
-    external.diagnostics.map((one) => one.code),
-    ["mac-keymap/unsupported-device"],
+    deviceNames([{ builtIn: true }, { name: "Apple Internal Keyboard / Trackpad" }]),
+    ["Apple Internal Keyboard / Trackpad"],
   );
 });
 

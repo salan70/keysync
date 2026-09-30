@@ -98,6 +98,8 @@ export interface ServiceHost {
   install(source: string): Promise<ServiceResult>;
   /** 登録済みなら外してから `sudo launchctl bootstrap system <plist>` で登録し直す。 */
   bootstrap(): Promise<ServiceResult>;
+  /** `sudo launchctl kickstart -k` で kanata を起動し直す。掴むデバイスを決め直すのに使う。 */
+  restart(): Promise<ServiceResult>;
 }
 
 /**
@@ -132,6 +134,8 @@ export function createServiceHost(): ServiceHost {
       await interactive("sudo", ["launchctl", "bootout", `system/${KANATA_SERVICE_LABEL}`]);
       return await interactive("sudo", ["launchctl", "bootstrap", "system", KANATA_SERVICE_PLIST]);
     },
+    restart: () =>
+      interactive("sudo", ["launchctl", "kickstart", "-k", `system/${KANATA_SERVICE_LABEL}`]),
   };
 }
 

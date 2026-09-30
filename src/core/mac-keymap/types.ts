@@ -64,15 +64,22 @@ export function isMacFlowTapTerm(value: number): boolean {
 /**
  * この設定を適用するデバイス 1 個の識別子。
  *
- * 内蔵キーボードは vendor / product id を申告しない（2026-09-19 に
- * `karabiner_grabber_devices.json` で確認）。kanata への写像は `kanata/generate.ts` の
- * `deviceNames` だけが持ち、kanata は名前でしか指せないため外付けは error になる（ADR 0049）。
+ * kanata は macOS のデバイスを製品名の完全一致でしか指せないので、外付けは `kanata --list` が
+ * 出す製品名で持つ（ADR 0052）。kanata への写像は `kanata/generate.ts` の `deviceNames` だけが持つ。
  *
  * @doc docs/specs/mac-keymap.md#mackeymapdocument
  */
-export type MacDeviceIdentifier =
-  | { readonly builtIn: true }
-  | { readonly vendorId: number; readonly productId: number };
+export type MacDeviceIdentifier = { readonly builtIn: true } | { readonly name: string };
+
+/**
+ * 外付けの製品名として受ける文字列か。
+ *
+ * kanata の設定の文字列は `"` で囲むだけで escape を持たないので、`"` と `\` と制御文字を拒む。
+ */
+export function isMacDeviceName(name: string): boolean {
+  // oxlint-disable-next-line no-control-regex
+  return name.trim() !== "" && !/["\\\u0000-\u001f]/.test(name);
+}
 
 /**
  * YAML で `devices` を省略したときの既定。
