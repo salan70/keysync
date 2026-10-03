@@ -1,6 +1,6 @@
 ---
 name: docbridge
-description: Adopt or introduce DocBridge, choose docs and code scope, create or improve docbridge.config.json, add @doc and @code annotations, fix link diagnostics, triage related --gate findings, and review existing links for stale docs or semantic validity.
+description: Adopt or introduce DocBridge, choose docs and code scope, create or improve docbridge.config.json, add @doc and @code annotations or docbridge.links.json entries, fix link diagnostics, triage related --gate findings, and review existing links for stale docs or semantic validity.
 ---
 
 # docbridge
@@ -9,7 +9,7 @@ Route DocBridge work, then apply the matching judgment. Facts about the binary
 — annotation syntax, supported declarations, the anchor algorithm, diagnostic
 codes — live in packaged docs, not in this skill. Read them with
 `docbridge docs show`. Invocation is documented in
-`docbridge docs show agent-integration`.
+`docbridge docs show automation`.
 
 An agent with no DocBridge skill can still finish the job from
 `docbridge --help` plus `docbridge docs list` / `docbridge docs show`.
@@ -22,7 +22,7 @@ Pick **one** job before editing. The first matching question wins:
 | ----------------- | ------------------------------------------------------------------------------ | --------------------------------------------- |
 | Adopt             | Introduce DocBridge, choose docs/code scope, or write `docbridge.config.json`? | Linking existing files                        |
 | Discover and link | Choose what to link in existing docs, docs-first?                              | A known pair already confirmed                |
-| Annotate          | Add or fix a `@doc` / `@code` pair, or clear link diagnostics?                 | Deciding _whether_ a section should be linked |
+| Annotate          | Add or fix a `@doc` / `@code` pair or a manifest entry, or clear diagnostics?  | Deciding _whether_ a section should be linked |
 | Review            | Check whether the docs still match the code, with no change set?               | Gate findings on a diff                       |
 | Sync              | A Git hook, CI comment, or `related --gate` flagged unchanged counterparts?    | Auditing the whole graph                      |
 
@@ -51,7 +51,7 @@ Read `docbridge docs show getting-started` and `configuration`.
 ## Discover and link
 
 Work docs-first. Confirm docs scope, then follow
-`docbridge docs show linking-workflow`: prioritize unlinked specification
+`docbridge docs show linking`: prioritize unlinked specification
 sections, propose at most three symbols per section with why/uncertain, present
 5–10 sections per round, collect adopt/exclude/hold, and classify no-matches
 instead of forcing a link.
@@ -61,7 +61,7 @@ Add annotations only after section-level confirmation. Then follow Annotate.
 ## Annotate
 
 Create both sides of a pair, or add the missing backlink. Read
-`docbridge docs show annotations` for syntax, supported declarations, anchors,
+`docbridge docs show linking` for syntax, supported declarations, anchors,
 and target grammar. Read `docbridge docs show troubleshooting` for diagnostic
 codes and fixes.
 
@@ -73,14 +73,25 @@ no diagnostic mentions either endpoint.
 Do not split or rename headings in this job. Preserve existing annotations
 unless the user asked to fix a wrong link.
 
+### Manifest links
+
+Use `docbridge.links.json` when the project already declares links there, or
+when the user does not accept markers in a file. Read
+`docbridge docs show linking` for its format. Add one entry per link with the
+same `code` and `doc` targets an annotation pair would use; never declare a
+link that an annotation pair already provides. Fix `code_symbol_not_found` with
+the printed suggestion only after confirming it names the intended symbol.
+Verify with `docbridge check`.
+
 ## Sync
 
 A `related --gate` violation means nobody has decided yet, not that the
-counterpart must change. Read `docbridge docs show agent-integration` for the
+counterpart must change. Read `docbridge docs show automation` for the
 three-way judgment.
 
-1. Collect violations from the hook, CI comment, or
-   `git diff --name-only HEAD | docbridge related --stdin --gate`.
+1. Collect violations from the hook, CI comment, or, for uncommitted work
+   including new files,
+   `{ git diff --name-only HEAD; git ls-files --others --exclude-standard; } | docbridge related --stdin --gate`.
 2. Fetch counterpart content with `docbridge context` over the changed files.
 3. Per counterpart: update it when the documented contract diverged; leave it
    unchanged with a written justification that cites the counterpart content;
@@ -94,8 +105,8 @@ promise.
 
 ## Review
 
-Audit meaning across the whole graph, not a diff. Follow
-`docbridge docs show link-review`.
+Audit meaning across the whole graph, not a diff. Follow the semantic review
+procedure in `docbridge docs show linking`.
 
 Requires `docbridge graph --json --include-content`. Read `diagnostics` first.
 Batch by docs file. Read both sides. Classify High / Medium / Low. Report
@@ -116,11 +127,9 @@ silence uncertainty.
 ## Read more
 
 - `docbridge docs list` — the full menu
-- `docbridge docs show agent-integration` — invocation, gate judgment, hooks, CI
-- `docbridge docs show annotations` — `@doc` / `@code` rules
-- `docbridge docs show linking-workflow` — docs-first candidate discovery
-- `docbridge docs show link-review` — semantic audit
+- `docbridge docs show linking` — discovery, annotations, and semantic review
+- `docbridge docs show automation` — invocation, gate judgment, hooks, and CI
 - `docbridge docs show troubleshooting` — diagnostic codes and fixes
 - `docbridge docs show getting-started` — first-time setup
 - `docbridge docs show configuration` — `docbridge.config.json`
-- `docbridge docs show commands` — check, related, context, graph
+- `docbridge docs show commands` — check, related, context, graph, docs, upgrade

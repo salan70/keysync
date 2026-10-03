@@ -15,7 +15,7 @@
   # 定義元は .docbridge-version で、justfile / CI / pre-commit がこれを参照する。
   # スキル構成はこのバージョンと連動する（0.8.0 以降は単一の `docbridge` スキル）。
   # バージョンを上げるときは .docbridge-version を書き換えたうえで
-  # `docbridge init --yes --agent-target both --force` でスキルを更新する。
+  # `docbridge upgrade --force --yes` でスキルを更新する。
   outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
