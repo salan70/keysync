@@ -15,7 +15,9 @@ mtimeだけでなく読み出したcontent hashを優先する。
 
 ```text
 keymap.yaml
+keymap.<name>.yaml
 mac-keyboard.<layout>.yaml
+mac-keyboard.<layout>.<name>.yaml
 linux-keyboard.<layout>.yaml
 keysync/
   definitions/<digest-prefix>.json
@@ -45,6 +47,10 @@ ADR 0027より前の`mac-keyboard.yaml`は読み込み時の後方互換とし�
 `linux-keyboard.<layout>.yaml`（`linuxKeymapPath`）はLinuxで使うApple製キーボードのdesired stateで、
 Macの設定とは独立に編集する（ADR 0042）。仕様は`linux-keymap.md`にある。旧名は無い。
 
+`keymap.<name>.yaml`と`mac-keyboard.<layout>.<name>.yaml`は名前を付けて保持したキーマップで、
+適用対象（`keymap.yaml`、`mac-keyboard.<layout>.yaml`）と同じ形式のテキストをそのまま写したものである（ADR 0053）。
+CLI・サーバー・kanataの経路は適用対象だけを読み、保持は「キーマップの保持」の操作でしか触らない。
+
 <!-- @code src/workspace/default-root.ts#defaultWorkspaceRoot -->
 
 ## defaultWorkspaceRoot
@@ -72,6 +78,34 @@ Git管理されない場所へ設定が黙って書かれます。keysyncリポ�
 ## readLinuxKeymapFor
 
 指定した配列のLinux設定を読みます。ファイル名と中の`layout`宣言が食い違っていたら落とします。
+
+<!-- @code src/workspace/keymap-variants.ts#keymapVariantPath -->
+<!-- @code src/workspace/keymap-variants.ts#keymapVariantName -->
+<!-- @code src/workspace/keymap-variants.ts#listKeymapVariants -->
+<!-- @code src/workspace/keymap-variants.ts#matchKeymapVariant -->
+<!-- @code src/workspace/keymap-variants.ts#saveKeymapVariant -->
+<!-- @code src/workspace/keymap-variants.ts#switchKeymapVariant -->
+<!-- @code src/workspace/keymap-variants.ts#deleteKeymapVariant -->
+
+## キーマップの保持
+
+名前を付けて保持したキーマップと、適用対象との入れ替え（ADR 0053）。
+単位（`KeymapTarget`）はCornixが1つ、Macは物理配列ごとで、Web UIの編集対象と同じ形である。
+
+- 名前は`/^[a-z0-9][a-z0-9-]{0,63}$/`に合うものだけを受け付ける。`.`を含めないので、
+  ファイル名の`.`区切りから配列と名前を一意に切り出せる（`keymapVariantPath` / `keymapVariantName`）
+- 一覧（`listKeymapVariants`）はroot直下のファイル名から対象の保持だけを名前順に並べる
+- 照合（`matchKeymapVariant`）は適用対象と各保持を正規形（parseしてserializeしたテキスト）で比べ、
+  一致した保持の名前を返す。適用対象が無い・読めないときと、どれとも一致しないときは`undefined`。
+  読めない保持は比較から外す
+- 保持（`saveKeymapVariant`）は適用対象のテキストをコメントごとそのまま写す。同名は`overwrite`無しでは落とす。
+  適用対象が無ければ落とす
+- 切り替え（`switchKeymapVariant`）は、保持をparseで検査してから適用対象へ書き戻す。
+  Macは`layout`宣言が対象の配列と一致しなければ落とす。
+  適用対象があるときは、その内容がどれかの保持と一致していることを要求し、一致しなければ`KeymapVariantError`で落とす。
+  未保持の編集を黙って捨てないためである。戻り値の`from`は切り替え前に一致していた保持の名前
+- 削除（`deleteKeymapVariant`）は保持だけを消す。適用対象の名前は規則上ここへ来ない
+- 切り替えは適用ではない。実機やkanataへの反映は従来どおり人間が差分を確かめて行う
 
 ## 表示用labels
 
@@ -191,6 +225,12 @@ Linuxで使うApple製キーボードは`keysync linux devices|generate|diff|app
 kanataの設定ファイルは、記録した時点で効いていた閾値を残すために読むだけである。
 出力は記録した件数、開けたキーボードと開けなかったキーボード、警告、課題ごとの採点と判定の推定、全体の判定の推定である。
 仕様は`typing-log.md`にある。
+
+`keysync keymaps list|save <name>|switch <name>|delete <name> [--overwrite]`はCornixの、
+`keysync mac keymaps …`はMacの、名前を付けたキーマップの保持と切り替えである（ADR 0053）。
+どちらも`loadWorkspace`の手前で分岐し、適用対象が無くても使える。Macの配列は他のmac系と同じく検出か`--layout`で決める。
+`list`は適用対象のpath、現在の内容と一致する保持の名前（無ければ`null`）、保持の一覧を出す。
+`switch`は現在の内容がどの保持とも一致しなければ書かずに1で終わる。
 
 exit codeは他のコマンドと揃える。errorが1件でもあれば1、それ以外は0。
 

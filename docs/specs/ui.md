@@ -545,6 +545,21 @@ kanata の設定の書出は、Mac 表示中の実機パネルが担う。
 error が 1 件でもあれば書き出さない。
 kanata が読む設定ファイルへ書くのは CLI の `keysync mac apply` とローカルサーバーの適用 API だけで、Web UI 自身は書かない（ADR 0034・0049）。
 
+<!-- @code src/ui/state/use-keymap-variants.ts#useKeymapVariants -->
+<!-- @code src/ui/keymap-variant-view.ts#variantBlockedReason -->
+
+## キーマップの保持
+
+ファイルパネルは、ヘッダーで選んでいる編集対象の保持したキーマップを一覧し、名前を付けた保持、切り替え、削除を置く（ADR 0053）。
+ロジックは workspace 層の `keymap-variants.ts` で、Web UI は `ServerWorkspaceStore` を渡して呼ぶだけである。
+
+- 一覧と、現在の内容と一致する保持の名前は、パネルを開いたとき、編集対象を変えたとき、操作のあとに取り直す。編集のたびには取り直さない
+- 一致する保持が無ければ「未保持」と出し、一致している保持の「切り替え」は無効にする
+- 名前は `KEYMAP_VARIANT_NAME` で検査し、合わなければ理由を出して保持を無効にする。同名があれば上書きの確認を挟む
+- workspace のどのファイルでも保存キューが `saving` か失敗（`error` / `conflict`）なら保持と切り替えを止める（`variantBlockedReason`）。切り替え後の読み直しは workspace 全体をディスクから読むので、別の対象に画面だけの編集が残っていても消さないためである。削除は止めない
+- 適用対象を読めていなければ保持を無効にする。切り替えは適用対象が無くても使える
+- 切り替えは適用対象のファイルを書き戻し、`adoptStore` でディスクから読み直す。実機や kanata への適用は行わない
+
 <!-- @code src/ui/components/index.ts#BehaviorsPanel -->
 <!-- @code src/ui/components/index.ts#CornixReferences -->
 <!-- @code src/ui/components/index.ts#MacReferences -->

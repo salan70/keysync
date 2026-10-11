@@ -111,6 +111,7 @@ kanataが常駐していなければ、書き込んだうえで`applied`の`relo
 
 <!-- @code src/server/workspace-api.ts#createWorkspaceApi -->
 <!-- @code src/server/workspace-api.ts#workspacePath -->
+<!-- @code src/server/workspace-api.ts#workspaceDirectory -->
 <!-- @code src/server/protocol.ts#WORKSPACE_API -->
 
 ## createWorkspaceApi
@@ -126,6 +127,8 @@ Web UIはdirectoryを選ばず、これでサーバーのworkspaceを読み書�
 | `/api/workspace/stat`   | `{path}`         | 更新時刻とcontent hashを返す。無ければ`null` |
 | `/api/workspace/write`  | `{path, base64}` | 親directoryを作って書く                      |
 | `/api/workspace/mkdir`  | `{path}`         | directoryを作る                              |
+| `/api/workspace/list`   | `{directory}`    | directory直下のファイル名を名前順で返す      |
+| `/api/workspace/remove` | `{path}`         | 保持したキーマップを消す                     |
 
 `path`はworkspace rootからの相対pathです。
 `workspacePath`が次を拒否し、`{kind: "failed", message}`を返します。
@@ -133,6 +136,9 @@ Web UIはdirectoryを選ばず、これでサーバーのworkspaceを読み書�
 - `..`、`.`、空の区切り、`\`を含むpath
 - workspaceの配置（`workspace-cli.md`の「配置」）の外
 
-root直下で扱えるのは`keymap.yaml`と`mac-keyboard*.yaml`だけです。
+root直下で扱えるのは適用対象と名前を付けて保持したキーマップ（`isKeymapFile`、ADR 0053）と、旧名の`mac-keyboard.yaml`だけです。
 directoryは`keysync/`と、移行が読む改名前の`cornix/`だけです。
 Web UIの不具合でrepositoryの他のファイルを書き換えないためです。
+
+`list`の`directory`は`workspaceDirectory`が検査し、`""`（root）と管理ディレクトリだけを通します。
+`remove`は保持したキーマップ（`isKeymapVariantFile`）だけを消し、適用対象は拒みます。

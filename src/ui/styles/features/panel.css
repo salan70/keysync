@@ -372,6 +372,34 @@
   .step .kv {
     width: 100%;
   }
+  /* 保持したキーマップ。名前は省略記号で収め、操作は折り返さない。 */
+  .variant-list {
+    display: grid;
+    gap: var(--space-100);
+    width: 100%;
+  }
+  .variant-list li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-200);
+  }
+  .variant-name {
+    display: flex;
+    align-items: center;
+    gap: var(--space-200);
+    min-width: 0;
+  }
+  .variant-name > span:first-child {
+    overflow-wrap: anywhere;
+  }
+  .variant-actions {
+    display: flex;
+    gap: var(--space-100);
+  }
+  .step .variant-form {
+    width: 100%;
+  }
   .diff-mini {
     display: grid;
     gap: var(--space-50);

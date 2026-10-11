@@ -1,4 +1,7 @@
+import { useState } from "react";
 import type { IconStyle } from "../../icon-style.ts";
+import { canSaveVariant, variantNameProblem } from "../../keymap-variant-view.ts";
+import type { KeymapVariantsView } from "../../state/use-keymap-variants.ts";
 import { Button } from "../Button.tsx";
 import { Icon } from "../Icon.tsx";
 
@@ -19,6 +22,10 @@ export function FilesPanel({
   onReload,
   iconStyle,
   onIconStyle,
+  targetLabel,
+  hasActiveFile,
+  variantsView,
+  variantsBlockedReason,
 }: {
   readonly cornixReady: boolean;
   readonly canReload: boolean;
@@ -27,7 +34,25 @@ export function FilesPanel({
   readonly onReload: () => void;
   readonly iconStyle: IconStyle;
   readonly onIconStyle: (style: IconStyle) => void;
+  /** 保持の対象。「Cornix」「Mac（ANSI）」など。 */
+  readonly targetLabel: string;
+  /** 適用対象のファイルを読めているか。無いときは保持できない。 */
+  readonly hasActiveFile: boolean;
+  readonly variantsView: KeymapVariantsView;
+  /** 保存中・保存失敗で保持と切り替えを止める理由。 */
+  readonly variantsBlockedReason: string | undefined;
 }): React.JSX.Element {
+  const [name, setName] = useState("");
+  const { variants, matched, busy } = variantsView;
+  const nameProblem = variantNameProblem(name);
+  const canSave =
+    !busy &&
+    variantsBlockedReason === undefined &&
+    nameProblem === undefined &&
+    canSaveVariant(name, hasActiveFile);
+  const saveReason = !hasActiveFile
+    ? "適用対象のファイルを読み込めていないため保持できない。"
+    : variantsBlockedReason;
   return (
     <div className="steps">
       <section className="step">
@@ -45,6 +70,79 @@ export function FilesPanel({
           </Button>
         </div>
         {cornixReady ? null : <p className="hint">keymap.yaml を読み込めていないため使えない。</p>}
+      </section>
+      <section className="step" data-keymap-variants>
+        <h3 className="section-title">保持したキーマップ（{targetLabel}）</h3>
+        <p>
+          現在の内容に名前を付けて保持し、あとで切り替える。切り替えは適用対象のファイルを書き換えるだけで、実機と
+          kanata へは別途適用する。
+        </p>
+        <p className="hint">
+          {matched === undefined
+            ? "現在の内容は未保持。"
+            : `現在の内容は ${matched} と一致している。`}
+        </p>
+        {variants.length === 0 ? (
+          <p className="hint">保持したものはない。</p>
+        ) : (
+          <ul className="variant-list">
+            {variants.map((variant) => (
+              <li key={variant.name}>
+                <span className="variant-name">
+                  <span>{variant.name}</span>
+                  {variant.name === matched ? <span className="tag tag-on">現在</span> : null}
+                </span>
+                <span className="variant-actions">
+                  <Button
+                    size="small"
+                    appearance="secondary"
+                    disabled={
+                      busy || variantsBlockedReason !== undefined || variant.name === matched
+                    }
+                    onClick={() => void variantsView.switchTo(variant.name)}
+                  >
+                    切り替え
+                  </Button>
+                  <Button
+                    size="small"
+                    appearance="secondary"
+                    disabled={busy}
+                    onClick={() => void variantsView.remove(variant.name)}
+                  >
+                    削除
+                  </Button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form
+          className="field variant-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!canSave) return;
+            void variantsView.save(name).then(() => setName(""));
+          }}
+        >
+          <label htmlFor="variant-name">名前を付けて保持</label>
+          <div className="field-row">
+            <input
+              id="variant-name"
+              value={name}
+              placeholder="例: home-row"
+              spellCheck={false}
+              onChange={(event) => setName(event.target.value)}
+            />
+            <Button size="small" appearance="secondary" type="submit" disabled={!canSave}>
+              現在の内容を保持
+            </Button>
+          </div>
+        </form>
+        {nameProblem === undefined ? null : <p className="hint">{nameProblem}</p>}
+        {saveReason === undefined ? null : <p className="hint">{saveReason}</p>}
+        {variantsBlockedReason === undefined ? null : (
+          <p className="hint">切り替えも同じ理由で止めている。</p>
+        )}
       </section>
       <section className="step">
         <h3 className="section-title">ディスクから再読込</h3>

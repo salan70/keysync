@@ -33,11 +33,13 @@ nix run github:salan70/keysync#install
 
 ## workspace のファイル
 
-| パス                           | 内容                   |
-| ------------------------------ | ---------------------- |
-| `keymap.yaml`、`keysync/`      | Cornix LP の設定       |
-| `mac-keyboard.<layout>.yaml`   | Mac の設定             |
-| `linux-keyboard.<layout>.yaml` | Linux の内蔵キーボード |
+| パス                                | 内容                                  |
+| ----------------------------------- | ------------------------------------- |
+| `keymap.yaml`、`keysync/`           | Cornix LP の設定                      |
+| `keymap.<名前>.yaml`                | 名前を付けて保持した Cornix LP の設定 |
+| `mac-keyboard.<layout>.yaml`        | Mac の設定                            |
+| `mac-keyboard.<layout>.<名前>.yaml` | 名前を付けて保持した Mac の設定       |
+| `linux-keyboard.<layout>.yaml`      | Linux の内蔵キーボード                |
 
 次の生成物は Git で管理しないため、workspace の `.gitignore` に書きます。
 

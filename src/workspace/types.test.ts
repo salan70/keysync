@@ -27,6 +27,12 @@ function storeWith(current: {
     async ensureDirectory() {
       return undefined;
     },
+    async listFiles() {
+      return [];
+    },
+    async remove() {
+      return undefined;
+    },
   };
 }
 

@@ -9,6 +9,10 @@ export interface WorkspaceFileStore {
     path: string,
   ): Promise<{ readonly modifiedAt: number; readonly contentHash?: string } | undefined>;
   ensureDirectory(path: string): Promise<void>;
+  /** directory 直下のファイル名（directory は含まない）。`""` は root。無ければ空。 */
+  listFiles(directory: string): Promise<readonly string[]>;
+  /** ファイルを消す。無ければ何もしない。 */
+  remove(path: string): Promise<void>;
 }
 
 export interface WorkspaceConflictToken {

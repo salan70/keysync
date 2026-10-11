@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, stat as fsStat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat as fsStat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { WorkspaceFileStore } from "./types.ts";
 
@@ -56,6 +56,23 @@ export class NodeWorkspaceStore implements WorkspaceFileStore {
 
   async ensureDirectory(path: string): Promise<void> {
     await mkdir(join(this.root, path), { recursive: true });
+  }
+
+  async listFiles(directory: string): Promise<readonly string[]> {
+    try {
+      const entries = await readdir(join(this.root, directory), { withFileTypes: true });
+      return entries
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name)
+        .sort();
+    } catch (error) {
+      if (isMissing(error)) return [];
+      throw error;
+    }
+  }
+
+  async remove(path: string): Promise<void> {
+    await rm(join(this.root, path), { force: true });
   }
 }
 

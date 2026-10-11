@@ -73,6 +73,15 @@ import { defaultWorkspaceRoot } from "../workspace/default-root.ts";
 import { parseLabelsYaml, EMPTY_LABELS } from "../workspace/labels.ts";
 import { CORNIX_LP_V112_SETTINGS } from "../workspace/settings.ts";
 import { NodeWorkspaceStore } from "../workspace/node.ts";
+import {
+  activeKeymapPath,
+  deleteKeymapVariant,
+  type KeymapTarget,
+  listKeymapVariants,
+  matchKeymapVariant,
+  saveKeymapVariant,
+  switchKeymapVariant,
+} from "../workspace/keymap-variants.ts";
 
 /** テストから実物の kanata・launchd と keyd / sudo を外すための注入口。 */
 interface CliDeps {
@@ -130,6 +139,7 @@ export async function main(argv = process.argv.slice(2), deps: CliDeps = {}): Pr
     if (command === "linux") return await linux(root, args, deps);
     // 改名前の `cornix/` を指す workspace は loadWorkspace が読めない。その手前で移す（ADR 0036）。
     if (command === "migrate") return await migrate(root);
+    if (command === "keymaps") return await keymaps(root, { kind: "cornix" }, args);
     const workspace = await loadWorkspace(root);
     switch (command) {
       case "validate":
@@ -294,6 +304,9 @@ async function migrate(root: string): Promise<number> {
  */
 async function mac(root: string, args: ParsedArgs, deps: CliDeps): Promise<number> {
   const sub = args._[0];
+  if (sub === "keymaps") {
+    return await keymaps(root, { kind: "mac", layout: await requireLayout(args) }, args);
+  }
   const host = deps.kanataHost ?? createKanataHost();
   const loaded = await loadMacKeymap(root, args);
   if (sub === "generate") return await macGenerate(root, loaded, args, host);
@@ -302,7 +315,7 @@ async function mac(root: string, args: ParsedArgs, deps: CliDeps): Promise<numbe
   if (sub === "devices") return await macDevices(root, loaded, args, host);
   if (sub === "service") return await macService(root, args, host, deps);
   if (sub === "record") return await macRecord(root, loaded, args, deps);
-  throw new Error("keysync mac generate|diff|apply|devices|service|record が必要");
+  throw new Error("keysync mac generate|diff|apply|devices|service|record|keymaps が必要");
 }
 
 /**
@@ -397,23 +410,85 @@ function layoutArg(args: ParsedArgs): MacKeyboardLayout | undefined {
 }
 
 /**
- * 実行中の Mac の内蔵配列に対応する設定を読む。
+ * 実行中の Mac の内蔵配列を決める。`--layout` を優先し、検出できなければ落とす。
  *
- * 設定は物理配列ごとに分かれている（ADR 0027）。どれを使うかは宣言ではなく
- * **実行しているマシン**が決める。`--layout` があればそちらを優先し、検出できなければ
- * 明示指定を要求する。黙って既定の配列へ倒すと、別配列のマシンへ間違った
- * `keyboard_type_v2` を書き込む。
+ * 黙って既定の配列へ倒すと、別配列のマシンへ間違った `keyboard_type_v2` を書き込む。
  */
-async function loadMacKeymap(root: string, args: ParsedArgs): Promise<LoadedMacKeymap> {
+async function requireLayout(args: ParsedArgs): Promise<MacKeyboardLayout> {
   const layout = layoutArg(args) ?? (await detectBuiltInLayout());
   if (layout === undefined) {
     throw new Error("内蔵キーボードの配列を検出できない。--layout ansi|jis を指定する");
   }
+  return layout;
+}
+
+/**
+ * 実行中の Mac の内蔵配列に対応する設定を読む。
+ *
+ * 設定は物理配列ごとに分かれている（ADR 0027）。どれを使うかは宣言ではなく
+ * **実行しているマシン**が決める。`--layout` があればそちらを優先し、検出できなければ
+ * 明示指定を要求する。
+ */
+async function loadMacKeymap(root: string, args: ParsedArgs): Promise<LoadedMacKeymap> {
+  const layout = await requireLayout(args);
   const file = await readMacKeymapFor(new NodeWorkspaceStore(root), layout);
   if (file === undefined) {
     throw new Error(`${macKeymapPath(layout)} が見つからない（配列: ${layout}）`);
   }
   return { layout, path: file.path, document: file.document };
+}
+
+/**
+ * 名前を付けて保持したキーマップの一覧・保持・切り替え・削除。
+ *
+ * Cornix は `keymaps <action>`、Mac は `mac keymaps <action>` で、Mac は先頭の `keymaps` を飛ばす。
+ * 仕様は `docs/specs/workspace-cli.md` の「キーマップの保持」と「CLI」（ADR 0053）。
+ */
+async function keymaps(root: string, target: KeymapTarget, args: ParsedArgs): Promise<number> {
+  const store = new NodeWorkspaceStore(root);
+  const rest = target.kind === "mac" ? args._.slice(1) : args._;
+  const action = rest[0] ?? "list";
+  const name = rest[1];
+  const usage = `${target.kind === "mac" ? "keysync mac keymaps" : "keysync keymaps"} list|save <name>|switch <name>|delete <name> が必要`;
+  if (action === "list") {
+    const variants = await listKeymapVariants(store, target);
+    const current = await matchKeymapVariant(store, target, variants);
+    console.log(
+      JSON.stringify(
+        {
+          workspace: root,
+          active: activeKeymapPath(target),
+          current: current ?? null,
+          variants,
+        },
+        null,
+        2,
+      ),
+    );
+    return 0;
+  }
+  if (name === undefined || !["save", "switch", "delete"].includes(action)) throw new Error(usage);
+  if (action === "save") {
+    const saved = await saveKeymapVariant(store, target, name, {
+      overwrite: args.overwrite === true,
+    });
+    console.log(JSON.stringify({ workspace: root, saved }, null, 2));
+    return 0;
+  }
+  if (action === "switch") {
+    const switched = await switchKeymapVariant(store, target, name);
+    console.log(
+      JSON.stringify(
+        { workspace: root, switched: name, from: switched.from ?? null, path: switched.path },
+        null,
+        2,
+      ),
+    );
+    return 0;
+  }
+  await deleteKeymapVariant(store, target, name);
+  console.log(JSON.stringify({ workspace: root, deleted: name }, null, 2));
+  return 0;
 }
 
 /** kanata の設定を keysync/generated/ へ書き出す。kanata が入っていれば check も通す。 */
@@ -1157,7 +1232,7 @@ function mapReplacer(_key: string, value: unknown): unknown {
 }
 function printHelp(): void {
   console.log(
-    `keysync validate|analyze|diff|render|export vil\n  --workspace <dir>\n  diff --against <file.vil>\n  render --format svg|pdf --out <file> --layer <n>\n  import vil <file.vil> --definition <definition.json>\n  migrate （改名前の cornix/ を keysync/ へ移す）\n  mac generate [--out <file>]\n  mac diff [--config <kanata.kbd>]\n  mac apply [--confirm <fingerprint>] [--config <kanata.kbd>]\n  mac devices [--add <name>] （kanata が見ているキーボードを出し、外付けを適用先に足す）\n  mac service status|install|restart （kanata を launchd に登録・再起動する。sudo を使う）\n  mac record [--tasks roll|hold|all] （課題を打って記録し keysync/typing-logs/ へ書く）\n  mac record --free [秒数] （課題なしで記録する。既定 30 秒）\n  mac ... --layout ansi|jis （既定は実行中のMacの内蔵配列を検出）\n  linux devices [--devices <file>] [--add <vendor>:<product>]\n  linux generate|diff\n  linux apply [--confirm <fingerprint>] [--config <keysync.conf>]\n  linux ... --layout ansi|jis （linux-keyboard.*.yaml が 1 つだけなら省略可）\n  --workspace の既定は $KEYSYNC_WORKSPACE（未設定ならエラー）`,
+    `keysync validate|analyze|diff|render|export vil\n  --workspace <dir>\n  diff --against <file.vil>\n  render --format svg|pdf --out <file> --layer <n>\n  import vil <file.vil> --definition <definition.json>\n  migrate （改名前の cornix/ を keysync/ へ移す）\n  keymaps list|save <name>|switch <name>|delete <name> [--overwrite] （Cornix の keymap.yaml を名前を付けて保持・切り替える）\n  mac generate [--out <file>]\n  mac diff [--config <kanata.kbd>]\n  mac apply [--confirm <fingerprint>] [--config <kanata.kbd>]\n  mac devices [--add <name>] （kanata が見ているキーボードを出し、外付けを適用先に足す）\n  mac keymaps list|save <name>|switch <name>|delete <name> [--overwrite] （Mac の設定を名前を付けて保持・切り替える）\n  mac service status|install|restart （kanata を launchd に登録・再起動する。sudo を使う）\n  mac record [--tasks roll|hold|all] （課題を打って記録し keysync/typing-logs/ へ書く）\n  mac record --free [秒数] （課題なしで記録する。既定 30 秒）\n  mac ... --layout ansi|jis （既定は実行中のMacの内蔵配列を検出）\n  linux devices [--devices <file>] [--add <vendor>:<product>]\n  linux generate|diff\n  linux apply [--confirm <fingerprint>] [--config <keysync.conf>]\n  linux ... --layout ansi|jis （linux-keyboard.*.yaml が 1 つだけなら省略可）\n  --workspace の既定は $KEYSYNC_WORKSPACE（未設定ならエラー）`,
   );
 }
 

@@ -7,28 +7,36 @@ workspace は `KEYSYNC_WORKSPACE` を使い、`--workspace <dir>` で別の場�
 
 CLI は Cornix LP へ書き込みません。
 
-| コマンド                                                 | 内容                                       |
-| -------------------------------------------------------- | ------------------------------------------ |
-| `just keysync validate`                                  | 設定を検証する。error があれば終了コード 1 |
-| `just keysync analyze`                                   | 到達できない layer や未使用の定義を探す    |
-| `just keysync diff --against <file.vil>`                 | `.vil` との差分を出す                      |
-| `just keysync render --format svg --layer <n>`           | layer の図を書き出す（`pdf` も可）         |
-| `just keysync import vil <file.vil> --definition <json>` | `.vil` から workspace を作る（上書きする） |
-| `just keysync export vil --out <file.vil>`               | `.vil` を書き出す                          |
+| コマンド                                                 | 内容                                                                   |
+| -------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `just keysync validate`                                  | 設定を検証する。error があれば終了コード 1                             |
+| `just keysync analyze`                                   | 到達できない layer や未使用の定義を探す                                |
+| `just keysync diff --against <file.vil>`                 | `.vil` との差分を出す                                                  |
+| `just keysync render --format svg --layer <n>`           | layer の図を書き出す（`pdf` も可）                                     |
+| `just keysync import vil <file.vil> --definition <json>` | `.vil` から workspace を作る（上書きする）                             |
+| `just keysync export vil --out <file.vil>`               | `.vil` を書き出す                                                      |
+| `just keysync keymaps list`                              | 名前を付けて保持した設定と、いまの設定に一致する名前を出す             |
+| `just keysync keymaps save <名前>`                       | いまの設定を `keymap.<名前>.yaml` に保持する（`--overwrite` で上書き） |
+| `just keysync keymaps switch <名前>`                     | 保持した設定を `keymap.yaml` に書き戻す。いまの設定が未保持なら止まる  |
+| `just keysync keymaps delete <名前>`                     | 保持した設定を消す                                                     |
 
 ## Mac
 
 普段の反映は Web UI で行います。
 
-| コマンド                                 | 内容                                      |
-| ---------------------------------------- | ----------------------------------------- |
-| `just mac apply`                         | 差分と fingerprint を出す（書き換えない） |
-| `just mac apply --confirm <fingerprint>` | 反映する                                  |
-| `just mac service`                       | kanata の常駐の状態を出す                 |
-| `just mac service restart`               | kanata を起動し直す（sudo を使う）        |
-| `just mac devices`                       | つながっているキーボードを出す            |
-| `just mac devices --add "<名前>"`        | 外付けキーボードを適用先に足す            |
-| `just mac record`                        | 打鍵を記録し、mod-tap の判定を推定する    |
+| コマンド                                 | 内容                                                             |
+| ---------------------------------------- | ---------------------------------------------------------------- |
+| `just mac apply`                         | 差分と fingerprint を出す（書き換えない）                        |
+| `just mac apply --confirm <fingerprint>` | 反映する                                                         |
+| `just mac service`                       | kanata の常駐の状態を出す                                        |
+| `just mac service restart`               | kanata を起動し直す（sudo を使う）                               |
+| `just mac devices`                       | つながっているキーボードを出す                                   |
+| `just mac devices --add "<名前>"`        | 外付けキーボードを適用先に足す                                   |
+| `just mac record`                        | 打鍵を記録し、mod-tap の判定を推定する                           |
+| `just mac keymaps list`                  | 名前を付けて保持した設定と、いまの設定に一致する名前を出す       |
+| `just mac keymaps save <名前>`           | いまの設定を `mac-keyboard.<layout>.<名前>.yaml` に保持する      |
+| `just mac keymaps switch <名前>`         | 保持した設定を書き戻す。反映は `just mac apply` か Web UI で行う |
+| `just mac keymaps delete <名前>`         | 保持した設定を消す                                               |
 
 ### 外付けキーボードに効かせる
 

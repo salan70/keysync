@@ -9,6 +9,7 @@ import {
   WORKSPACE_API,
   type MacApiFailure,
   type WorkspaceDoneResponse,
+  type WorkspaceListResponse,
   type WorkspaceReadResponse,
   type WorkspaceStatResponse,
   type WorkspaceStatusResponse,
@@ -70,6 +71,24 @@ export class ServerWorkspaceStore implements WorkspaceFileStore {
   async ensureDirectory(path: string): Promise<void> {
     settle(
       await post<WorkspaceDoneResponse | MacApiFailure>(this.fetcher, WORKSPACE_API.mkdir, {
+        path,
+      }),
+      "done",
+    );
+  }
+
+  async listFiles(directory: string): Promise<readonly string[]> {
+    return settle(
+      await post<WorkspaceListResponse | MacApiFailure>(this.fetcher, WORKSPACE_API.list, {
+        directory,
+      }),
+      "files",
+    ).names;
+  }
+
+  async remove(path: string): Promise<void> {
+    settle(
+      await post<WorkspaceDoneResponse | MacApiFailure>(this.fetcher, WORKSPACE_API.remove, {
         path,
       }),
       "done",

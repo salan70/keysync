@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { WORKSPACE_API } from "./protocol.ts";
-import { createWorkspaceApi, workspacePath } from "./workspace-api.ts";
+import { createWorkspaceApi, workspaceDirectory, workspacePath } from "./workspace-api.ts";
 
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), "keysync-workspace-api-"));
@@ -76,11 +76,39 @@ test("配置の外と相対 path でないものは failed にし、書かない
   }
 });
 
+test("list は root と管理ディレクトリの直下のファイル名を返し、remove は保持したキーマップだけを消す", async () => {
+  const { root, api } = await setup();
+  await writeFile(join(root, "keymap.yaml"), "a");
+  await writeFile(join(root, "keymap.v1.yaml"), "a");
+  await writeFile(join(root, "justfile"), "a");
+  await api(WORKSPACE_API.mkdir, { path: "keysync/definitions" });
+  deepStrictEqual(await api(WORKSPACE_API.list, { directory: "" }), {
+    kind: "files",
+    names: ["justfile", "keymap.v1.yaml", "keymap.yaml"],
+  });
+  deepStrictEqual(await api(WORKSPACE_API.list, { directory: "keysync" }), {
+    kind: "files",
+    names: [],
+  });
+  strictEqual((await api(WORKSPACE_API.list, { directory: "src" }))?.kind, "failed");
+  strictEqual(workspaceDirectory({ directory: "" }), "");
+
+  strictEqual((await api(WORKSPACE_API.remove, { path: "keymap.yaml" }))?.kind, "failed");
+  strictEqual((await api(WORKSPACE_API.remove, { path: "justfile" }))?.kind, "failed");
+  deepStrictEqual(await api(WORKSPACE_API.remove, { path: "keymap.v1.yaml" }), { kind: "done" });
+  deepStrictEqual(await api(WORKSPACE_API.list, { directory: "" }), {
+    kind: "files",
+    names: ["justfile", "keymap.yaml"],
+  });
+});
+
 test("配置の中は通す", () => {
   for (const path of [
     "keymap.yaml",
+    "keymap.v2.yaml",
     "mac-keyboard.yaml",
     "mac-keyboard.ansi.yaml",
+    "mac-keyboard.ansi.home-row.yaml",
     "mac-keyboard.jis.yaml",
     "keysync/definitions/0123456789abcdef.json",
     "cornix/labels.yaml",

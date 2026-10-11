@@ -24,6 +24,8 @@ function fakeStore(files: Readonly<Record<string, string | undefined>>): UiWorks
     writeBytes: () => Promise.reject(new Error("write not used")),
     stat: (path) => Promise.resolve(files[path] === undefined ? undefined : { modifiedAt: 1000 }),
     ensureDirectory: () => Promise.resolve(),
+    listFiles: () => Promise.resolve(Object.keys(files).filter((path) => !path.includes("/"))),
+    remove: () => Promise.reject(new Error("remove not used")),
   };
 }
 

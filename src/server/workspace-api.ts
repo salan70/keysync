@@ -8,17 +8,15 @@
  * HTTP には依存しない。リクエストの防御は `guard.ts`、配線は `main.ts` が持つ。
  */
 
-import { LEGACY_WORKSPACE_LAYOUT, macKeymapPath, WORKSPACE_LAYOUT } from "../workspace/layout.ts";
+import { isKeymapFile, isKeymapVariantFile } from "../workspace/keymap-variants.ts";
+import { LEGACY_WORKSPACE_LAYOUT, WORKSPACE_LAYOUT } from "../workspace/layout.ts";
 import { NodeWorkspaceStore } from "../workspace/node.ts";
 import { WORKSPACE_API, type WorkspaceApiResponse } from "./protocol.ts";
 
-/** root 直下で触れてよいファイル。 */
-const ROOT_FILES: ReadonlySet<string> = new Set([
-  WORKSPACE_LAYOUT.keymap,
-  WORKSPACE_LAYOUT.legacyMacKeymap,
-  macKeymapPath("ansi"),
-  macKeymapPath("jis"),
-]);
+/** root 直下で触れてよいファイル。適用対象と保持したキーマップ（ADR 0053）、旧名の Mac 設定。 */
+function isRootFile(path: string): boolean {
+  return path === WORKSPACE_LAYOUT.legacyMacKeymap || isKeymapFile(path);
+}
 
 /** 配下を丸ごと触れてよい管理ディレクトリ。改名前の `cornix/` は移行が読む（ADR 0036）。 */
 const MANAGED_DIRECTORIES: ReadonlySet<string> = new Set([
@@ -59,6 +57,16 @@ export function createWorkspaceApi(deps: {
         case WORKSPACE_API.mkdir:
           await store.ensureDirectory(workspacePath(body));
           return { kind: "done" };
+        case WORKSPACE_API.list:
+          return { kind: "files", names: await store.listFiles(workspaceDirectory(body)) };
+        case WORKSPACE_API.remove: {
+          const path = workspacePath(body);
+          if (!isKeymapVariantFile(path)) {
+            throw new Error(`消せるのは保持したキーマップだけ: ${path}`);
+          }
+          await store.remove(path);
+          return { kind: "done" };
+        }
         default:
           return undefined;
       }
@@ -86,9 +94,25 @@ export function workspacePath(body: unknown): string {
     throw new Error(`workspace の相対 path ではない: ${path}`);
   }
   const [top] = segments;
-  const allowed = segments.length === 1 ? ROOT_FILES.has(path) : MANAGED_DIRECTORIES.has(top ?? "");
+  const allowed = segments.length === 1 ? isRootFile(path) : MANAGED_DIRECTORIES.has(top ?? "");
   if (!allowed) throw new Error(`workspace の配置の外は扱わない: ${path}`);
   return path;
+}
+
+/**
+ * 本文の `directory` を、一覧してよい directory として取り出す。
+ *
+ * `""` は root で、保持したキーマップを並べるために使う。ほかは管理ディレクトリだけを通す。
+ *
+ * @doc docs/specs/local-server.md#createworkspaceapi
+ */
+export function workspaceDirectory(body: unknown): string {
+  const directory = stringField(body, "directory");
+  if (directory === "") return "";
+  if (!MANAGED_DIRECTORIES.has(directory)) {
+    throw new Error(`一覧できる directory ではない: ${directory}`);
+  }
+  return directory;
 }
 
 function topSegment(path: string): string {

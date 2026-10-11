@@ -65,6 +65,8 @@ import { CornixRecovery, MacRecovery, WorkspaceGate } from "./components/Workspa
 import { BehaviorsPanel } from "./components/panels/BehaviorsPanel.tsx";
 import { CornixDevicePanel, MacDevicePanel } from "./components/panels/DevicePanel.tsx";
 import { FilesPanel } from "./components/panels/FilesPanel.tsx";
+import { variantBlockedReason } from "./keymap-variant-view.ts";
+import { useKeymapVariants } from "./state/use-keymap-variants.ts";
 import { IconStyleContext } from "./components/Icon.tsx";
 import { OverviewPanel } from "./components/panels/OverviewPanel.tsx";
 import { TypingPanel, type TrialLog } from "./components/panels/TypingPanel.tsx";
@@ -452,6 +454,15 @@ export function App({
         onReload: () => void ws.reload(),
       };
 
+  const keymapVariants = useKeymapVariants({
+    store: workspace?.store,
+    target: cursor.target,
+    enabled: panel === "files",
+    say,
+    adopt: (message) =>
+      workspace === undefined ? Promise.resolve() : ws.adoptStore(workspace.store, message, true),
+  });
+
   // ---------- 描画 ----------
 
   if (workspace === undefined) {
@@ -819,6 +830,19 @@ export function App({
                 onReload={() => void ws.reload()}
                 iconStyle={iconStyle.style}
                 onIconStyle={iconStyle.setStyle}
+                targetLabel={
+                  cursor.target.kind === "cornix"
+                    ? "Cornix LP"
+                    : `Mac ${cursor.target.layout.toUpperCase()}`
+                }
+                hasActiveFile={isCornix ? cornix !== undefined : macReady !== undefined}
+                variantsView={keymapVariants}
+                variantsBlockedReason={variantBlockedReason([
+                  ws.keymapSave,
+                  ws.labelsSave,
+                  ws.macSaves.ansi ?? { kind: "idle" },
+                  ws.macSaves.jis ?? { kind: "idle" },
+                ])}
               />
             ) : null}
           </PanelDialog>

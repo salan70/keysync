@@ -117,6 +117,8 @@ export const WORKSPACE_API = {
   stat: "/api/workspace/stat",
   write: "/api/workspace/write",
   mkdir: "/api/workspace/mkdir",
+  list: "/api/workspace/list",
+  remove: "/api/workspace/remove",
 } as const;
 
 /** サーバーが開いている workspace。 */
@@ -138,9 +140,15 @@ export interface WorkspaceStatResponse {
   readonly stat: { readonly modifiedAt: number; readonly contentHash?: string } | null;
 }
 
-/** `write` と `mkdir` の結果。 */
+/** `write`、`mkdir`、`remove` の結果。 */
 export interface WorkspaceDoneResponse {
   readonly kind: "done";
+}
+
+/** `list` の結果。directory 直下のファイル名を名前順に並べる。 */
+export interface WorkspaceListResponse {
+  readonly kind: "files";
+  readonly names: readonly string[];
 }
 
 export type WorkspaceApiResponse =
@@ -148,4 +156,5 @@ export type WorkspaceApiResponse =
   | WorkspaceReadResponse
   | WorkspaceStatResponse
   | WorkspaceDoneResponse
+  | WorkspaceListResponse
   | MacApiFailure;
