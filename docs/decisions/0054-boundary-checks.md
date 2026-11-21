@@ -62,6 +62,7 @@ import は `.ts` 拡張子付きの相対 specifier で書かれているので�
 違反は「どの core ファイルからも import されない入口 → … → 違反のあるファイル → 禁止先」の経路で報告する。
 
 例外は、理由を付けた allowlist（`file` と `target`）で持つ。
+`typeOnly: true` の例外は `import type` / `export type` の違反にだけ当たり、値の import は違反のままにする。
 どの違反にも当たらなくなった例外は stale としてテストを落とし、消えた例外を残さない。
 現在の例外は無い。
 
