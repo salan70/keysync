@@ -1,5 +1,6 @@
 // DocBridge は `.ts` の export 宣言だけを link できるため、`.tsx` の部品をここで束ねて仕様と結ぶ。
 import { App as AppComponent } from "../App.tsx";
+import { ApplyDialogContainer as ApplyDialogContainerComponent } from "../ApplyDialogContainer.tsx";
 import { ApplyDialog as ApplyDialogComponent } from "./ApplyDialog.tsx";
 import { CornixBoard as CornixBoardComponent, MacBoard as MacBoardComponent } from "./Board.tsx";
 import { Button as ButtonComponent } from "./Button.tsx";
@@ -74,6 +75,9 @@ export const ValidationPanel = ValidationPanelComponent;
 
 /** @doc docs/specs/ui.md#apply-modal-steps */
 export const ApplyDialog = ApplyDialogComponent;
+
+/** @doc docs/specs/ui.md#apply-modal-layers */
+export const ApplyDialogContainer = ApplyDialogContainerComponent;
 
 /** @doc docs/specs/ui.md#mac-apply */
 export const MacApplyDialog = MacApplyDialogComponent;

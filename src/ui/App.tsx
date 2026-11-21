@@ -25,7 +25,7 @@ import { validateKeymap } from "../core/validation/validate.ts";
 import { planWorkspaceInit, writeWorkspacePlan } from "../workspace/bootstrap.ts";
 import type { WorkspaceLabels } from "../workspace/labels.ts";
 import { macKeymapPath, WORKSPACE_LAYOUT } from "../workspace/layout.ts";
-import { applyBlockedReason, applyRoundTripTotal } from "./apply-gate.ts";
+import { applyBlockedReason } from "./apply-gate.ts";
 import {
   editComboField,
   editSettingValue,
@@ -49,7 +49,7 @@ import { useWorkspace } from "./state/use-workspace.ts";
 import type { ThemePreference } from "./theme.ts";
 import type { PanelId, Selection } from "./types.ts";
 import { cornixIssue, defaultEditTarget, type UiWorkspaceStore } from "./workspace-probe.ts";
-import { ApplyDialog } from "./components/ApplyDialog.tsx";
+import { ApplyDialogContainer } from "./ApplyDialogContainer.tsx";
 import { MacApplyDialog } from "./components/MacApplyDialog.tsx";
 import { macApplyBlockedReason } from "./mac-apply-gate.ts";
 import { useMacApply } from "./state/use-mac-apply.ts";
@@ -888,18 +888,13 @@ export function App({
         />
       ) : null}
       {apply.open ? (
-        <ApplyDialog
-          step={apply.step}
-          backupError={apply.backupError}
-          state={apply.state}
+        <ApplyDialogContainer
+          apply={apply}
           changed={changed}
           gate={gate}
           labels={workspace.labels}
           acknowledged={acknowledged}
           backupRoundTrips={device.lastReadRoundTrips}
-          roundTrips={apply.roundTrips}
-          roundTripTotal={applyRoundTripTotal(apply.state)}
-          onNext={apply.next}
           onAcknowledge={(ids) =>
             void apply.acknowledge({
               ids,
@@ -908,7 +903,6 @@ export function App({
               deviceRead: device.read,
             })
           }
-          onCancel={apply.cancel}
           onWrite={writeApply}
         />
       ) : null}

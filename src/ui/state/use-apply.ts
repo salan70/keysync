@@ -13,10 +13,8 @@ import { DeviceIoError, type RoundTripProgress } from "../../device/protocol.ts"
 import type { ReadDeviceResult, WebHidConnection } from "../../device/webhid.ts";
 import { backupPath, WORKSPACE_LAYOUT } from "../../workspace/layout.ts";
 import type { WorkspaceFileStore } from "../../workspace/types.ts";
+import type { ApplyStep } from "../apply-dialog-view.ts";
 import { errorMessage } from "./use-status.ts";
-
-/** 書き込みを始める前の段階。書き込み以降は Core の `ApplyState` の phase で決まる。 */
-export type ApplyStep = "backup" | "diff" | "confirm";
 
 export interface ApplyOptions {
   readonly say: (message: string) => void;
