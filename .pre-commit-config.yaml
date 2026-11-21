@@ -75,3 +75,14 @@ repos:
         stages: [pre-push]
         always_run: true
         pass_filenames: false
+
+  # 文書間リンク — Markdown 同士の相対リンクと #anchor の実在を検査する
+  # DocBridge（コード↔docs/specs/）とは別の責務。リンク先の削除で壊れるため、全 Markdown を走査する。
+  - repo: local
+    hooks:
+      - id: check-doc-links
+        name: check doc links
+        entry: tools/devshell.sh pnpm exec tsx tools/check-doc-links.ts
+        language: system
+        files: \.md$
+        pass_filenames: false

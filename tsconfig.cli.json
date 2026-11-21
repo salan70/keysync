@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "lib": ["es2023"], "types": ["node"] },
-  "include": ["src/cli/**/*.ts", "src/server/**/*.ts", "src/device/mock.ts"]
+  "include": ["src/cli/**/*.ts", "src/server/**/*.ts", "src/device/mock.ts", "tools/**/*.ts"]
 }

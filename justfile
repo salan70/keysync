@@ -90,3 +90,7 @@ docbridge-audit:
 # push 対象の変更セットに対して related-gate を実行する
 docbridge-related:
     ./tools/docbridge-related.sh
+
+# Markdown 同士の相対リンクと #anchor の実在を検査する
+check-doc-links:
+    pnpm exec tsx tools/check-doc-links.ts

@@ -149,7 +149,9 @@ direnv 済みシェルでなくても素の `git commit` と `git push` が検�
 `docs/specs/` のセクションとコードの対応は DocBridge が機械検証します。コードに `@doc`、
 Markdown に `@code` のアンカーを張り、`docbridge` スキルで維持します。
 
-検証は自動で走ります。`docbridge check`（リンク切れ）は pre-commit と CI でブロックし、
+検証は自動で走ります。Markdown 同士の相対リンクと `#anchor` の実在は `tools/check-doc-links.ts`
+（`just check-doc-links`）が検査し、pre-commit と CI でブロックします。DocBridge とは別の責務です。
+`docbridge check`（リンク切れ）は pre-commit と CI でブロックし、
 `related-gate`（リンク先の未更新）は pre-push と CI で報告のみ行います。
 DocBridge のバージョンは `.docbridge-version` が単一の定義元で、flake・CI・フックが
 すべてこれを参照します。
