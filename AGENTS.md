@@ -90,8 +90,9 @@ commit しないもの:
 
 `push` と pull request の作成は依頼された場合のみ行います。
 
-pre-commit フックはピン留めした toolchain を要求するため、**`nix develop -c git commit`**
-（または direnv 済みシェル）で実行します。素の `git commit` は oxfmt が見つからず失敗します。
+pre-commit の local hook は `tools/devshell.sh` 経由でピン留めした toolchain へ入り直すため、
+direnv 済みシェルでなくても素の `git commit` と `git push` が検査を通ります。
+`nix` と `just setup`（フックの導入）だけが前提です。
 
 ## 許可する操作
 

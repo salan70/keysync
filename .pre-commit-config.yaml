@@ -10,7 +10,7 @@ repos:
     hooks:
       - id: oxlint
         name: oxlint
-        entry: oxlint
+        entry: tools/devshell.sh oxlint
         language: system
         files: \.(js|jsx|ts|tsx|mjs|cjs)$
 
@@ -19,7 +19,7 @@ repos:
     hooks:
       - id: oxfmt
         name: oxfmt
-        entry: oxfmt --write
+        entry: tools/devshell.sh oxfmt --write
         language: system
         files: \.(js|jsx|ts|tsx|mjs|cjs|json|yaml|yml|md)$
 
@@ -28,7 +28,7 @@ repos:
     hooks:
       - id: markdownlint
         name: markdownlint
-        entry: markdownlint-cli2
+        entry: tools/devshell.sh markdownlint-cli2
         language: system
         files: \.md$
 
@@ -40,7 +40,7 @@ repos:
     hooks:
       - id: typecheck
         name: typecheck
-        entry: pnpm typecheck
+        entry: tools/devshell.sh pnpm typecheck
         language: system
         files: \.ts$
         pass_filenames: false
@@ -62,7 +62,7 @@ repos:
     hooks:
       - id: docbridge-check
         name: docbridge check
-        entry: tools/docbridge.sh check
+        entry: tools/devshell.sh tools/docbridge.sh check
         language: system
         files: \.(ts|md)$
         pass_filenames: false
@@ -70,7 +70,7 @@ repos:
       # related-gate は informational。push 時のみ実行し、ブロックしない。
       - id: docbridge-related
         name: docbridge related-gate
-        entry: tools/docbridge-related.sh
+        entry: tools/devshell.sh tools/docbridge-related.sh
         language: system
         stages: [pre-push]
         always_run: true
