@@ -25,7 +25,7 @@ just setup             # pre-commit / pre-push フックの導入
 just lint              # pre-commit を全ファイルへ適用
 just format            # oxfmt
 just test              # pnpm test
-just test-tools        # tools/ の Python（pstack）の test
+just test-tools        # tools/ の Python（pstack と AI の hook）の test
 just docbridge-check   # コードとdocs/specs/のリンク検証
 just docbridge-audit   # 未ドキュメント / 未リンクの監査
 ```

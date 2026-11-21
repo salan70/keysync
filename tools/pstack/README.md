@@ -1,7 +1,7 @@
 # pstack の取り込み
 
 上流の [cursor/plugins](https://github.com/cursor/plugins) の `pstack/` を、固定した commit から Skill として取り込む。\
-取り込む理由と範囲は ADR 0054 にある。\
+取り込む理由と範囲は ADR 0054、AI の実行時の hook は ADR 0055 にある。\
 振る舞いの規則は `.claude/rules/pstack.md`、モデルの表は `.claude/rules/pstack-models.md` が受け持つ。
 
 ## 置き場所
@@ -32,7 +32,7 @@ Python は標準ライブラリだけを使い、devShell の外の `python3` �
 ```sh
 python3 tools/pstack/pstack.py status   # 取り込んだファイルを上流の SHA256 と照合する
 python3 tools/pstack/pstack.py sync     # 異なるファイルを取り直し、manifest 外のファイルを消す
-just test-tools                         # pstack の test
+just test-tools                         # pstack と AI の hook の test
 ```
 
 上書きを直したら `sync` を実行して、取り込み先に反映する。\

@@ -84,7 +84,7 @@ test-update-snapshots:
 spike-visual-regression *ARGS:
     node spikes/i-027-visual-regression/measure.mjs "$@"
 
-# tools/ の Python（pstack）のテストを実行する。devShell の外の python3 で動く
+# tools/ の Python（pstack と AI の hook）のテストを実行する。devShell の外の python3 で動く
 test-tools:
     python3 -m unittest discover -s tools -p 'test_*.py'
 

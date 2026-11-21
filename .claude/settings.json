@@ -2,5 +2,37 @@
   "permissions": {
     "allow": []
   },
-  "theme": "dark-ansi"
+  "theme": "dark-ansi",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/tools/pstack/pstack.py\" models show 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent|mcp__t3-code__delegate_task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/tools/pstack/spawn_guard.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/tools/hooks/nix_path_guard.py\""
+          }
+        ]
+      }
+    ]
+  }
 }

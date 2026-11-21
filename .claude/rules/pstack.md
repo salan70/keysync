@@ -79,7 +79,8 @@ test は実機、WebHID、launchd、keyd、sudo に触れず、偽物を注入�
 ## 委譲
 
 - spawn では、`pstack-models.md` と上書きから決めた provider、model、effort を必ず書く。\
-  native の subagent と T3 の `delegate_task` は、省くと親のモデルを継ぐ。
+  native の subagent と T3 の `delegate_task` は、省くと親のモデルを継ぐ。\
+  Claude Code では PreToolUse の hook（`tools/pstack/spawn_guard.py`）が、未指定と範囲外の spawn を止める。
 - Claude Code の fork は親の model を継ぐので使わない。
 - 続き、修正、次の段は、範囲をまとめ直して新しい委譲先に渡す。\
   終わった委譲先のスレッドに「続けて」と足さない。

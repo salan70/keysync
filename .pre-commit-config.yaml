@@ -1,4 +1,6 @@
-# 機械的強制は pre-commit と CI が担う（AI hooks は使わない）。
+# リポジトリの内容の機械的強制は pre-commit と CI が担う。
+# AI の実行時の hook（.claude/settings.json）は、ファイルの差分に現れない
+# AI のツール呼び出し（spawn、nix の path:）を止めることに限って使う（ADR 0055）。
 #
 # 次は正本（dotfiles / docbridge / pstack の上流）からコピーした vendor 資産のため
 # lint / format の対象外にする。整形すると正本との差分が生まれ、再同期のたびに衝突する。

@@ -7,6 +7,7 @@ provider は、スレッドを始めたモデルの provider とする（Claude 
 
 ## 表
 
+`tools/pstack/spawn_guard.py` がこの節の行を読み、spawn の model と effort を照合する。\
 書式は `レベル=モデル (effort の下限-上限, *既定)` で、行の先頭の provider 名を変えない。
 
 ```text
@@ -34,7 +35,7 @@ devin: mid=swe-2-high (medium-max, *medium), low=swe-2-flash (medium-max, *mediu
 
 上書きは、git の共通ディレクトリにある `pstack-models.local.md` に書く。\
 git 管理外で、すべての worktree が共有する。\
-中身は `python3 tools/pstack/pstack.py models show` で表示する。
+Claude Code では SessionStart の hook が中身を文脈に足し、ほかの agent は `python3 tools/pstack/pstack.py models show` で表示する。
 
 上書きの行は、この表の同じ名前の行を丸ごと置き換える。\
 優先順位は、会話でのユーザーの選択、上書き、この表の順とする。
