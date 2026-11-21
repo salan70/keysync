@@ -35,6 +35,16 @@ export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
 nix develop -c node spikes/i-027-visual-regression/measure.mjs --runs 10 --out "$TMPDIR/i-027-out"
 ```
 
+CPU 負荷下での再現性（6 プロセス並列 × 30 起動、計 180 撮影）は、`--port` をずらして並列に起動します。
+
+```bash
+for port in 5199 5200 5201 5202 5203 5204; do
+  nix develop -c node spikes/i-027-visual-regression/measure.mjs \
+    --runs 30 --port "$port" --out "$TMPDIR/i-027-load-$port" &
+done
+wait
+```
+
 `toHaveScreenshot` の動作（baseline の生成、比較、差分画像、HTML レポート）は、`@playwright/test@1.64.1` を別ディレクトリへ入れて確かめます。
 
 ```bash

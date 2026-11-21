@@ -9,7 +9,7 @@
  *   SPIKE_CHROMIUM_ARGS       Chromium の起動 flag（空白区切り。任意）
  *   SPIKE_CHROMIUM_CHANNEL    `chromium` で headless shell ではなく full Chromium を使う（任意）
  *
- * 使い方: node spikes/i-027-visual-regression/measure.mjs [--runs 10] [--out <dir>]
+ * 使い方: node spikes/i-027-visual-regression/measure.mjs [--runs 10] [--out <dir>] [--port 5199]
  */
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -33,7 +33,7 @@ const RUNS = Number(opt("runs", "10"));
 const OUT = opt("out", join(tmpdir(), "keysync-i-027"));
 mkdirSync(OUT, { recursive: true });
 
-const PORT = 5199;
+const PORT = Number(opt("port", "5199"));
 const BASE = `http://127.0.0.1:${PORT}/spikes/i-027-visual-regression/harness/index.html`;
 const SHOTS = ["cornix-board", "mac-board", "apply-confirm"];
 const VIEWPORT = { width: 1280, height: 800 };
