@@ -1,6 +1,6 @@
 import { deepStrictEqual, strictEqual } from "node:assert/strict";
 import { test } from "node:test";
-import { checkCoreBoundary, checkViewConvention } from "./boundary-rules.ts";
+import { checkCoreBoundary, checkViewConvention, type Allowance } from "./boundary-rules.ts";
 import { extractImports, stripComments } from "./import-graph.ts";
 
 function sources(files: Record<string, string>): ReadonlyMap<string, string> {
@@ -22,16 +22,16 @@ const h = await import("./h.ts");
 export const text = "import x from './not-an-import.ts'";
 `);
   deepStrictEqual(
-    refs.map(({ specifier, line }) => [specifier, line]),
+    refs.map(({ specifier, line, typeOnly }) => [specifier, line, typeOnly]),
     [
-      ["./a.ts", 1],
-      ["./b.ts", 2],
-      ["./c.ts", 6],
-      ["./d.ts", 7],
-      ["./e.ts", 8],
-      ["./f.ts", 9],
-      ["./g.ts", 10],
-      ["./h.ts", 11],
+      ["./a.ts", 1, false],
+      ["./b.ts", 2, true],
+      ["./c.ts", 6, false],
+      ["./d.ts", 7, false],
+      ["./e.ts", 8, false],
+      ["./f.ts", 9, true],
+      ["./g.ts", 10, false],
+      ["./h.ts", 11, false],
     ],
   );
 });
@@ -133,4 +133,34 @@ test("view は state の hook と device / server を禁止し、それ以外の
     'src/ui/components/A.tsx → src/server/protocol.ts（src/ui/components/A.tsx:2 の import "../../server/protocol.ts": view は server モジュールを import しない）',
     'src/ui/components/A.tsx → src/device/webhid.ts（src/ui/components/A.tsx:3 の import "../../device/webhid.ts": view は device モジュールを import しない）',
   ]);
+});
+
+test("typeOnly の例外は型だけの import を許し、値の import は違反のまま残す", () => {
+  const allowances: readonly Allowance[] = [
+    {
+      file: "src/ui/components/A.tsx",
+      target: "src/server/protocol.ts",
+      reason: "型だけ",
+      typeOnly: true,
+    },
+  ];
+  const typeImport = sources({
+    "src/ui/components/A.tsx": `import type { P } from "../../server/protocol.ts";`,
+    "src/server/protocol.ts": ``,
+  });
+  deepStrictEqual(checkViewConvention(typeImport, allowances), {
+    violations: [],
+    stale: [],
+  });
+
+  const valueImport = sources({
+    "src/ui/components/A.tsx": `import { P } from "../../server/protocol.ts";`,
+    "src/server/protocol.ts": ``,
+  });
+  deepStrictEqual(checkViewConvention(valueImport, allowances), {
+    violations: [
+      'src/ui/components/A.tsx → src/server/protocol.ts（src/ui/components/A.tsx:1 の import "../../server/protocol.ts": view は server モジュールを import しない）',
+    ],
+    stale: ["src/ui/components/A.tsx → src/server/protocol.ts: 型だけ"],
+  });
 });

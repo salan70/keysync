@@ -13,6 +13,8 @@ export interface Allowance {
   /** 禁止先。解決したファイルのパス、または `node:fs` や `react` のような specifier。 */
   readonly target: string;
   readonly reason: string;
+  /** true のとき `import type` / `export type` の違反だけを許し、値の import は例外にしない。 */
+  readonly typeOnly?: boolean;
 }
 
 export interface RuleResult {
@@ -28,6 +30,7 @@ interface Violation {
   readonly specifier: string;
   readonly target: string;
   readonly rule: string;
+  readonly typeOnly: boolean;
 }
 
 const CORE_DIR = "src/core/";
@@ -54,7 +57,7 @@ export function checkCoreBoundary(sources: Sources, allowances: readonly Allowan
   const importers = new Map<string, string[]>();
   const found: Violation[] = [];
   for (const file of files) {
-    for (const { specifier, line } of extractImports(sources.get(file)!)) {
+    for (const { specifier, line, typeOnly } of extractImports(sources.get(file)!)) {
       if (isNodeBuiltin(specifier)) {
         found.push({
           file,
@@ -62,9 +65,17 @@ export function checkCoreBoundary(sources: Sources, allowances: readonly Allowan
           specifier,
           target: specifier,
           rule: "Node.js の組み込みを使わない",
+          typeOnly,
         });
       } else if (REACT.test(specifier)) {
-        found.push({ file, line, specifier, target: specifier, rule: "React に依存しない" });
+        found.push({
+          file,
+          line,
+          specifier,
+          target: specifier,
+          rule: "React に依存しない",
+          typeOnly,
+        });
       } else if (isRelative(specifier)) {
         const { path, unresolved } = resolveRelative(file, specifier, sources);
         if (unresolved) {
@@ -74,11 +85,19 @@ export function checkCoreBoundary(sources: Sources, allowances: readonly Allowan
             specifier,
             target: specifier,
             rule: "相対 import が解決できない",
+            typeOnly,
           });
         } else if (path.startsWith(CORE_DIR)) {
           importers.set(path, [...(importers.get(path) ?? []), file]);
         } else {
-          found.push({ file, line, specifier, target: path, rule: "src/core の外へ到達しない" });
+          found.push({
+            file,
+            line,
+            specifier,
+            target: path,
+            rule: "src/core の外へ到達しない",
+            typeOnly,
+          });
         }
       }
     }
@@ -121,7 +140,7 @@ export function checkViewConvention(
 ): RuleResult {
   const found: Violation[] = [];
   for (const file of viewFiles(sources)) {
-    for (const { specifier, line } of extractImports(sources.get(file)!)) {
+    for (const { specifier, line, typeOnly } of extractImports(sources.get(file)!)) {
       if (!isRelative(specifier)) continue;
       const { path, unresolved } = resolveRelative(file, specifier, sources);
       if (unresolved) {
@@ -131,6 +150,7 @@ export function checkViewConvention(
           specifier,
           target: specifier,
           rule: "相対 import が解決できない",
+          typeOnly,
         });
         continue;
       }
@@ -142,6 +162,7 @@ export function checkViewConvention(
           specifier,
           target: path,
           rule: `view は ${kind} import しない`,
+          typeOnly,
         });
       }
     }
@@ -158,7 +179,10 @@ function judge(
   const violations: string[] = [];
   for (const violation of found) {
     const allowance = allowances.find(
-      (candidate) => candidate.file === violation.file && candidate.target === violation.target,
+      (candidate) =>
+        candidate.file === violation.file &&
+        candidate.target === violation.target &&
+        (candidate.typeOnly !== true || violation.typeOnly),
     );
     if (allowance !== undefined) {
       used.add(allowance);

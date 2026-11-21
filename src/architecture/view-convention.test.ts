@@ -8,6 +8,7 @@ const TYPE_ONLY_PROTOCOL = "型だけの import。protocol の型を UI 側へ�
 
 /**
  * view の規約の例外。いずれも既存の型だけの import で、新しく足さない。
+ * `typeOnly: true` は `import type` の違反だけを許し、値の import は例外にしない。
  * 違反が消えたら stale として落とす。
  */
 const VIEW_ALLOWANCES: readonly Allowance[] = [
@@ -15,31 +16,37 @@ const VIEW_ALLOWANCES: readonly Allowance[] = [
     file: "src/ui/components/MacApplyDialog.tsx",
     target: "src/server/protocol.ts",
     reason: TYPE_ONLY_PROTOCOL,
+    typeOnly: true,
   },
   {
     file: "src/ui/components/MacApplyDialog.tsx",
     target: "src/ui/state/use-mac-apply.ts",
     reason: TYPE_ONLY_HOOK,
+    typeOnly: true,
   },
   {
     file: "src/ui/components/StatusBar.tsx",
     target: "src/device/protocol.ts",
     reason: TYPE_ONLY_PROTOCOL,
+    typeOnly: true,
   },
   {
     file: "src/ui/components/Workspace.tsx",
     target: "src/ui/state/use-workspace.ts",
     reason: TYPE_ONLY_HOOK,
+    typeOnly: true,
   },
   {
     file: "src/ui/components/panels/DevicePanel.tsx",
     target: "src/device/protocol.ts",
     reason: TYPE_ONLY_PROTOCOL,
+    typeOnly: true,
   },
   {
     file: "src/ui/components/panels/FilesPanel.tsx",
     target: "src/ui/state/use-keymap-variants.ts",
     reason: TYPE_ONLY_HOOK,
+    typeOnly: true,
   },
 ];
 

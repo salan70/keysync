@@ -8,6 +8,8 @@ export interface ImportRef {
   readonly specifier: string;
   /** 1 始まりの行。複数行の import は specifier のある行。 */
   readonly line: number;
+  /** `import type` / `export type` で書かれた型だけの import。 */
+  readonly typeOnly: boolean;
 }
 
 const NODE_BUILTINS: ReadonlySet<string> = new Set(builtinModules);
@@ -49,21 +51,26 @@ export function stripComments(source: string): string {
 
 /** 文の先頭の `import` / `export` だけを数え、文字列の中に書かれた import 風の文を拾わない。 */
 const STATIC_IMPORT =
-  /^[ \t]*(?:import|export)\s+(?:type\s+)?(?:[^"'`;]*?\s+from\s+)?(["'])([^"'\n]+)\1/gm;
+  /^[ \t]*(?:import|export)\s+(type\s+)?(?:[^"'`;]*?\s+from\s+)?(["'])([^"'\n]+)\2/gm;
 const DYNAMIC_IMPORT = /\bimport\s*\(\s*(["'])([^"'\n]+)\1\s*\)/g;
 
 /** `import ... from`、`import "x"`、`export ... from`、`import("x")` の specifier を取り出す。 */
 export function extractImports(source: string): readonly ImportRef[] {
   const code = stripComments(source);
   const refs: ImportRef[] = [];
-  for (const pattern of [STATIC_IMPORT, DYNAMIC_IMPORT]) {
-    for (const match of code.matchAll(pattern)) {
-      const specifierAt = match.index + match[0].lastIndexOf(match[2]!);
-      refs.push({
-        specifier: match[2]!,
-        line: code.slice(0, specifierAt).split("\n").length,
-      });
-    }
+  const push = (match: RegExpExecArray, specifier: string, typeOnly: boolean): void => {
+    const specifierAt = match.index + match[0].lastIndexOf(specifier);
+    refs.push({
+      specifier,
+      line: code.slice(0, specifierAt).split("\n").length,
+      typeOnly,
+    });
+  };
+  for (const match of code.matchAll(STATIC_IMPORT)) {
+    push(match, match[3]!, match[1] !== undefined);
+  }
+  for (const match of code.matchAll(DYNAMIC_IMPORT)) {
+    push(match, match[2]!, false);
   }
   return refs.sort((a, b) => a.line - b.line);
 }
