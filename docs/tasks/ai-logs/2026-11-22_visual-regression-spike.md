@@ -86,12 +86,13 @@ nixpkgs 版は、公式の zip を hash 固定で取得して展開したもの�
 | 同じ条件で GPU と LCD text を無効化                      | 割れる（flag では直らない）            |
 | 同じ条件で `box-shadow` と backdrop を外す               | 割れる                                 |
 | 2 通りの DOM の矩形（chip の位置と幅）                   | 同一（layout ではなく rasterize の差） |
-| dialog を `position: fixed; top: 100px`（整数 px）に固定 | 180 / 180 が同じ                       |
+| dialog を `position: fixed; top: 100px`（整数 px）に固定 | 180 / 180 が同じ（高さは固定しない）   |
 | 同じ負荷で盤面 2 画面（各 180）                          | 0 / 180（割れない）                    |
 
 中央寄せの dialog は縦位置が小数になる（chip の y が 257.703 など）。\
 その小数位置の文字の rasterize が、負荷に応じて 2 通りに割れたと読める。\
-harness は dialog の位置を整数 px に固定して避ける（`?pin=0` で外せる）。
+harness は dialog の**位置だけ**を整数 px に固定して避ける（`.apply{position:fixed;top:100px;margin:0 auto}`。`?pin=0` で外せる）。\
+高さは content 依存のままにし、同じ 6 並列 × 30 起動の条件で 180 / 180 が同じ画素になることを確かめ直した。
 
 ### FitText は font の読込を待たない
 
@@ -202,7 +203,10 @@ CI（GitHub Actions の ubuntu）と手元の Docker で同じ image を使え�
 
 - config は許容 0（`threshold: 0`、`maxDiffPixels: 0`）、`animations: "disabled"`、`caret: "hide"`、viewport、DPR、locale、timezone を固定する。
 - 撮影の前に、`document.fonts.ready` のあと `resize` を発火して `FitText` を再計測させる（または app 側で直す）。
-- dialog は位置を整数 px に固定する。
+- dialog の中央寄せは縦位置が小数 px になり、負荷下で文字の描画が 2 通りに割れる。対処は 2 系統ある。\
+  正本は **app 側の修正**で、中央寄せの結果が整数 px になるよう直せば撮影側の上書きは要らない。\
+  app を直さない場合は、Spike と同じく撮影側で `.apply{position:fixed;top:100px;margin:0 auto}` と縦位置だけを上書きする。\
+  高さは content 依存のままにする（高さまで固定すると、高さや overflow の回帰を撮れなくなる）。
 - Chromium は headless shell に固定する（full Chromium は別の画素になる）。
 - 撮影定義の強制は fs 走査テスト 1 本で行う（Issue #29 の方針どおり）。
 - main への push を含めた実行条件を決める。main 直コミット運用のため、CI で比較して失敗したときの扱い（baseline の更新手順）を先に決める。

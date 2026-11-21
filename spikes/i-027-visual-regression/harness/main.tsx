@@ -41,7 +41,7 @@ if (shot === "apply-confirm" && params.get("pin") !== "0") {
   // 中央寄せの dialog は縦位置が小数になり、CPU 負荷が高いと文字の rasterize が 2 通りに割れる
   // （docs/tasks/ai-logs/2026-11-22_visual-regression-spike.md）。位置を整数 px に固定して避ける。
   const pin = document.createElement("style");
-  pin.textContent = ".apply{position:fixed;top:100px;margin:0 auto;height:420px}";
+  pin.textContent = ".apply{position:fixed;top:100px;margin:0 auto}";
   document.head.append(pin);
 }
 document.documentElement.dataset.theme = params.get("theme") ?? "light";
