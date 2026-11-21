@@ -22,13 +22,13 @@ lint:
 
 # TypeScript / JavaScript を lint する
 lint-ts:
-    oxlint --ignore-pattern '.direnv/**' --ignore-pattern '.claude/**' --ignore-pattern '.agents/**' .
+    oxlint --ignore-pattern '.direnv/**' --ignore-pattern '.claude/skills/**' --ignore-pattern '.claude/agents/**' --ignore-pattern '.agents/**' --ignore-pattern 'tools/pstack/upstream/**' .
 
-# .direnv（flake inputs）と vendor 資産（.claude / .agents）は対象外。
+# .direnv（flake inputs）と vendor 資産（.claude/skills、.claude/agents、.agents、tools/pstack/upstream）は対象外。
 # pre-commit 側の exclude と範囲を揃えている。
 [doc('Markdown を lint する')]
 lint-md:
-    markdownlint-cli2 "**/*.md" "!.direnv/**" "!node_modules/**" "!.claude/**" "!.agents/**"
+    markdownlint-cli2 "**/*.md" "!.direnv/**" "!node_modules/**" "!.claude/skills/**" "!.claude/agents/**" "!.agents/**" "!tools/pstack/upstream/**"
 
 # 日常の起動はこれだけ。GitHub Pages では配布しない（ADR 0033）。
 [doc('Web UI をビルドしてローカルサーバーで開く（http://127.0.0.1:5178/）')]
@@ -61,11 +61,11 @@ mac *ARGS:
 linux *ARGS:
     pnpm run keysync -- linux "$@"
 
-# .claude / .agents は正本からコピーした vendor 資産のため整形しない。
+# .claude/skills、.claude/agents、.agents、tools/pstack/upstream は正本からコピーした vendor 資産のため整形しない。
 # 整形すると正本との差分が生まれ、再同期のたびに衝突する。
 [doc('コードを整形する')]
 format:
-    oxfmt --write . '!.claude/**' '!.agents/**'
+    oxfmt --write . '!.claude/skills/**' '!.claude/agents/**' '!.agents/**' '!tools/pstack/upstream/**'
 
 # 型を検査する
 typecheck:
@@ -83,6 +83,10 @@ test-update-snapshots:
 [positional-arguments]
 spike-visual-regression *ARGS:
     node spikes/i-027-visual-regression/measure.mjs "$@"
+
+# tools/ の Python（pstack）のテストを実行する。devShell の外の python3 で動く
+test-tools:
+    python3 -m unittest discover -s tools -p 'test_*.py'
 
 # 任意の docbridge サブコマンドを実行する（例: just docbridge graph）
 docbridge *ARGS:

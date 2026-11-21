@@ -1,8 +1,9 @@
 # 機械的強制は pre-commit と CI が担う（AI hooks は使わない）。
 #
-# .claude/ と .agents/ 配下は正本（dotfiles / docbridge）からコピーした vendor 資産のため
+# 次は正本（dotfiles / docbridge / pstack の上流）からコピーした vendor 資産のため
 # lint / format の対象外にする。整形すると正本との差分が生まれ、再同期のたびに衝突する。
-exclude: '^\.(claude|agents)/'
+# .claude/rules/ と .claude/settings.json はこのリポジトリで書くので対象に含める。
+exclude: '^(\.agents/|\.claude/(skills|agents)/|tools/pstack/upstream/)'
 
 # stages 未指定の hook は commit 時だけに走らせる。これが無いと pre-push でも
 # oxlint / oxfmt / typecheck などが走り、verify-before-push の型検査と二重になる。
