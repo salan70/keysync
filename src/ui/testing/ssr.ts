@@ -1,8 +1,9 @@
+import { fileURLToPath } from "node:url";
 import { createServer, type ViteDevServer } from "vite";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 
-const ROOT = new URL("../../../", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 /**
  * React コンポーネントを node 上で `renderToStaticMarkup` するための読み込み口。
