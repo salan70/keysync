@@ -9,12 +9,13 @@ Playwright で盤面と Apply の確認画面を決定論的に撮れるかを�
 ## 準備
 
 Playwright は repository の依存に入れません。別ディレクトリへ入れて、環境変数で指します。\
-ブラウザは nixpkgs unstable の `playwright-driver.browsers` を使います。npm の `playwright` は、nixpkgs の `playwright-driver` と同じ 1.64.1 を使います。
+ブラウザは nixpkgs の `playwright-driver.browsers` を使います。rev は flake.lock の `nixpkgs-unstable` と同じ `e5bdc4a`（`playwright-driver` 1.64.1）に固定します。\
+npm の `playwright` は、nixpkgs の `playwright-driver` と同じ 1.64.1 を使います。
 
 ```bash
 # ブラウザ（chromium と headless shell のみ。darwin では約 1 分半、/nix/store に約 600 MB）
 nix build --impure --no-link --print-out-paths --expr '
-  let pkgs = import (builtins.getFlake "github:NixOS/nixpkgs/nixos-unstable") { system = builtins.currentSystem; };
+  let pkgs = import (builtins.getFlake "github:NixOS/nixpkgs/e5bdc4a41d4c072fe1e3787eaa0320a384741d44") { system = builtins.currentSystem; };
   in pkgs.playwright-driver.browsers.override { withFirefox = false; withWebkit = false; withFfmpeg = false; }'
 
 # Playwright 本体（repository の外）
