@@ -135,3 +135,9 @@ test("追跡済みの Markdown が壊れたリンクを持てば検出する", (
     ),
   );
 });
+
+test("脚注の定義をリンク定義として扱わない", () => {
+  withDocs({ "docs/a.md": "# A\n\n本文[^1]\n\n[^1]: Footnote.\n[^note]: 注記 text\n" }, (root) =>
+    assert.deepEqual(checkRoot(root), []),
+  );
+});

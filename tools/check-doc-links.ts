@@ -121,7 +121,8 @@ function scan(source: string): Scanned {
     for (const m of stripped.matchAll(/!?\[(?:[^\]\\]|\\.)*\]\(\s*(<[^>]*>|[^\s)]*)/g)) {
       if (m[1] !== undefined) links.push({ line: index + 1, dest: m[1].replace(/^<|>$/g, "") });
     }
-    const def = /^ {0,3}\[[^\]]+\]:\s*(<[^>]*>|\S+)/.exec(stripped);
+    // 脚注の定義（[^1]: 本文）はリンク定義ではない。
+    const def = /^ {0,3}\[(?!\^)[^\]]+\]:\s*(<[^>]*>|\S+)/.exec(stripped);
     if (def?.[1] !== undefined) links.push({ line: index + 1, dest: def[1].replace(/^<|>$/g, "") });
   });
 
