@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { checkRoot, slugify } from "./check-doc-links.ts";
 
@@ -244,4 +245,101 @@ test("重複見出しの採番は github-slugger と同じにする（a, a, a-1 
         ["#a-3", "#a-4"],
       ),
   );
+});
+
+test("参照形式のリンクは定義の宛先を検査する", () => {
+  withDocs(
+    {
+      "docs/a.md": "# A\n\n[x][ok] [y][bad]\n\n[ok]: ./b.md\n[bad]: ./none.md#h\n",
+      "docs/b.md": "# B\n",
+    },
+    (root) =>
+      assert.deepEqual(
+        checkRoot(root).map((p) => [p.line, p.link]),
+        [[6, "./none.md#h"]],
+      ),
+  );
+});
+
+test("パーセントエンコードのアンカーと、<a id> / <a name> を解決する", () => {
+  withDocs(
+    {
+      "docs/a.md": [
+        "# A",
+        "",
+        "[1](./b.md#%E6%97%A5%E6%9C%AC%E8%AA%9E) [2](./b.md#custom-id) [3](./b.md#Legacy-Name)",
+        "",
+      ].join("\n"),
+      "docs/b.md": '# 日本語\n\n<a id="custom-id"></a>\n\n<a name="Legacy-Name"></a>\n',
+    },
+    (root) => assert.deepEqual(checkRoot(root), []),
+  );
+});
+
+test("setext 見出しをアンカーにする", () => {
+  withDocs(
+    {
+      "docs/a.md": "Title\n=====\n\nSub head\n--------\n\n[1](#title) [2](#sub-head) [3](#none)\n",
+    },
+    (root) =>
+      assert.deepEqual(
+        checkRoot(root).map((p) => p.link),
+        ["#none"],
+      ),
+  );
+});
+
+test("行番号アンカー（#L10）は検査せず、?query 付きのリンクはパス部分だけ検査する", () => {
+  withDocs(
+    {
+      "docs/a.md":
+        "# A\n\n[1](./b.md#L10) [2](./b.md#L3-L9) [3](./b.md?plain=1) [4](./none.md?plain=1)\n",
+      "docs/b.md": "# B\n",
+    },
+    (root) =>
+      assert.deepEqual(
+        checkRoot(root).map((p) => p.link),
+        ["./none.md?plain=1"],
+      ),
+  );
+});
+
+test("画像リンクの宛先を検査する", () => {
+  withDocs(
+    { "docs/a.md": "# A\n\n![ok](./pic.png) ![ng](./none.png)\n", "docs/pic.png": "" },
+    (root) =>
+      assert.deepEqual(
+        checkRoot(root).map((p) => p.link),
+        ["./none.png"],
+      ),
+  );
+});
+
+test("数字だけの見出しもアンカーにする", () => {
+  withDocs({ "docs/a.md": "# 2024\n\n## 1.2.3\n\n[1](#2024) [2](#123)\n" }, (root) =>
+    assert.deepEqual(checkRoot(root), []),
+  );
+});
+
+// CI の赤が意味を持つことの確認。壊れたリンクとアンカーで非 0、正常で 0 になる。
+function runCli(root: string): { status: number | null; stderr: string } {
+  const script = fileURLToPath(new URL("./check-doc-links.ts", import.meta.url));
+  const result = spawnSync(process.execPath, [script, root], { encoding: "utf8" });
+  return { status: result.status, stderr: result.stderr };
+}
+
+test("CLI は壊れたリンクかアンカーで非 0 を返し、正常なら 0 を返す", () => {
+  withDocs({ "docs/a.md": "# A\n\n[b](./b.md#b)\n", "docs/b.md": "# B\n" }, (root) =>
+    assert.equal(runCli(root).status, 0),
+  );
+  withDocs({ "docs/a.md": "# A\n\n[b](./none.md)\n" }, (root) => {
+    const { status, stderr } = runCli(root);
+    assert.equal(status, 1);
+    assert.match(stderr, /docs\/a\.md:3: リンク先のファイルが存在しません: \.\/none\.md/);
+  });
+  withDocs({ "docs/a.md": "# A\n\n[b](./b.md#missing)\n", "docs/b.md": "# B\n" }, (root) => {
+    const { status, stderr } = runCli(root);
+    assert.equal(status, 1);
+    assert.match(stderr, /リンク先に該当する見出しがありません: \.\/b\.md#missing/);
+  });
 });
