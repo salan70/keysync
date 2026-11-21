@@ -4,6 +4,12 @@
 # lint / format の対象外にする。整形すると正本との差分が生まれ、再同期のたびに衝突する。
 exclude: '^\.(claude|agents)/'
 
+# stages 未指定の hook は commit 時だけに走らせる。これが無いと pre-push でも
+# oxlint / oxfmt / typecheck などが走り、verify-before-push の型検査と二重になる。
+# push 時に oxfmt --write がファイルを書き換えることも防ぐ。
+# pre-push / commit-msg の hook は stages を明示しているため影響しない。
+default_stages: [pre-commit]
+
 repos:
   # TypeScript / JavaScript — oxlint
   - repo: local
