@@ -45,7 +45,7 @@ const labels: WorkspaceLabels = {
   keycodes: new Map([["KC_A", "あ"]]),
 };
 
-// baseline から 3 件だけ変えた desired。Apply の差分表と盤面の差分印の元にする。
+// baseline から 3 件を変えた desired。Apply の差分表と盤面の差分印の元にする。
 const desired = setEncoderAssignment(
   setKeyAssignment(
     setKeyAssignment(baseline, { layer: 0, row: 0, col: 0 }, "KC_B"),
@@ -53,7 +53,7 @@ const desired = setEncoderAssignment(
     "KC_TRNS",
   ),
   { layer: 0, index: 0, direction: 1 },
-  "KC_VOLU",
+  "KC_MUTE",
 );
 const changed = diffDocuments(baseline, desired, definition).entries;
 
