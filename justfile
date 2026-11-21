@@ -75,6 +75,10 @@ typecheck:
 test:
     pnpm test
 
+# UI の構造 snapshot（src/ui/components/__snapshots__）を更新する。差分をレビューしてから commit する
+test-update-snapshots:
+    node --test --test-update-snapshots "src/**/*.test.ts"
+
 # 任意の docbridge サブコマンドを実行する（例: just docbridge graph）
 docbridge *ARGS:
     ./tools/docbridge.sh {{ARGS}}
