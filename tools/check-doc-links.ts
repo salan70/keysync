@@ -6,20 +6,13 @@
 //
 // 使い方: tsx tools/check-doc-links.ts [リポジトリのルート]（既定は cwd）
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// 検査対象外のディレクトリ。vendor 資産（.claude / .agents）は pre-commit の exclude と揃える。
-const IGNORED_DIRS = new Set([
-  ".git",
-  ".direnv",
-  ".claude",
-  ".agents",
-  "node_modules",
-  "dist",
-  ".vite",
-]);
+// 検査対象外の vendor 資産（.claude / .agents）。pre-commit の exclude と揃える。
+const VENDOR_PREFIXES = [".claude/", ".agents/"];
 
 export type LinkProblem = {
   file: string;
@@ -28,20 +21,23 @@ export type LinkProblem = {
   reason: string;
 };
 
+// 検査対象は Git が追跡する Markdown だけにする。
+// 未追跡の下書きや gitignore 対象（.pnpm-store、coverage、result など）を走査せず、
+// CI のクリーンな checkout と同じ範囲になる。
 export function listMarkdownFiles(root: string): string[] {
-  const out: string[] = [];
-  const walk = (dir: string): void => {
-    for (const name of readdirSync(dir).sort()) {
-      const full = join(dir, name);
-      if (statSync(full).isDirectory()) {
-        if (!IGNORED_DIRS.has(name)) walk(full);
-      } else if (name.endsWith(".md")) {
-        out.push(full);
-      }
-    }
-  };
-  walk(root);
-  return out;
+  // hook の実行中は GIT_DIR / GIT_INDEX_FILE が設定され、`-C` より優先されてしまう。
+  const env = { ...process.env };
+  for (const name of ["GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE"]) delete env[name];
+  const out = execFileSync("git", ["-C", root, "ls-files", "-z", "--", "*.md"], {
+    encoding: "utf8",
+    env,
+  });
+  return out
+    .split("\0")
+    .filter((name) => name !== "" && !VENDOR_PREFIXES.some((prefix) => name.startsWith(prefix)))
+    .sort()
+    .map((name) => resolve(root, name))
+    .filter((path) => existsSync(path)); // 削除済みで未 stage のファイルは除く
 }
 
 // GitHub が見出しから作るアンカー。小文字化し、文字・数字・結合文字・`_`・`-`・空白以外を除き、
