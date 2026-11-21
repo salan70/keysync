@@ -141,3 +141,107 @@ test("脚注の定義をリンク定義として扱わない", () => {
     assert.deepEqual(checkRoot(root), []),
   );
 });
+
+test("`_` の強調を外して slug にし、語中の `_` とコード内の `_` は残す", () => {
+  withDocs(
+    {
+      "docs/a.md": [
+        "# __Bold__ head",
+        "",
+        "## _斜体_ と text",
+        "",
+        "## snake_case_name",
+        "",
+        "## `__init__` の話",
+        "",
+        "[1](#bold-head) [2](#斜体-と-text) [3](#snake_case_name) [4](#__init__-の話)",
+        "",
+      ].join("\n"),
+    },
+    (root) => assert.deepEqual(checkRoot(root), []),
+  );
+});
+
+test("インデントのコードブロック内のリンクと見出しは検査しない", () => {
+  withDocs(
+    {
+      "docs/a.md": [
+        "# A",
+        "",
+        "段落",
+        "",
+        "    [code](./none.md)",
+        "    # 偽の見出し",
+        "",
+        "- 項目",
+        "",
+        "    - [入れ子](./b.md)",
+        "",
+        "段落の続き",
+        "    [lazy](./lazy-none.md)",
+        "",
+      ].join("\n"),
+      "docs/b.md": "# B\n",
+    },
+    (root) =>
+      assert.deepEqual(
+        checkRoot(root).map((p) => p.link),
+        ["./lazy-none.md"],
+      ),
+  );
+});
+
+test("fence は info string 付きの行では閉じず、fence 文字だけの行で閉じる", () => {
+  withDocs(
+    {
+      "docs/a.md": [
+        "# A",
+        "",
+        "```md",
+        "```js",
+        "[内側](./none.md)",
+        "```",
+        "",
+        "[外側](./outer-none.md)",
+        "",
+        "~~~~",
+        "~~~",
+        "[内側2](./none2.md)",
+        "~~~~   ",
+        "",
+        "[外側2](./outer-none2.md)",
+        "",
+      ].join("\n"),
+    },
+    (root) =>
+      assert.deepEqual(
+        checkRoot(root).map((p) => p.link),
+        ["./outer-none.md", "./outer-none2.md"],
+      ),
+  );
+});
+
+test("重複見出しの採番は github-slugger と同じにする（a, a, a-1 → a, a-1, a-1-1）", () => {
+  withDocs(
+    {
+      "docs/a.md": [
+        "# a",
+        "",
+        "# a",
+        "",
+        "# a-1",
+        "",
+        "# a",
+        "",
+        "[1](#a) [2](#a-1) [3](#a-1-1) [4](#a-2) [5](#a-3)",
+        "[6](#a-4)",
+        "",
+      ].join("\n"),
+    },
+    (root) =>
+      assert.deepEqual(
+        checkRoot(root).map((p) => p.link),
+        ["#a-3", "#a-4"],
+      ),
+  );
+});

@@ -49,14 +49,21 @@ export function slugify(heading: string): string {
     .replace(/ /g, "-");
 }
 
+// `_` による強調（`_x_` / `__x__`）。語中の `_`（snake_case）は強調ではない。
+const UNDERSCORE_EMPHASIS = /(^|[^\p{L}\p{N}_])(_{1,2})(?=\S)(.+?)(?<=\S)\2(?![\p{L}\p{N}_])/gu;
+
 // 見出しの表示テキスト（リンク・画像・強調・コードの記号を外したもの）。
 function headingText(raw: string): string {
-  return raw
+  const text = raw
     .replace(/\s+#+\s*$/, "")
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/<[^>]+>/g, "")
-    .replace(/`([^`]*)`/g, "$1")
+    .replace(/<[^>]+>/g, "");
+  // インラインコードの中の `_` は強調として外さない。
+  return text
+    .split(/(`[^`]*`)/)
+    .map((part, i) => (i % 2 === 1 ? part.slice(1, -1) : part.replace(UNDERSCORE_EMPHASIS, "$1$3")))
+    .join("")
     .trim();
 }
 
@@ -65,39 +72,66 @@ type Scanned = {
   links: { line: number; dest: string }[];
 };
 
-const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+// 開きの fence。バッククォートの fence は info string にバッククォートを含められない。
+const FENCE_OPEN = /^ {0,3}(?:(`{3,})[^`]*|(~{3,}).*)$/;
+// 閉じの fence は fence 文字と空白だけ。info string が付いた行は閉じにならない（CommonMark）。
+const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+const LIST_ITEM = /^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
 
 // 本文の行を、コードブロックの内外で分けて走査する。
 function scan(source: string): Scanned {
   const anchors = new Set<string>();
+  // github-slugger と同じく、採番済みの slug 自体も使用済みとして数える。
   const seen = new Map<string, number>();
   const links: Scanned["links"] = [];
   const lines = source.split(/\r?\n/);
   let fence: string | null = null;
+  // インデントによるコードブロック。直前が空行で、リスト項目の続きではない 4 桁以上の行から始まる。
+  let indentedCode = false;
+  let prevBlank = true;
+  let inList = false;
 
   const addAnchor = (text: string): void => {
     const base = slugify(text);
-    const count = seen.get(base) ?? 0;
-    seen.set(base, count + 1);
-    anchors.add(count === 0 ? base : `${base}-${count}`);
+    let slug = base;
+    while (seen.has(slug)) {
+      const count = (seen.get(base) ?? 0) + 1;
+      seen.set(base, count);
+      slug = `${base}-${count}`;
+    }
+    seen.set(slug, 0);
+    anchors.add(slug);
   };
 
   lines.forEach((line, index) => {
-    const fenceMatch = FENCE.exec(line);
     if (fence !== null) {
-      if (
-        fenceMatch?.[1] &&
-        fenceMatch[1][0] === fence[0] &&
-        fenceMatch[1].length >= fence.length
-      ) {
-        fence = null;
+      const close = FENCE_CLOSE.exec(line)?.[1];
+      if (close && close[0] === fence[0] && close.length >= fence.length) fence = null;
+      return;
+    }
+    const open = FENCE_OPEN.exec(line);
+    const opener = open?.[1] ?? open?.[2];
+    if (opener) {
+      fence = opener;
+      prevBlank = false;
+      return;
+    }
+
+    const blank = line.trim() === "";
+    const indented = /^(?: {4}|\t)/.test(line);
+    if (indentedCode) {
+      if (blank || indented) {
+        prevBlank = blank;
+        return;
       }
+      indentedCode = false;
+    } else if (indented && prevBlank && !inList) {
+      indentedCode = true;
+      prevBlank = false;
       return;
     }
-    if (fenceMatch?.[1]) {
-      fence = fenceMatch[1];
-      return;
-    }
+    if (!blank && !indented) inList = LIST_ITEM.test(line);
+    prevBlank = blank;
 
     const heading = /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(line);
     if (heading?.[1] !== undefined) addAnchor(headingText(heading[1]));
