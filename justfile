@@ -94,3 +94,6 @@ docbridge-related:
 # Markdown 同士の相対リンクと #anchor の実在を検査する
 check-doc-links:
     pnpm exec tsx tools/check-doc-links.ts
+
+# 型検査とテストを全量で実行する（pre-push と同じ）
+verify: typecheck test

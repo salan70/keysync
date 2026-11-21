@@ -153,6 +153,8 @@ Markdown に `@code` のアンカーを張り、`docbridge` スキルで維持�
 （`just check-doc-links`）が検査し、pre-commit と CI でブロックします。DocBridge とは別の責務です。
 `docbridge check`（リンク切れ）は pre-commit と CI でブロックし、
 `related-gate`（リンク先の未更新）は pre-push と CI で報告のみ行います。
+pre-push は `just verify`（型検査とテストの全量）も実行し、失敗した push を止めます。\
+CI の `lint` workflow は `pre-commit run --all-files` で oxlint、oxfmt、markdownlint、文書間リンクを検査します。
 DocBridge のバージョンは `.docbridge-version` が単一の定義元で、flake・CI・フックが
 すべてこれを参照します。
 
