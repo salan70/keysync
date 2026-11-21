@@ -55,7 +55,7 @@ UI は `src/ui/App.tsx`（接続）、`src/ui/*.ts`（表示値計算、約 25 �
 - `node:` で始まる specifier と、`fs` や `path` のような `node:` 無しの組み込み
 - `react` と `react-dom`
 - 解決した先が `src/core` の外にある相対 import（`src/ui`、`src/device`、`src/server` など）
-- `.ts` / `.tsx` で解決できない相対 import（検査をすり抜けるため）
+- 拡張子が `.ts` / `.tsx` の相対 import で、走査対象に無いもの（検査をすり抜けるため。`.js` など他の拡張子の未解決は対象にしない）
 
 import は `.ts` 拡張子付きの相対 specifier で書かれているので、文字列の走査で解決できる。
 `export ... from` も同じ辺として数え、`src/core` を全件走査するので export の連鎖も検査に入る。
@@ -99,16 +99,29 @@ view は、`src/ui/components` の `*.tsx`（描画の部品）と定める。
 
 ## 理由
 
-- 案 1 は、違反が入ったあとで人が気づくしかない。ADR 0006 の境界が実際に文章だけで残っていた
-- 案 2 は、足す依存と設定が、`import` の文を数えるだけの検査に対して重い。`node:test` は既に全件を数秒で走らせており、全ファイルの走査も同じ時間に収まる
-- `tsconfig` の分割は、含めるファイルを絞るだけで、`node:` の import を止められない。構造検査がこの穴を補う
+- 案 1 は、違反が入ったあとで人が気づくしかない。\
+  ADR 0006 の境界が実際に文章だけで残っていた
+- 案 2 は、足す依存と設定が、`import` の文を数えるだけの検査に対して重い。\
+  `node:test` は既に全件を数秒で走らせており、全ファイルの走査も同じ時間に収まる
+- `tsconfig` の分割は、含めるファイルを絞るだけで、`node:` の import を止められない。\
+  構造検査がこの穴を補う
 - view の規約を import に絞ると、規約が「hook を呼ばない」ではなく「hook のモジュールへ届かない」になり、`useState` を許しても機械検査できる
 - 表示値計算を `src/ui/*.ts` のまま残すと、`@doc` のリンクと履歴を乱さず、規約はファイル名ではなく import で表せる
 
 ## 影響
 
-- `src/core` に `node:` や `src/ui` の import を足すと CI が落ち、違反の経路が表示される。外へ出る部分は `src/core` の外へ置く
-- view に hook や protocol の型が欲しくなったら、表示値計算の `.ts` に型を置く。allowlist に足さない
-- 検査は文字列の走査なので、文の先頭にない `import` や template literal の中の import は拾わない。動的 `import("x")` は拾う。`ts-morph` のような構文木の道具は、この限界が実害になるまで足さない
-- `tsconfig.cli.json` が `src/architecture` を含める。構造検査は `node:fs` を使うので、`src/core` の外に置く
-- Store（Elm 型）は導入しない。ADR 0013 は `useReducer` を許容済みで、Apply の状態機械は `src/core/apply/plan.ts` で既に純粋である
+- `src/core` に `node:` や `src/ui` の import を足すと CI が落ち、違反の経路が表示される。\
+  外へ出る部分は `src/core` の外へ置く
+- view に hook や protocol の型が欲しくなったら、表示値計算の `.ts` に型を置く。\
+  allowlist に足さない
+- 検査は文字列の走査なので、文の先頭にない `import` は拾わない。\
+  文字列と template literal の中身はそのまま走査するため、行頭に書かれた `import` 風の文は文字列の中身でも拾う。\
+  動的 `import()` は引用符の specifier だけを拾い、backtick の specifier は拾わない。\
+  `ts-morph` のような構文木の道具は、この限界が実害になるまで足さない
+- Node の global（`process.env`、`Buffer` など）は検査の対象外である。\
+  `tsconfig.core.json` の `types: ["node"]` で型が付くので型検査でも止められず、import の走査にも現れない。\
+  現在の `src/core` にこの使用は無い
+- `tsconfig.cli.json` が `src/architecture` を含める。\
+  構造検査は `node:fs` を使うので、`src/core` の外に置く
+- Store（Elm 型）は導入しない。\
+  ADR 0013 は `useReducer` を許容済みで、Apply の状態機械は `src/core/apply/plan.ts` で既に純粋である
