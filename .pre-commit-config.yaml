@@ -84,7 +84,9 @@ repos:
         name: check doc links
         entry: tools/devshell.sh pnpm exec tsx tools/check-doc-links.ts
         language: system
-        files: \.md$
+        # .md の削除だけの commit は files に当たらない（対象は ACMRTUXB で D を含まない）。
+        # 参照元のリンクが残っても通るため、常に実行する。実測 1.5 秒（devShell への入り直しを含む）。
+        always_run: true
         pass_filenames: false
 
   # push 前の全量検査 — 型検査とテスト（just verify）
@@ -100,4 +102,3 @@ repos:
         stages: [pre-push]
         always_run: true
         pass_filenames: false
-        verbose: true
