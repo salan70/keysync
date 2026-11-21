@@ -72,9 +72,11 @@ import は `.ts` 拡張子付きの相対 specifier で書かれているので�
 view は、`src/ui/components` の `*.tsx`（描画の部品）と定める。
 規約はファイル名ではなく import の制約で表す。
 
-- view は `src/ui/state/use-*`、`src/device`、`src/server` のモジュールを import しない（型だけの import も同じ）
-- `useState` のようなダイアログの開閉などの局所的な hook は、import の制約の外なので許す。制約が import だけなので、機械的に検査できる
-- `src/ui/*.ts` の表示値計算（既に純粋関数）は、改名も移動もしない。`*.projection.ts` のような接尾辞は付けない
+- view は `src/ui/state/use-*`、`src/device`、`src/server`、接続層（`src/ui/*Container.tsx` と `src/ui/App.tsx`）を import しない（型だけの import も同じ）
+- `useState` のようなダイアログの開閉などの局所的な hook は、import の制約の外なので許す。\
+  制約が import だけなので、機械的に検査できる
+- `src/ui/*.ts` の表示値計算（既に純粋関数）は、改名も移動もしない。\
+  `*.projection.ts` のような接尾辞は付けない
 
 `src/architecture/view-convention.test.ts` が、この規約を同じ走査と allowlist、stale 検出で強制する。
 現在の例外は、規約の導入前から型だけを import している 6 件で、それぞれに理由を書いた。

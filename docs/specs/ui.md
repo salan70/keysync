@@ -449,7 +449,8 @@ Apply の modal は、接続、表示値計算、純粋描画の 3 層に分け�
 表示値計算の `buildApplyDialogView` は、段階の添字、差分の行、承認の対象にする warning、書き込み中の operation ごとの状態、中断の理由の文を値にする純粋関数である。
 段階は Core の `ApplyState` の phase を優先し、書き込み前だけ `step` で決める。
 純粋描画の `ApplyDialog` は受け取った値を描くだけで、dialog の開閉と見出しへの focus だけを局所の状態として持つ。
-view は `src/ui/state/use-*` と device / server のモジュールを import しない。この規約は構造検査が強制する。
+view は `src/ui/state/use-*` と device / server のモジュール、接続層（`src/ui/*Container.tsx` と `src/ui/App.tsx`）を import しない。\
+この規約は構造検査が強制する。
 
 <!-- @code src/ui/components/index.ts#CornixDevicePanel -->
 <!-- @code src/ui/components/index.ts#MacDevicePanel -->

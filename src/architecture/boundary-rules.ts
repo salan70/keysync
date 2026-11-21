@@ -117,12 +117,16 @@ export function checkCoreBoundary(sources: Sources, allowances: readonly Allowan
 }
 
 const VIEW_FILE = /^src\/ui\/components\/.+\.tsx$/;
+const CONNECT_LAYER = /^src\/ui\/[^/]*Container\.tsx$/;
 
 /** view（`src/ui/components` の描画部品）が import してはいけない場所。 */
 function viewForbidden(target: string): string | undefined {
   if (target.startsWith("src/ui/state/use-")) return "接続層の hook を";
   if (target.startsWith("src/device/")) return "device モジュールを";
   if (target.startsWith("src/server/")) return "server モジュールを";
+  if (CONNECT_LAYER.test(target) || target === "src/ui/App.tsx") {
+    return "接続層（container と App）を";
+  }
   return undefined;
 }
 
@@ -131,8 +135,9 @@ export function viewFiles(sources: Sources): readonly string[] {
 }
 
 /**
- * view の規約。view は接続層の hook（`src/ui/state/use-*`）と device / server モジュールを
- * import しない（型だけの import も同じ）。局所的な `useState` は import の制約の外なので許す。
+ * view の規約。view は接続層の hook（`src/ui/state/use-*`）、device / server モジュール、
+ * 接続層（`src/ui/*Container.tsx` と `src/ui/App.tsx`）を import しない（型だけの import も同じ）。
+ * 局所的な `useState` は import の制約の外なので許す。
  */
 export function checkViewConvention(
   sources: Sources,

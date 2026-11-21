@@ -13,7 +13,7 @@ import {
   targetValue,
   type PickTarget,
 } from "../keycode-compose.ts";
-import { keycodeDisplay, kindClass, renderKeycode } from "../keycode-display.tsx";
+import { keycodeDisplay, kindClass, renderKeycode } from "./keycode-display.tsx";
 import type { IconName } from "../icons.ts";
 import type { SaveState } from "../save-state.ts";
 import { Button } from "./Button.tsx";

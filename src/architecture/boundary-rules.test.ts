@@ -103,13 +103,15 @@ test("例外は該当する違反だけを許し、違反が消えた例外は s
   deepStrictEqual(stale, { violations: [], stale: ["src/core/a.ts → node:fs: 消えた"] });
 });
 
-test("view は state の hook と device / server を禁止し、それ以外の ui と core は許す", () => {
+test("view は state の hook と device / server と接続層を禁止し、それ以外の ui と core は許す", () => {
   const result = checkViewConvention(
     sources({
       "src/ui/components/A.tsx": [
         `import { useApply } from "../state/use-apply.ts";`,
         `import type { P } from "../../server/protocol.ts";`,
         `import { d } from "../../device/webhid.ts";`,
+        `import { ApplyDialogContainer } from "../ApplyDialogContainer.tsx";`,
+        `import { App } from "../App.tsx";`,
         `import { label } from "../keycode-labels.ts";`,
         `import { c } from "../../core/model/keymap-view.ts";`,
         `import { Icon } from "./Icon.tsx";`,
@@ -120,6 +122,7 @@ test("view は state の hook と device / server を禁止し、それ以外の
       "src/ui/components/A.test.tsx": `import { useApply } from "../state/use-apply.ts";`,
       "src/ui/components/index.ts": `import { useApply } from "../state/use-apply.ts";`,
       "src/ui/App.tsx": `import { useApply } from "./state/use-apply.ts";`,
+      "src/ui/ApplyDialogContainer.tsx": ``,
       "src/ui/state/use-apply.ts": ``,
       "src/ui/keycode-labels.ts": ``,
       "src/server/protocol.ts": ``,
@@ -132,6 +135,8 @@ test("view は state の hook と device / server を禁止し、それ以外の
     'src/ui/components/A.tsx → src/ui/state/use-apply.ts（src/ui/components/A.tsx:1 の import "../state/use-apply.ts": view は 接続層の hook を import しない）',
     'src/ui/components/A.tsx → src/server/protocol.ts（src/ui/components/A.tsx:2 の import "../../server/protocol.ts": view は server モジュールを import しない）',
     'src/ui/components/A.tsx → src/device/webhid.ts（src/ui/components/A.tsx:3 の import "../../device/webhid.ts": view は device モジュールを import しない）',
+    'src/ui/components/A.tsx → src/ui/ApplyDialogContainer.tsx（src/ui/components/A.tsx:4 の import "../ApplyDialogContainer.tsx": view は 接続層（container と App）を import しない）',
+    'src/ui/components/A.tsx → src/ui/App.tsx（src/ui/components/A.tsx:5 の import "../App.tsx": view は 接続層（container と App）を import しない）',
   ]);
 });
 
