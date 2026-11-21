@@ -90,9 +90,11 @@ commit しないもの:
 
 `push` と pull request の作成は依頼された場合のみ行います。
 
-pre-commit の local hook は `tools/devshell.sh` 経由でピン留めした toolchain へ入り直すため、
-direnv 済みシェルでなくても素の `git commit` と `git push` が検査を通ります。
-`nix` と `just setup`（フックの導入）だけが前提です。
+pre-commit の local hook は `tools/devshell.sh` 経由でピン留めした toolchain へ入り直します。\
+direnv 済みシェルでなくても、素の `git commit` と `git push` が検査を通ります。\
+前提は `nix`、`pnpm install`（hook の検査が `node_modules` を使う）、`just setup`（フックの導入）です。\
+フックが使う Python（`INSTALL_PYTHON`）は nix store にあります。\
+direnv の GC root が無い環境で GC すると hook が動かなくなるため、`nix develop -c just setup` で入れ直します。
 
 ## 許可する操作
 
@@ -149,14 +151,15 @@ direnv 済みシェルでなくても素の `git commit` と `git push` が検�
 `docs/specs/` のセクションとコードの対応は DocBridge が機械検証します。コードに `@doc`、
 Markdown に `@code` のアンカーを張り、`docbridge` スキルで維持します。
 
-検証は自動で走ります。Markdown 同士の相対リンクと `#anchor` の実在は `tools/check-doc-links.ts`
-（`just check-doc-links`）が検査し、pre-commit と CI でブロックします。DocBridge とは別の責務です。
-`docbridge check`（リンク切れ）は pre-commit と CI でブロックし、
-`related-gate`（リンク先の未更新）は pre-push と CI で報告のみ行います。
+検証は自動で走ります。\
+Markdown 同士の相対リンクと `#anchor` の実在は `tools/check-doc-links.ts`（`just check-doc-links`）が検査し、pre-commit と CI でブロックします。\
+対象は Git が追跡する Markdown だけで、DocBridge とは別の責務です。\
+`docbridge check`（リンク切れ）は pre-commit と CI でブロックします。\
+`related-gate`（リンク先の未更新）は pre-push と CI で報告のみ行います。\
 pre-push は `just verify`（型検査とテストの全量）も実行し、失敗した push を止めます。\
-CI の `lint` workflow は `pre-commit run --all-files` で oxlint、oxfmt、markdownlint、文書間リンクを検査します。
-DocBridge のバージョンは `.docbridge-version` が単一の定義元で、flake・CI・フックが
-すべてこれを参照します。
+CI の `lint` workflow は `pre-commit run --all-files` で oxlint、oxfmt、markdownlint、文書間リンクを検査します。\
+型検査は `typecheck` workflow、DocBridge は `docbridge` workflow が担うため、`lint` workflow では `SKIP` で外します。\
+DocBridge のバージョンは `.docbridge-version` が単一の定義元で、flake・CI・フックがすべてこれを参照します。
 
 ## 対話原則
 
