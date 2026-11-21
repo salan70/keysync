@@ -321,6 +321,45 @@ test("数字だけの見出しもアンカーにする", () => {
   );
 });
 
+test("HTML コメントの中のリンクと見出しは検査しない", () => {
+  withDocs(
+    {
+      "docs/a.md": [
+        "# A",
+        "",
+        "<!-- [単行](./none.md) -->",
+        "",
+        "前 <!-- [途中](./none2.md) --> 後",
+        "",
+        "<!--",
+        "[複数行](./none3.md)",
+        "# コメント内の見出し",
+        "-->",
+        "",
+        "[コメント内の見出しだけを指す](#コメント内の見出し)",
+        "",
+      ].join("\n"),
+    },
+    (root) =>
+      // コメント内の見出しはアンカーにならないため、それを指すリンクだけが報告される。
+      assert.deepEqual(
+        checkRoot(root).map((p) => p.link),
+        ["#コメント内の見出し"],
+      ),
+  );
+});
+
+test("Git リポジトリの外では案内を出して 2 で終わる", () => {
+  const dir = mkdtempSync(join(tmpdir(), "doc-links-nogit-"));
+  try {
+    const { status, stderr } = runCli(dir);
+    assert.equal(status, 2);
+    assert.match(stderr, /Git リポジトリ/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // CI の赤が意味を持つことの確認。壊れたリンクとアンカーで非 0、正常で 0 になる。
 function runCli(root: string): { status: number | null; stderr: string } {
   const script = fileURLToPath(new URL("./check-doc-links.ts", import.meta.url));

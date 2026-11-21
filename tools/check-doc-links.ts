@@ -28,10 +28,18 @@ export function listMarkdownFiles(root: string): string[] {
   // hook の実行中は GIT_DIR / GIT_INDEX_FILE が設定され、`-C` より優先されてしまう。
   const env = { ...process.env };
   for (const name of ["GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE"]) delete env[name];
-  const out = execFileSync("git", ["-C", root, "ls-files", "-z", "--", "*.md"], {
-    encoding: "utf8",
-    env,
-  });
+  let out: string;
+  try {
+    out = execFileSync("git", ["-C", root, "ls-files", "-z", "--", "*.md"], {
+      encoding: "utf8",
+      env,
+    });
+  } catch (error) {
+    const detail = error instanceof Error && "stderr" in error ? String(error.stderr).trim() : "";
+    throw new Error(
+      `git ls-files に失敗しました。Git リポジトリ内で実行してください。${detail ? ` (${detail})` : ""}`,
+    );
+  }
   return out
     .split("\0")
     .filter((name) => name !== "" && !VENDOR_PREFIXES.some((prefix) => name.startsWith(prefix)))
@@ -76,6 +84,8 @@ type Scanned = {
 const FENCE_OPEN = /^ {0,3}(?:(`{3,})[^`]*|(~{3,}).*)$/;
 // 閉じの fence は fence 文字と空白だけ。info string が付いた行は閉じにならない（CommonMark）。
 const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+// 既知の制約: リスト項目や引用の中の fence（4 桁の indent、`> ``` `）は ^ {0,3} に合わず
+// 認識せず、その中のリンクは本文として検査される。現在のリポジトリには該当箇所がない。
 const LIST_ITEM = /^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
 
 // 本文の行を、コードブロックの内外で分けて走査する。
@@ -86,6 +96,28 @@ function scan(source: string): Scanned {
   const links: Scanned["links"] = [];
   const lines = source.split(/\r?\n/);
   let fence: string | null = null;
+  // HTML コメント（<!-- … -->）の中は GitHub が描画しないため、見出しもリンクも検査しない。
+  // 複数行にまたがるコメントはこのフラグで追い、コメント部分を取り除いた行だけを読む。
+  let inComment = false;
+  const stripComments = (line: string): string => {
+    let out = "";
+    let i = 0;
+    while (i < line.length) {
+      if (inComment) {
+        const end = line.indexOf("-->", i);
+        if (end === -1) return out;
+        inComment = false;
+        i = end + 3;
+      } else {
+        const start = line.indexOf("<!--", i);
+        if (start === -1) return out + line.slice(i);
+        out += line.slice(i, start);
+        inComment = true;
+        i = start + 4;
+      }
+    }
+    return out;
+  };
   // インデントによるコードブロック。直前が空行で、リスト項目の続きではない 4 桁以上の行から始まる。
   let indentedCode = false;
   let prevBlank = true;
@@ -109,7 +141,10 @@ function scan(source: string): Scanned {
       if (close && close[0] === fence[0] && close.length >= fence.length) fence = null;
       return;
     }
-    const open = FENCE_OPEN.exec(line);
+    // HTML コメントを除いた見た目の行で、これ以降のすべてを判定する。
+    // fence の中ではコメント記号はリテラルなので、stripComments には回さない。
+    const visible = stripComments(line);
+    const open = FENCE_OPEN.exec(visible);
     const opener = open?.[1] ?? open?.[2];
     if (opener) {
       fence = opener;
@@ -117,8 +152,8 @@ function scan(source: string): Scanned {
       return;
     }
 
-    const blank = line.trim() === "";
-    const indented = /^(?: {4}|\t)/.test(line);
+    const blank = visible.trim() === "";
+    const indented = /^(?: {4}|\t)/.test(visible);
     if (indentedCode) {
       if (blank || indented) {
         prevBlank = blank;
@@ -130,28 +165,28 @@ function scan(source: string): Scanned {
       prevBlank = false;
       return;
     }
-    if (!blank && !indented) inList = LIST_ITEM.test(line);
+    if (!blank && !indented) inList = LIST_ITEM.test(visible);
     prevBlank = blank;
 
-    const heading = /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(line);
+    const heading = /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(visible);
     if (heading?.[1] !== undefined) addAnchor(headingText(heading[1]));
     // setext 見出し（直前の行が本文で、この行が === / ---）。
     const next = lines[index + 1];
     if (
       heading === null &&
-      line.trim() !== "" &&
+      visible.trim() !== "" &&
       next !== undefined &&
       /^ {0,3}(=+|-+)\s*$/.test(next)
     ) {
-      addAnchor(headingText(line));
+      addAnchor(headingText(visible));
     }
 
     // 明示的な HTML アンカー。
-    for (const m of line.matchAll(/<a\s+[^>]*?(?:id|name)=["']([^"']+)["']/gi)) {
+    for (const m of visible.matchAll(/<a\s+[^>]*?(?:id|name)=["']([^"']+)["']/gi)) {
       if (m[1] !== undefined) anchors.add(m[1].toLowerCase());
     }
 
-    const stripped = line.replace(/`+[^`]*`+/g, (m) => " ".repeat(m.length));
+    const stripped = visible.replace(/`+[^`]*`+/g, (m) => " ".repeat(m.length));
     for (const m of stripped.matchAll(/!?\[(?:[^\]\\]|\\.)*\]\(\s*(<[^>]*>|[^\s)]*)/g)) {
       if (m[1] !== undefined) links.push({ line: index + 1, dest: m[1].replace(/^<|>$/g, "") });
     }
@@ -222,7 +257,13 @@ export function checkRoot(root: string): LinkProblem[] {
 
 function main(): number {
   const root = resolve(process.argv[2] ?? process.cwd());
-  const problems = checkRoot(root);
+  let problems: LinkProblem[];
+  try {
+    problems = checkRoot(root);
+  } catch (error) {
+    console.error(`check-doc-links: ${error instanceof Error ? error.message : error}`);
+    return 2;
+  }
   if (problems.length === 0) {
     console.log("check-doc-links: 切れたリンクとアンカーはありません。");
     return 0;
