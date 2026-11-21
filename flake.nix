@@ -52,7 +52,10 @@
           ];
 
           # tools/devshell.sh（hook 用の再入ラッパー）は KEYSYNC_QUIET=1 で出力を抑える。
+          # KEYSYNC_DEVSHELL は「この flake の devShell 内」の目印。他プロジェクトの
+          # nix shell（IN_NIX_SHELL）と区別し、ピン留めと違う版を使わないようにする。
           shellHook = ''
+            export KEYSYNC_DEVSHELL=1
             if [ -z "''${KEYSYNC_QUIET:-}" ]; then
               echo "KeySync"
               echo "  Node.js: $(node --version 2>/dev/null || echo 'not available')"
