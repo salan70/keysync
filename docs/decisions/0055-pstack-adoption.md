@@ -3,7 +3,7 @@
 状態: 採用
 
 2026-11-22 に、baseball_player_journey（以下 bpj）で整備した AI の運用の基盤を KeySync へ入れる形を決めた（Issue #26）。\
-調査と計画は、Issue #26 が参照する `docs/tasks/ai-logs/2026-11-22_bpj-assets-adoption-plan.md` にある。
+調査と計画は Issue #26 にまとめてある。
 
 ## 背景
 
