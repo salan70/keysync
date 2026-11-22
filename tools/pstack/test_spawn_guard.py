@@ -22,13 +22,13 @@ def agent(model=None, effort=None):
     return g.check('Agent', tool_input, TABLE)
 
 
-def delegate(model=None, options=None):
+def delegate(model=None, options=None, table=TABLE):
     target = {}
     if model is not None:
         target['model'] = model
     if options is not None:
         target['options'] = options
-    return g.check('mcp__t3-code__delegate_task', {'target': target}, TABLE)
+    return g.check('mcp__t3-code__delegate_task', {'target': target}, table)
 
 
 class ParseTest(unittest.TestCase):
@@ -79,23 +79,23 @@ class AgentTest(unittest.TestCase):
 
 class DelegateTest(unittest.TestCase):
     def test_dict_ok(self):
-        self.assertIsNone(delegate('terra', {'effort': 'medium'}))
+        self.assertIsNone(delegate('terra', {'reasoningEffort': 'medium'}))
 
     def test_array_xhigh_blocked(self):
-        self.assertIsNotNone(delegate('terra', [{'id': 'effort', 'value': 'xhigh'}]))
+        self.assertIsNotNone(delegate('terra', [{'id': 'reasoningEffort', 'value': 'xhigh'}]))
 
     def test_sol_xhigh_ok(self):
-        self.assertIsNone(delegate('sol', {'effort': 'xhigh'}))
+        self.assertIsNone(delegate('sol', {'reasoningEffort': 'xhigh'}))
 
     def test_luna_max_ok(self):
-        self.assertIsNone(delegate('luna', [{'id': 'effort', 'value': 'max'}]))
+        self.assertIsNone(delegate('luna', [{'id': 'reasoningEffort', 'value': 'max'}]))
 
     def test_missing_effort(self):
         self.assertIsNotNone(delegate('terra'))
         self.assertIsNotNone(delegate('terra', [{'id': 'other', 'value': 'x'}]))
 
     def test_missing_model(self):
-        self.assertIsNotNone(delegate(None, {'effort': 'low'}))
+        self.assertIsNotNone(delegate(None, {'reasoningEffort': 'low'}))
 
     def test_codex_reasoning_effort(self):
         # orchestrator_capabilities で Codex の effort の option は reasoningEffort。
@@ -103,12 +103,38 @@ class DelegateTest(unittest.TestCase):
         self.assertIsNone(delegate('gpt-6.1-terra', [{'id': 'reasoningEffort', 'value': 'high'}]))
         self.assertIn('範囲外', delegate('gpt-6.1-terra', {'reasoningEffort': 'xhigh'}))
 
+    def test_codex_effort_key_blocked(self):
+        # codex の行に一致した model では effort は認めず、reasoningEffort が要る。
+        self.assertIn('reasoningEffort が未指定', delegate('terra', {'effort': 'medium'}))
+        self.assertIn('reasoningEffort が未指定',
+                      delegate('terra', [{'id': 'effort', 'value': 'medium'}]))
+
     def test_devin_thought_level(self):
         # Devin の effort の option は thought_level で、値は medium・high・max。
         self.assertIsNone(delegate('swe-2-high', {'thought_level': 'max'}))
         self.assertIsNone(delegate('swe-2-flash-medium', [{'id': 'thought_level', 'value': 'medium'}]))
         self.assertIn('範囲外', delegate('swe-2-high', {'thought_level': 'low'}))
-        self.assertIn('effort が未指定', delegate('swe-2-high', {'mode': 'plan'}))
+        self.assertIn('thought_level が未指定', delegate('swe-2-high', {'mode': 'plan'}))
+
+    def test_devin_other_option_keys_blocked(self):
+        # devin の行に一致した model では effort と reasoningEffort を認めない。
+        self.assertIn('thought_level が未指定', delegate('swe-2-high', {'effort': 'high'}))
+        self.assertIn('thought_level が未指定', delegate('swe-2-high', {'reasoningEffort': 'high'}))
+
+    def test_devin_fable_not_claimed_by_claude_row(self):
+        # devin の model id は末尾に thought_level を持つ。claude の fable 行と option を名乗らせない。
+        self.assertIn('表にありません', delegate('claude-fable-5-2-medium', {'effort': 'medium'}))
+        self.assertIn('表にありません', delegate('claude-fable-5-2-medium', {'thought_level': 'medium'}))
+
+    def test_devin_row_fable_uses_thought_level(self):
+        # devin の行に claude-fable-5-2 があれば、devin の option（thought_level）を読む。
+        table = g.merge_override(
+            TABLE,
+            'devin: mid=swe-2-high (medium-max, *medium), low=swe-2-flash (medium-max, *medium),'
+            ' named=claude-fable-5-2 (low-max, *medium)\n')
+        self.assertIsNone(delegate('claude-fable-5-2-medium', {'thought_level': 'medium'}, table))
+        self.assertIn('thought_level が未指定',
+                      delegate('claude-fable-5-2-medium', {'effort': 'medium'}, table))
 
 
 class ForkTest(unittest.TestCase):
@@ -148,29 +174,29 @@ class LevelOverrideTest(unittest.TestCase):
     def merged(self, text):
         return g.apply_level_models(g.merge_override(TABLE, text), text)
 
-    def call(self, table, model, effort):
-        options = {} if effort is None else {'effort': effort}
+    def call(self, table, model, option, value):
+        options = {} if value is None else {option: value}
         return g.check('mcp__t3-code__delegate_task',
                        {'target': {'model': model, 'options': options}}, table)
 
     def test_unknown_model_gets_full_range(self):
         table = self.merged('mid: codex:gpt-6-astra medium\n')
-        self.assertIsNone(self.call(table, 'gpt-6-astra', 'medium'))
-        self.assertIsNone(self.call(table, 'gpt-6-astra', 'max'))
-        self.assertIsNotNone(self.call(table, 'gpt-6-astra', None))
+        self.assertIsNone(self.call(table, 'gpt-6-astra', 'reasoningEffort', 'medium'))
+        self.assertIsNone(self.call(table, 'gpt-6-astra', 'reasoningEffort', 'max'))
+        self.assertIsNotNone(self.call(table, 'gpt-6-astra', 'reasoningEffort', None))
 
     def test_known_model_range_not_widened(self):
         table = self.merged('mid: codex:terra medium\n')
         self.assertEqual(table['codex']['terra'], [('low', 'high')])
-        self.assertIsNotNone(self.call(table, 'terra', 'xhigh'))
+        self.assertIsNotNone(self.call(table, 'terra', 'reasoningEffort', 'xhigh'))
 
     def test_unlisted_model_blocked(self):
         table = self.merged('mid: codex:gpt-6-astra medium\n')
-        self.assertIn('表にありません', self.call(table, 'gpt-9-unknown', 'medium'))
+        self.assertIn('表にありません', self.call(table, 'gpt-9-unknown', 'reasoningEffort', 'medium'))
 
     def test_devin_level_line(self):
         table = self.merged('high: devin:gemini-4-neon-high high\n')
-        self.assertIsNone(self.call(table, 'gemini-4-neon-high', 'high'))
+        self.assertIsNone(self.call(table, 'gemini-4-neon-high', 'thought_level', 'high'))
 
     def test_ui_line_changes_nothing(self):
         table = self.merged('ui: claude\n')

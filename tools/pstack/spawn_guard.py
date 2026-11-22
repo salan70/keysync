@@ -8,7 +8,9 @@ effort は、どれか 1 つの範囲に入れば通す。
 上書きの `claude:` `codex:` `devin:` の行は、同じ名前の行を丸ごと置き換える。
 上書きのレベル指定行（例: `mid: codex:gpt-6-astra medium`）は、model が表にないときだけ、
 その model を全範囲（low から max）で表に加える。表にある model の範囲は広げない。
-T3 の delegate_task は provider ごとに effort の option の名前が違う（EFFORT_OPTIONS）。
+T3 の delegate_task は provider ごとに effort の option の名前が違う（PROVIDER_EFFORT_OPTION）。
+一致した行の provider の option だけを読む。ほかの provider の option 名を渡しても
+effort の未指定として止める（例: codex に effort を渡しても reasoningEffort が要る）。
 Claude Code の fork は親の model と effort を継ぎ、指定しても無視されるので止める。
 内部の例外では止めず、警告だけ出して exit 0 にする（fail open）。
 """
@@ -26,7 +28,12 @@ RULE = '.claude/rules/pstack-models.md'
 PROVIDERS = 'claude|codex|devin'
 LEVEL_LINE = re.compile(rf'^\s*(?:high|mid|low):\s*({PROVIDERS}):(\S+)')
 # orchestrator_capabilities の option id。Claude は effort、Codex は reasoningEffort、Devin は thought_level。
-EFFORT_OPTIONS = ('effort', 'reasoningEffort', 'thought_level')
+# 一致した行の provider の option だけを認め、ほかの provider の名前では effort を渡せない。
+PROVIDER_EFFORT_OPTION = {'claude': 'effort', 'codex': 'reasoningEffort', 'devin': 'thought_level'}
+# devin の model id は末尾に thought_level を持つ（swe-2-flash-medium、claude-fable-5-2-medium）。
+# devin の行は部分一致のままにし、claude と codex の行は後ろが版番号の続きのときだけ一致とする。
+LOOSE_PROVIDERS = {'devin'}
+VERSION_TAIL = re.compile(r'(?:-[\d.]+)*$')
 
 
 def parse_table(text):
@@ -68,24 +75,36 @@ def normalize_effort(value):
     return value if value in ORDER else None
 
 
-def extract_effort_option(options):
-    """options は辞書と、{id, value} の配列の両方を受け付ける。"""
+def extract_effort_option(options, option):
+    """options から provider の option の値を取る。options は辞書と、{id, value} の配列の両方を受け付ける。"""
     if isinstance(options, dict):
-        return next((options[key] for key in EFFORT_OPTIONS if key in options), None)
+        return options.get(option)
     if isinstance(options, list):
         for item in options:
-            if isinstance(item, dict) and item.get('id') in EFFORT_OPTIONS:
+            if isinstance(item, dict) and item.get('id') == option:
                 return item.get('value')
     return None
 
 
 def find_model(table, model):
+    """model が一致した行の (provider, name, ranges) を返す。複数一致では長い name を優先する。
+
+    claude と codex の行は、name の後ろが版番号の続き（-5-2 など）だけで終わるときだけ一致とする。
+    そうしないと devin の claude-fable-5-2-medium が claude の fable 行を名乗り、
+    claude の option（effort）で止めずに通ってしまう。
+    """
     lowered = model.lower()
-    for entries in table.values():
+    best = None
+    for provider, entries in table.items():
         for name, ranges in entries.items():
-            if name in lowered:
-                return name, ranges
-    return None
+            index = lowered.find(name)
+            if index < 0:
+                continue
+            if provider not in LOOSE_PROVIDERS and not VERSION_TAIL.match(lowered, index + len(name)):
+                continue
+            if best is None or len(name) > len(best[1]):
+                best = (provider, name, ranges)
+    return best
 
 
 def known_models(table):
@@ -93,12 +112,16 @@ def known_models(table):
 
 
 def extract(tool_name, tool_input):
-    """(model, effort) を返す。対象外なら None。"""
+    """(model, options) を返す。対象外なら None。
+
+    Agent の options は effort の値そのもの、delegate_task の options は provider を見てから
+    extract_effort_option で読む options の本体。
+    """
     if tool_name == 'Agent':
         return tool_input.get('model'), tool_input.get('effort')
     if tool_name == 'mcp__t3-code__delegate_task':
         target = tool_input.get('target') or {}
-        return target.get('model'), extract_effort_option(target.get('options'))
+        return target.get('model'), target.get('options')
     return None
 
 
@@ -111,7 +134,7 @@ def check(tool_name, tool_input, table):
     if tool_name == 'Agent' and tool_input.get('subagent_type') == 'fork':
         return ('fork は親の model と effort を継ぎ、指定しても無視されます。'
                 f'fork を使わず、model と effort を明示した subagent で spawn し直してください（規則は {RULE}）。')
-    model, raw_effort = got
+    model, options = got
     fix = f'effort を明示して spawn し直してください（規則は {RULE}）。'
     if not isinstance(model, str) or not model.strip():
         return (f'model が未指定です。継承に任せず、model を明示してください。'
@@ -120,16 +143,22 @@ def check(tool_name, tool_input, table):
     if found is None:
         return (f'model「{model}」は表にありません。既知の model: {", ".join(known_models(table))}。'
                 f'表にある model を明示して spawn し直してください（規則は {RULE}）。')
-    name, ranges = found
+    provider, name, ranges = found
+    if tool_name == 'Agent':
+        option, raw_effort = 'effort', options
+    else:
+        option = PROVIDER_EFFORT_OPTION[provider]
+        raw_effort = extract_effort_option(options, option)
     spans = '、'.join(f'{low} から {high}' for low, high in ranges)
-    scope = f'{name} の effort の範囲は {spans} です。'
+    scope = f'{name} の {option} の範囲は {spans} です。'
+    fix = f'{option} を明示して spawn し直してください（規則は {RULE}）。'
     if raw_effort is None or (isinstance(raw_effort, str) and not raw_effort.strip()):
-        return f'effort が未指定です。{scope}{fix}'
+        return f'{option} が未指定です。{scope}{fix}'
     effort = normalize_effort(raw_effort)
     if effort is None:
-        return f'effort「{raw_effort}」を解釈できません。{scope}{fix}'
+        return f'{option}「{raw_effort}」を解釈できません。{scope}{fix}'
     if not any(ORDER.index(low) <= ORDER.index(effort) <= ORDER.index(high) for low, high in ranges):
-        return f'effort「{effort}」は {name} の範囲外です。{scope}{fix}'
+        return f'{option}「{effort}」は {name} の範囲外です。{scope}{fix}'
     return None
 
 

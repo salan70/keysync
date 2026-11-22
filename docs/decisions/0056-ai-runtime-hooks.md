@@ -36,7 +36,7 @@ AI の実行時の hook は、ファイルの差分に現れないツール呼�
 - hook は Python の標準ライブラリで書き、`just test-tools` の test を持つ。\
   内部の失敗では止めずに通す（fail open）。
 - `spawn_guard.py` には、bpj のものに次の 3 点を足した。\
-  T3 の effort の option の名前は provider ごとに違う（Claude は `effort`、Codex は `reasoningEffort`、Devin は `thought_level`）ので、3 つとも読む。\
+  T3 の effort の option の名前は provider ごとに違う（Claude は `effort`、Codex は `reasoningEffort`、Devin は `thought_level`）ので、model が一致した行の provider の option だけを読む。\
   表の `devin:` の行を読む。\
   Claude Code の fork は親の model と effort を継ぎ、指定しても無視されるので止める。
 - Codex には hook を置かない。
@@ -49,7 +49,12 @@ AI の実行時の hook は、ファイルの差分に現れないツール呼�
   T3 Code は作業ごとに別のパスの worktree を作るので、worktree のたびに承認が要り、全体の設定はリポジトリから書かない。\
   Codex の PreToolUse が `spawn_agent` と MCP の `delegate_task` で動くかも確かめていない。
 - **bpj の `spawn_guard.py` のままでは、Codex への委譲を止めてしまう。** bpj のものは option の `effort` だけを読む。\
-  T3 の `orchestrator_capabilities` では Codex の option は `reasoningEffort` なので、effort を正しく渡した Codex への委譲も「effort が未指定」で止まる。
+  T3 の `orchestrator_capabilities` では Codex の option は `reasoningEffort` なので、effort を正しく渡した Codex への委譲も「effort が未指定」で止まる。\
+  逆に 3 つの option 名をすべて読むと、codex の spawn に `effort` を渡しても通ってしまう。\
+  option の名前は、model が一致した行の provider のものだけを認める。\
+  devin の model id は末尾に thought_level を持つ（`claude-fable-5-2-medium` など）ため、\
+  claude と codex の行は name の後ろが版番号の続きだけで終わるときだけ一致とし、\
+  こうした id が claude の `fable` 行を名乗らないようにする。
 - **ツール名は Claude Code での表記に合わせる。** Claude Code の T3 のツール名は `mcp__t3-code__delegate_task` で、計画のレビューで Codex のセッションが報告した `mcp__t3_code__delegate_task` とは違う。\
   Claude Code の hook が受け取るのは前者である。
 
