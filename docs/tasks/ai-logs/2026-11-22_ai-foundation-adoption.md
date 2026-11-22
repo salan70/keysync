@@ -44,8 +44,8 @@ ADR に書いていない小さな判断は次のとおり。
 
 ## 残課題
 
-- `just test-tools` の pre-push と CI への組み込みは、このブランチでは行わない。\
-  #27 の `verify` レシピと lint.yml を直すと rebase で衝突するため、ブランチが main に入ったあとで組み込み用のフォローアップ Issue を立てる。
-- #27・#29 との文字上の衝突は rebase で解消する。\
-  justfile の `test-tools` は `test:` の直後にあり #29 の `test-update-snapshots` と隣接し、\
-  `.pre-commit-config.yaml` の冒頭コメントは #27 の `default_stages` と隣接する。
+- `just test-tools` は pre-push（`verify`）と CI（typecheck.yml）の両方に組み込み済み。\
+  #27・#29 との文字上の衝突（justfile の `test-tools` の位置、`.pre-commit-config.yaml` 冒頭）は rebase で解消した。
+- `check-doc-links` の vendor 除外は pstack の取り込み先に合わせた。\
+  `tools/pstack` のバージョンを上げるとき、upstream の文書が変わっても除外範囲を見直す必要はないが、\
+  取り込み先の構成を変えた場合は除外と併せて見直す。
