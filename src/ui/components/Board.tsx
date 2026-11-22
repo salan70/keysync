@@ -11,7 +11,7 @@ import {
 } from "../../render/geometry.ts";
 import type { WorkspaceLabels } from "../../workspace/labels.ts";
 import { moveKey } from "../key-navigation.ts";
-import { keycapTitle, keycodeDisplay, kindClass, renderKeycode } from "../keycode-display.tsx";
+import { keycapTitle, keycodeDisplay, kindClass, renderKeycode } from "./keycode-display.tsx";
 import { macBoardEntries } from "../mac-board.ts";
 import { macKeycapLabel } from "../mac-keycap-labels.ts";
 import type { Selection } from "../types.ts";

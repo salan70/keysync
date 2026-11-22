@@ -9,6 +9,7 @@
 | `user-guide/`    | 利用者・運用者 | 導入、Web UI と CLI の操作、反映と復旧                      |
 | `decisions/`     | 開発者・AI     | 設計上の重要判断とその根拠（ADR）                           |
 | `specs/`         | 開発者・AI     | コードと 1:1 で対応する実装仕様（DocBridge で双方向リンク） |
+| `glossary.md`    | 開発者・AI     | keymap、Vial、kanata、Karabiner の用語と正本への案内        |
 | `tasks/ai-logs/` | 開発者・AI     | AI エージェントの作業記録（日付・作業単位）                 |
 | GitHub Issue     | チーム全体     | 進行中の調査、設計課題、Spike、作業タスクの管理             |
 | Tests / fixtures | 開発者・CI     | 仕様や変換処理が正しく成立することの自動検証                |

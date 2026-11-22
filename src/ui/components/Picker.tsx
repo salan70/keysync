@@ -18,7 +18,7 @@ import {
   type PickerTabId,
 } from "../keycode-catalog.ts";
 import { canPick, targetValue, type PickTarget } from "../keycode-compose.ts";
-import { keycapTitle, keycodeDisplay, kindClass } from "../keycode-display.tsx";
+import { keycapTitle, keycodeDisplay, kindClass } from "./keycode-display.tsx";
 import { FitText } from "./FitText.tsx";
 
 /**

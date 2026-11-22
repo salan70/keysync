@@ -1,5 +1,4 @@
-// DocBridge は `.ts` の export 宣言だけを link できるため、`.tsx` の部品をここで束ねて仕様と結ぶ。
-import { App as AppComponent } from "../App.tsx";
+// view の `.tsx` は DocBridge の走査対象外のため、純粋な描画部品をここで束ねて仕様と結ぶ。接続層（`src/ui/*.tsx`）は走査対象なので本体へ `@doc` を書く。
 import { ApplyDialog as ApplyDialogComponent } from "./ApplyDialog.tsx";
 import { CornixBoard as CornixBoardComponent, MacBoard as MacBoardComponent } from "./Board.tsx";
 import { Button as ButtonComponent } from "./Button.tsx";
@@ -35,9 +34,6 @@ import {
   MacReferences as MacReferencesComponent,
   ValidationPanel as ValidationPanelComponent,
 } from "./panels/ValidationPanel.tsx";
-
-/** @doc docs/specs/ui.md#画面構成 */
-export const App = AppComponent;
 
 /** @doc docs/specs/ui.md#header-and-status */
 export const Header = HeaderComponent;

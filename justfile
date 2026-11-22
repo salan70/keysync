@@ -75,6 +75,15 @@ typecheck:
 test:
     pnpm test
 
+# UI の構造 snapshot（src/ui/components/__snapshots__）を更新する。差分をレビューしてから commit する
+test-update-snapshots:
+    node --test --test-update-snapshots "src/**/*.test.ts"
+
+# I-027 Spike の計測。SPIKE_PW_DIR と PLAYWRIGHT_BROWSERS_PATH が要る（spikes/i-027-visual-regression/README.md）
+[positional-arguments]
+spike-visual-regression *ARGS:
+    node spikes/i-027-visual-regression/measure.mjs "$@"
+
 # 任意の docbridge サブコマンドを実行する（例: just docbridge graph）
 docbridge *ARGS:
     ./tools/docbridge.sh {{ARGS}}

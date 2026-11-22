@@ -1,6 +1,6 @@
 import type { JSX } from "react";
-import { keycodeClass, type KeycodeDisplay } from "./keycode-labels.ts";
-import { FitText } from "./components/FitText.tsx";
+import { keycodeClass, type KeycodeDisplay } from "../keycode-labels.ts";
+import { FitText } from "./FitText.tsx";
 
 export {
   basicLabel,
@@ -10,8 +10,8 @@ export {
   layerActionLabel,
   modifierSymbol,
   shortLabel,
-} from "./keycode-labels.ts";
-export type { DisplayOptions, KeycodeDisplay } from "./keycode-labels.ts";
+} from "../keycode-labels.ts";
+export type { DisplayOptions, KeycodeDisplay } from "../keycode-labels.ts";
 
 /** keycode の種類の class。割り当てが無い Mac のキー（素通し）は `kind-passthrough`。 */
 export function kindClass(keycode: string | undefined): string {
