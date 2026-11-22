@@ -21,10 +21,8 @@ export type LinkProblem = {
   reason: string;
 };
 
-// 検査対象は Git が追跡する Markdown だけにする。
-// 未追跡の下書きや gitignore 対象（.pnpm-store、coverage、result など）を走査せず、
-// CI のクリーンな checkout と同じ範囲になる。
-export function listMarkdownFiles(root: string): string[] {
+// Git が追跡する Markdown。検査対象の列挙と、リンク先の実在確認の両方に使う。
+function listTrackedMarkdown(root: string): string[] {
   // hook の実行中は GIT_DIR / GIT_INDEX_FILE が設定され、`-C` より優先されてしまう。
   const env = { ...process.env };
   for (const name of ["GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE"]) delete env[name];
@@ -42,10 +40,22 @@ export function listMarkdownFiles(root: string): string[] {
   }
   return out
     .split("\0")
-    .filter((name) => name !== "" && !VENDOR_PREFIXES.some((prefix) => name.startsWith(prefix)))
+    .filter((name) => name !== "")
     .sort()
     .map((name) => resolve(root, name))
     .filter((path) => existsSync(path)); // 削除済みで未 stage のファイルは除く
+}
+
+function isVendor(root: string, path: string): boolean {
+  const rel = relative(root, path).split(sep).join("/");
+  return VENDOR_PREFIXES.some((prefix) => rel.startsWith(prefix));
+}
+
+// 検査対象は Git が追跡する Markdown だけにする。
+// 未追跡の下書きや gitignore 対象（.pnpm-store、coverage、result など）を走査せず、
+// CI のクリーンな checkout と同じ範囲になる。
+export function listMarkdownFiles(root: string): string[] {
+  return listTrackedMarkdown(root).filter((path) => !isVendor(root, path));
 }
 
 // GitHub が見出しから作るアンカー。小文字化し、文字・数字・結合文字・`_`・`-`・空白以外を除き、
@@ -256,7 +266,9 @@ function decode(value: string): string {
 
 export function checkRoot(root: string): LinkProblem[] {
   const problems: LinkProblem[] = [];
-  const files = listMarkdownFiles(root);
+  const tracked = listTrackedMarkdown(root);
+  const trackedSet = new Set(tracked);
+  const files = tracked.filter((path) => !isVendor(root, path));
   const cache = new Map<string, Scanned>();
   const load = (path: string): Scanned => {
     let scanned = cache.get(path);
@@ -284,6 +296,17 @@ export function checkRoot(root: string): LinkProblem[] {
 
       if (!existsSync(target)) {
         problems.push({ file: rel, line, link: dest, reason: "リンク先のファイルが存在しません" });
+        continue;
+      }
+      // .md のリンク先は Git の追跡対象が必須。未追跡の文書は hook の実行中は存在しても、
+      // CI のクリーンな checkout や GitHub には存在せず、切れたリンクになる。
+      if (target.endsWith(".md") && !trackedSet.has(target)) {
+        problems.push({
+          file: rel,
+          line,
+          link: dest,
+          reason: "リンク先の Markdown が Git で追跡されていません",
+        });
         continue;
       }
       // 行番号アンカー（#L10 など）と、Markdown 以外へのアンカーは検査しない。

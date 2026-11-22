@@ -137,6 +137,28 @@ test("追跡済みの Markdown が壊れたリンクを持てば検出する", (
   );
 });
 
+// 未追跡ファイルは hook の実行中は存在しても、CI のクリーンな checkout では切れる。
+test("未追跡の Markdown へのリンクは失敗し、追跡済みなら通る", () => {
+  withDocs(
+    { "docs/a.md": "# A\n\n[untracked](./draft.md)\n" },
+    (root) =>
+      assert.deepEqual(
+        checkRoot(root).map((p) => [p.link, p.reason]),
+        [["./draft.md", "リンク先の Markdown が Git で追跡されていません"]],
+      ),
+    { "docs/draft.md": "# Draft\n" },
+  );
+  // 追跡済みなら vendor 資産（.claude / .agents）へのリンクも通す。
+  withDocs(
+    {
+      "docs/a.md": "# A\n\n[tracked](./b.md) [vendor](../.claude/v.md)\n",
+      "docs/b.md": "# B\n",
+      ".claude/v.md": "# V\n",
+    },
+    (root) => assert.deepEqual(checkRoot(root), []),
+  );
+});
+
 test("宛先中の対応する () を含むリンクを解決する", () => {
   withDocs(
     {
