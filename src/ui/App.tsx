@@ -95,6 +95,7 @@ const PANEL_TONE: Readonly<Record<PanelId, string>> = {
  *
  * 盤面・picker・編集パネルを常設し、それ以外の作業は左端の入口から画面中央のパネルで開く。
  * Apply だけは段階を終えるまで他の作業へ移れない modal として分ける。
+ * @doc docs/specs/ui.md#画面構成
  */
 export function App({
   initialTheme,

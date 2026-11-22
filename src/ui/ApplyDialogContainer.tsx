@@ -8,6 +8,7 @@ import type { useApply } from "./state/use-apply.ts";
 
 /**
  * Apply modal の接続層。`useApply` の状態と `App` が集めた値を表示値へ写し、純粋な `ApplyDialog` へ渡す。
+ * @doc docs/specs/ui.md#apply-modal-layers
  */
 export function ApplyDialogContainer({
   apply,

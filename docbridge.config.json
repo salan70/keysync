@@ -2,7 +2,7 @@
   "include": {
     "code": {
       "typescript": {
-        "patterns": ["src/**/*.ts", "packages/*/src/**/*.ts"]
+        "patterns": ["src/**/*.ts", "src/ui/*.tsx", "packages/*/src/**/*.ts"]
       }
     },
     "docs": ["docs/specs/**/*.md"]

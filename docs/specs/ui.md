@@ -125,7 +125,7 @@ digest は変わらないので、`keymap.yaml` は path だけが変わる。
 `keysync/` と `cornix/` の両方を読むフォールバックは置かず、移行はユーザーの明示操作にする（ADR 0036）。
 CLI の `keysync migrate` も同じ関数を通る。
 
-<!-- @code src/ui/components/index.ts#App -->
+<!-- @code src/ui/App.tsx#App -->
 
 ## 画面構成
 
@@ -440,7 +440,7 @@ backup の段階では、この接続で読み込んだ実機の状態を `keysy
 反映済みの差分を残したままにすると、同じ Apply をもう一度開始できてしまうためである。
 
 <!-- @code src/ui/apply-dialog-view.ts#buildApplyDialogView -->
-<!-- @code src/ui/components/index.ts#ApplyDialogContainer -->
+<!-- @code src/ui/ApplyDialogContainer.tsx#ApplyDialogContainer -->
 
 ## Apply modal layers
 
