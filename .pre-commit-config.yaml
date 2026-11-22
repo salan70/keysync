@@ -88,7 +88,8 @@ repos:
     hooks:
       - id: check-doc-links
         name: check doc links
-        entry: tools/devshell.sh pnpm exec tsx tools/check-doc-links.ts
+        # justfile の recipe を呼び、`just check-doc-links` との重複定義を避ける。
+        entry: tools/devshell.sh just check-doc-links
         language: system
         # .md の削除だけの commit は files に当たらない（対象は ACMRTUXB で D を含まない）。
         # 参照元のリンクが残っても通るため、常に実行する。実測 1.5 秒（devShell への入り直しを含む）。
