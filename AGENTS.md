@@ -152,6 +152,7 @@ direnv の GC root が無い環境で GC すると hook が動かなくなるた
 
 - `just mac apply`（`keysync mac apply`）
 - `just linux apply`（sudo で keyd の設定を書く）
+- Web UI の Apply の実行（適用 API は CLI と同じ `apply-service.ts` を通る。ADR 0034）
 - kanata のサービスの登録と再起動（`keysync mac service install`・`restart`、`nix run .#install`、`tools/install.sh`）
 
 ## ドキュメントの責務
