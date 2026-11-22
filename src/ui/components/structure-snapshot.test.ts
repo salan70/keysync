@@ -26,6 +26,7 @@ import { createDiagnostic } from "../../core/validation/types.ts";
 import { parseVil } from "../../core/vil/parse.ts";
 import { EMPTY_LABELS, type WorkspaceLabels } from "../../workspace/labels.ts";
 import { buildApplyGate } from "../apply-gate.ts";
+import { buildApplyDialogView, type ApplyDialogInput } from "../apply-dialog-view.ts";
 import { createComponentLoader, markup } from "../testing/ssr.ts";
 
 const ROOT = join(import.meta.dirname, "../../..");
@@ -142,23 +143,25 @@ function snapshot(
   ];
 }
 
-const apply = (props: Record<string, unknown>): ReactElement =>
+const apply = (props: Partial<ApplyDialogInput>): ReactElement =>
   createElement(c.ApplyDialog.ApplyDialog, {
-    step: "diff",
-    backupError: undefined,
-    state: undefined,
-    changed,
-    gate,
-    labels,
-    acknowledged: [],
-    backupRoundTrips: 12,
-    roundTrips: 0,
-    roundTripTotal: 0,
+    view: buildApplyDialogView({
+      step: "diff",
+      backupError: undefined,
+      state: undefined,
+      changed,
+      gate,
+      labels,
+      acknowledged: [],
+      backupRoundTrips: 12,
+      roundTrips: 0,
+      roundTripTotal: 0,
+      ...props,
+    }),
     onNext: noop,
     onAcknowledge: noop,
     onCancel: noop,
     onWrite: noop,
-    ...props,
   });
 
 test(
