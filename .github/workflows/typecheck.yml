@@ -34,3 +34,7 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      # tools/ の Python（pstack と AI の hook）。標準ライブラリだけなので runner の python3 で動く。
+      - name: Test tools
+        run: python3 -m unittest discover -s tools -p 'test_*.py'

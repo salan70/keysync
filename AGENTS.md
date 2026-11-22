@@ -25,6 +25,7 @@ just setup             # pre-commit / pre-push フックの導入
 just lint              # pre-commit を全ファイルへ適用
 just format            # oxfmt
 just test              # pnpm test
+just test-tools        # tools/ の Python（pstack と AI の hook）の test
 just docbridge-check   # コードとdocs/specs/のリンク検証
 just docbridge-audit   # 未ドキュメント / 未リンクの監査
 ```
@@ -34,9 +35,14 @@ just docbridge-audit   # 未ドキュメント / 未リンクの監査
 
 ## 指示の優先順位
 
-1. **ユーザーの指示**（最優先） — 会話内での直接的な指示
-2. **Skills** — Skill ツール経由で呼び出された場合
-3. **このファイルのデフォルト**（最低）
+1. **実機操作の安全性**（最優先） — 「禁止する操作」と「実機操作の安全性」の規則。\
+   ユーザーの指示、Skill、規則のどれもこれを緩めません。
+2. **ユーザーの指示** — 会話内での直接的な指示
+3. **Skills** — Skill ツール経由で呼び出された場合。\
+   pstack から取り込んだ Skill は 5 と 6 に置きます
+4. **このファイルのデフォルト**
+5. **pstack の上書き規則** — `.claude/rules/pstack.md` と、Skill の末尾の「Project overrides」
+6. **pstack から取り込んだ Skill の本文**（最低）
 
 ## ワークフロー
 
@@ -60,6 +66,11 @@ just docbridge-audit   # 未ドキュメント / 未リンクの監査
 | ----------- | --------------------------------------- |
 | `docbridge` | コードと`docs/specs/`の双方向リンク維持 |
 | `grilling`  | 計画・設計のストレステスト              |
+
+入口の `poteto-mode`、`principle-*` の 24 本、`how` や `tdd` などの作業の Skill は、pstack から固定版で取り込みます（`tools/pstack/README.md`）。\
+本文は直接直さず、上書きは `tools/pstack/overlays/` に書きます。\
+複数の手順がある作業では `.claude/rules/pstack.md` を読み、poteto-mode の Playbook と Principle から要る Skill だけを使います。\
+モデルは `.claude/rules/pstack-models.md` と、`python3 tools/pstack/pstack.py models show` が出す git 管理外の上書きから選びます。
 
 ## 文章規範
 
@@ -135,6 +146,15 @@ direnv の GC root が無い環境で GC すると hook が動かなくなるた
 → 差分write
 → 再readしてverify
 ```
+
+次の操作は OS の状態を変えます。\
+取り消せる作業に見えても、実行の前に毎回、その操作を名指ししたユーザーの承認を取ります。\
+「確認せずに進める」とする Skill や規則は、これらの操作に当てはめません。
+
+- `just mac apply`（`keysync mac apply`）
+- `just linux apply`（sudo で keyd の設定を書く）
+- Web UI の Apply の実行（適用 API は CLI と同じ `apply-service.ts` を通る。ADR 0034）
+- kanata のサービスの登録と再起動（`keysync mac service install`・`restart`、`nix run .#install`、`tools/install.sh`）
 
 ## ドキュメントの責務
 

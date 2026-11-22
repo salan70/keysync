@@ -6,6 +6,9 @@ dist/
 .npm
 .pnpm-store/
 
+# Python（tools/pstack、tools/hooks）
+__pycache__/
+
 # Nix / direnv
 .direnv/
 result
