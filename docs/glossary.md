@@ -1,6 +1,6 @@
 # 用語辞書
 
-KeySync のコード、ADR、仕様で使う keymap、Vial、kanata、Karabiner まわりの用語を 1 行で引けるようにします。
+KeySync のコード、ADR、仕様で使う keymap、Vial、kanata、Karabiner まわりの用語を 1 行で引けるようにします。\
 詳細は複製せず、正本へのリンクを添えます。
 
 ## keymap

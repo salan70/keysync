@@ -2,17 +2,17 @@
 
 状態: 採用
 
-2026-11-22 に、ADR 0006 の「`src/core` は React、filesystem、WebHID を import しない」が文章だけで、機械的に守られていないことを確認して決めた。
+2026-11-22 に、ADR 0006 の「`src/core` は React、filesystem、WebHID を import しない」が文章だけで、機械的に守られていないことを確認して決めた。\
 Issue は #28 である。
 
 ## 背景
 
-ADR 0006 の境界は、`tsconfig.core.json` の `include` を `src/core` などに絞るだけで支えられていた。
-この分割は、`types: ["node"]` を持つ以上 `node:fs` の import を止められず、`src/ui` の絶対パスへの到達も `include` の外のファイルを辿れば検査を抜ける。
+ADR 0006 の境界は、`tsconfig.core.json` の `include` を `src/core` などに絞るだけで支えられていた。\
+この分割は、`types: ["node"]` を持つ以上 `node:fs` の import を止められず、`src/ui` の絶対パスへの到達も `include` の外のファイルを辿れば検査を抜ける。\
 現在の `src/core` に違反は無いが、違反が入ったときに気づく手段が無い。
 
-UI は `src/ui/App.tsx`（接続）、`src/ui/*.ts`（表示値計算、約 25 本の純粋関数）、`src/ui/components`（描画）に分かれている。
-ただし描画の部品が hook や device / server の型を直接 import する箇所があり、「描画は表示値を受け取るだけ」という前提が部品ごとにまちまちである。
+UI は `src/ui/App.tsx`（接続）、`src/ui/*.ts`（表示値計算、約 25 本の純粋関数）、`src/ui/components`（描画）に分かれている。\
+ただし描画の部品が hook や device / server の型を直接 import する箇所があり、「描画は表示値を受け取るだけ」という前提が部品ごとにまちまちである。\
 この前提が揃わないと、表示値を props で受けて部品を単独で描く検査（視覚回帰など）を足せない。
 
 ## 選択肢
@@ -27,7 +27,7 @@ UI は `src/ui/App.tsx`（接続）、`src/ui/*.ts`（表示値計算、約 25 �
 
 ### 違反を防ぐ階層と検証の置き場所
 
-違反は、次の順に先に防ぐ。
+違反は、次の順に先に防ぐ。\
 下の階層ほど、違反が起きてから気づく。
 
 1. **コード**: 型と構造で、違反を書けないようにする（`src/core` の純粋関数、`ApplyState` の状態機械）
@@ -44,12 +44,12 @@ UI は `src/ui/App.tsx`（接続）、`src/ui/*.ts`（表示値計算、約 25 �
 | 振る舞いテスト       | 各モジュールの `*.test.ts`   | 関数と部品が返す値             |
 | 型検査               | `pnpm typecheck`             | 型の整合                       |
 
-構造検査は import の文だけを見て、振る舞いを確かめない。
+構造検査は import の文だけを見て、振る舞いを確かめない。\
 逆に振る舞いテストは、import の向きを守る手段にならない。
 
 ### `src/core` の import 境界
 
-`src/architecture/core-boundary.test.ts` が、`src/core` の非テストの全ファイルを走査する。
+`src/architecture/core-boundary.test.ts` が、`src/core` の非テストの全ファイルを走査する。\
 次の import を違反とする。
 
 - `node:` で始まる specifier と、`fs` や `path` のような `node:` 無しの組み込み
@@ -57,20 +57,20 @@ UI は `src/ui/App.tsx`（接続）、`src/ui/*.ts`（表示値計算、約 25 �
 - 解決した先が `src/core` の外にある相対 import（`src/ui`、`src/device`、`src/server` など）
 - 拡張子が `.ts` / `.tsx` の相対 import で、走査対象に無いもの（検査をすり抜けるため。`.js` など他の拡張子の未解決は対象にしない）
 
-import は `.ts` 拡張子付きの相対 specifier で書かれているので、文字列の走査で解決できる。
-`export ... from` も同じ辺として数え、`src/core` を全件走査するので export の連鎖も検査に入る。
+import は `.ts` 拡張子付きの相対 specifier で書かれているので、文字列の走査で解決できる。\
+`export ... from` も同じ辺として数え、`src/core` を全件走査するので export の連鎖も検査に入る。\
 違反は「どの core ファイルからも import されない入口 → … → 違反のあるファイル → 禁止先」の経路で報告する。
 
-例外は、理由を付けた allowlist（`file` と `target`）で持つ。
-`typeOnly: true` の例外は `import type` / `export type` の違反にだけ当たり、値の import は違反のままにする。
-どの違反にも当たらなくなった例外は stale としてテストを落とし、消えた例外を残さない。
+例外は、理由を付けた allowlist（`file` と `target`）で持つ。\
+`typeOnly: true` の例外は `import type` / `export type` の違反にだけ当たり、値の import は違反のままにする。\
+どの違反にも当たらなくなった例外は stale としてテストを落とし、消えた例外を残さない。\
 現在の例外は無い。
 
 テストファイル（`*.test.ts`）は Node の API と fixture を使うので、境界の対象にしない。
 
 ### view の規約
 
-view は、`src/ui/components` の `*.tsx`（描画の部品）と定める。
+view は、`src/ui/components` の `*.tsx`（描画の部品）と定める。\
 規約はファイル名ではなく import の制約で表す。
 
 - view は `src/ui/state/use-*`、`src/device`、`src/server`、接続層（`src/ui/*Container.tsx` と `src/ui/App.tsx`）を import しない（型だけの import も同じ）
@@ -79,8 +79,8 @@ view は、`src/ui/components` の `*.tsx`（描画の部品）と定める。
 - `src/ui/*.ts` の表示値計算（既に純粋関数）は、改名も移動もしない。\
   `*.projection.ts` のような接尾辞は付けない
 
-`src/architecture/view-convention.test.ts` が、この規約を同じ走査と allowlist、stale 検出で強制する。
-現在の例外は、規約の導入前から型だけを import している 6 件で、それぞれに理由を書いた。
+`src/architecture/view-convention.test.ts` が、この規約を同じ走査と allowlist、stale 検出で強制する。\
+現在の例外は、規約の導入前から型だけを import している 6 件で、それぞれに理由を書いた。\
 新しく足さない。
 
 ### 画面の 3 層
@@ -93,9 +93,9 @@ view は、`src/ui/components` の `*.tsx`（描画の部品）と定める。
 | 表示値計算 | 状態から、描画が使う値（文言、行、状態）を作る純粋関数      | `src/ui/*-view.ts`        |
 | 純粋描画   | 受け取った値と callback だけで描く。hook を import しない   | `src/ui/components/*.tsx` |
 
-今回は Apply の確認 modal（`ApplyDialog`）を分けた。
-表示値は `buildApplyDialogView` が作り、`ApplyDialogContainer` が `useApply` と `App` の値をそれへ写し、`ApplyDialog` は値を描くだけにした。
-挙動と DOM は変えない。
+今回は Apply の確認 modal（`ApplyDialog`）を分けた。\
+表示値は `buildApplyDialogView` が作り、`ApplyDialogContainer` が `useApply` と `App` の値をそれへ写し、`ApplyDialog` は値を描くだけにした。\
+挙動と DOM は変えない。\
 他の画面は、撮影の対象にする順に同じ形へ分ける。
 
 ## 理由
