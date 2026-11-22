@@ -216,9 +216,9 @@ report.naiveVsSettled = Object.fromEntries(
   const base = (await shoot(browser, "cornix-board")).png;
   const baseApply = (await shoot(browser, "apply-confirm")).png;
   const mutations = [
-    ["key の角丸 +2px", "cornix-board", ".key{border-radius:calc(var(--radius-control) + 2px)}"],
+    ["key の角丸 +2px", "cornix-board", ".key{border-radius:calc(var(--radius-key) + 2px)}"],
     ["board の gap +1px", "cornix-board", ".board-fit{gap:calc(var(--space-300) + 1px)}"],
-    ["key 面の色を R 1 段階", "cornix-board", ".kind-basic{--key-bg:rgb(255,255,254)}"],
+    ["key 面の色を R 1 段階", "cornix-board", ".kind-basic{--key-bg:rgb(255,254,254)}"],
     ["keycap の文字を 1px 下げる", "cornix-board", ".keycap-main{position:relative;top:1px}"],
     ["Apply の見出しを 1px 右へ", "apply-confirm", "#apply-title{margin-left:1px}"],
     ["Apply の step の色", "apply-confirm", ".apply-steps .is-current{opacity:.98}"],
