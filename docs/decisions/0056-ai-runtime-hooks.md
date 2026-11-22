@@ -75,7 +75,8 @@ T3 の `delegate_task` は、同じ名前の MCP サーバー（呼ばれた引�
 | SessionStart                                                    | 上書きの内容が文脈に入った                   |
 
 T3 から起動した Claude Code のセッションでも、`.claude/settings.json` を書き換えたあとの Bash の呼び出しが `nix_path_guard.py` に止められた。\
-T3 の実物の `delegate_task` と、Codex と Devin のスレッドからの spawn は確かめていない。
+T3 の実物の `delegate_task` と、Codex と Devin のスレッドからの spawn は確かめていない。\
+spawn 系の `t3_thread_launch`、`create_threads`、`schedule_task`、`t3_thread_send` は hook の対象外で、動きを見ていない。
 
 ## 影響
 
