@@ -5,6 +5,7 @@
     "src/architecture/**/*.ts",
     "src/cli/**/*.ts",
     "src/server/**/*.ts",
-    "src/device/mock.ts"
+    "src/device/mock.ts",
+    "tools/**/*.ts"
   ]
 }

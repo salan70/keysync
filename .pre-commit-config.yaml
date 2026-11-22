@@ -4,13 +4,19 @@
 # lint / format の対象外にする。整形すると正本との差分が生まれ、再同期のたびに衝突する。
 exclude: '^\.(claude|agents)/'
 
+# stages 未指定の hook は commit 時だけに走らせる。これが無いと pre-push でも
+# oxlint / oxfmt / typecheck などが走り、verify-before-push の型検査と二重になる。
+# push 時に oxfmt --write がファイルを書き換えることも防ぐ。
+# pre-push / commit-msg の hook は stages を明示しているため影響しない。
+default_stages: [pre-commit]
+
 repos:
   # TypeScript / JavaScript — oxlint
   - repo: local
     hooks:
       - id: oxlint
         name: oxlint
-        entry: oxlint
+        entry: tools/devshell.sh oxlint
         language: system
         files: \.(js|jsx|ts|tsx|mjs|cjs)$
 
@@ -19,7 +25,7 @@ repos:
     hooks:
       - id: oxfmt
         name: oxfmt
-        entry: oxfmt --write
+        entry: tools/devshell.sh oxfmt --write
         language: system
         files: \.(js|jsx|ts|tsx|mjs|cjs|json|yaml|yml|md)$
 
@@ -28,7 +34,7 @@ repos:
     hooks:
       - id: markdownlint
         name: markdownlint
-        entry: markdownlint-cli2
+        entry: tools/devshell.sh markdownlint-cli2
         language: system
         files: \.md$
 
@@ -40,7 +46,7 @@ repos:
     hooks:
       - id: typecheck
         name: typecheck
-        entry: pnpm typecheck
+        entry: tools/devshell.sh pnpm typecheck
         language: system
         files: \.ts$
         pass_filenames: false
@@ -62,7 +68,7 @@ repos:
     hooks:
       - id: docbridge-check
         name: docbridge check
-        entry: tools/docbridge.sh check
+        entry: tools/devshell.sh tools/docbridge.sh check
         language: system
         files: \.(ts|md)$
         pass_filenames: false
@@ -70,7 +76,37 @@ repos:
       # related-gate は informational。push 時のみ実行し、ブロックしない。
       - id: docbridge-related
         name: docbridge related-gate
-        entry: tools/docbridge-related.sh
+        entry: tools/devshell.sh tools/docbridge-related.sh
+        language: system
+        stages: [pre-push]
+        always_run: true
+        pass_filenames: false
+
+  # 文書間リンク — Markdown 同士の相対リンクと #anchor の実在を検査する
+  # DocBridge（コード↔docs/specs/）とは別の責務。リンク先の削除で壊れるため、全 Markdown を走査する。
+  - repo: local
+    hooks:
+      - id: check-doc-links
+        name: check doc links
+        # justfile の recipe を呼び、`just check-doc-links` との重複定義を避ける。
+        entry: tools/devshell.sh just check-doc-links
+        language: system
+        # .md の削除だけの commit は files に当たらない（対象は ACMRTUXB で D を含まない）。
+        # 参照元のリンクが残っても通るため、常に実行する。実測 1.5 秒（devShell への入り直しを含む）。
+        always_run: true
+        pass_filenames: false
+
+  # push 前の全量検査 — 型検査とテスト（just verify）
+  # 全件で test 約 5 秒・typecheck 約 6 秒のため、差分選択はせず毎回全量を実行する。
+  # push 対象の ref は stdin ではなく PRE_COMMIT_FROM_REF / PRE_COMMIT_TO_REF で渡されるが、
+  # 全量実行では参照しない。ref が無い push（ブランチ削除）は pre-commit が hook を起動しない。
+  # 既知の制約: 検査は作業ツリーに対して走る。commit 後に未 commit の変更を加えて push すると
+  # push する commit そのものは検査されない（通常の pre-push hook の挙動として許容する）。
+  - repo: local
+    hooks:
+      - id: verify-before-push
+        name: typecheck and test
+        entry: tools/devshell.sh just verify
         language: system
         stages: [pre-push]
         always_run: true

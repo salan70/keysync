@@ -1,0 +1,37 @@
+name: lint
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # oxlint / oxfmt / markdownlint / 文書間リンクの検査は pre-commit が定義元。
+  # ローカルと同じ nix の devShell で実行し、検査の定義を二重に持たない。
+  # typecheck と docbridge-check は typecheck.yml / docbridge.yml が実行するため SKIP で外す。
+  pre-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Install dependencies
+        run: nix develop -c pnpm install --frozen-lockfile
+
+      - name: Run pre-commit
+        env:
+          SKIP: typecheck,docbridge-check
+        run: nix develop -c pre-commit run --all-files --show-diff-on-failure
