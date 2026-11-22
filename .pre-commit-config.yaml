@@ -100,6 +100,8 @@ repos:
   # 全件で test 約 5 秒・typecheck 約 6 秒のため、差分選択はせず毎回全量を実行する。
   # push 対象の ref は stdin ではなく PRE_COMMIT_FROM_REF / PRE_COMMIT_TO_REF で渡されるが、
   # 全量実行では参照しない。ref が無い push（ブランチ削除）は pre-commit が hook を起動しない。
+  # 既知の制約: 検査は作業ツリーに対して走る。commit 後に未 commit の変更を加えて push すると
+  # push する commit そのものは検査されない（通常の pre-push hook の挙動として許容する）。
   - repo: local
     hooks:
       - id: verify-before-push
