@@ -35,14 +35,14 @@ export PLAYWRIGHT_BROWSERS_PATH=<上の nix build が出力した path>
 export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
 
 # 再現性・所要時間・検出力の計測（既定は 10 回起動し直す）
-nix develop -c node spikes/i-027-visual-regression/measure.mjs --runs 10 --out "$TMPDIR/i-027-out"
+nix develop -c just spike-visual-regression --runs 10 --out "$TMPDIR/i-027-out"
 ```
 
 CPU 負荷下での再現性（6 プロセス並列 × 30 起動、計 180 撮影）は、`--port` をずらして並列に起動します。
 
 ```bash
 for port in 5199 5200 5201 5202 5203 5204; do
-  nix develop -c node spikes/i-027-visual-regression/measure.mjs \
+  nix develop -c just spike-visual-regression \
     --runs 30 --port "$port" --out "$TMPDIR/i-027-load-$port" &
 done
 wait
