@@ -14,13 +14,14 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { createElement, type ReactElement } from "react";
+import { createApplyPlan, createValidatedApplyInput } from "../../core/apply/plan.ts";
 import { parseDefinition } from "../../core/definition/parse.ts";
 import { diffDocuments } from "../../core/diff/diff.ts";
 import { createKeycodeTable } from "../../core/keycode/table.ts";
 import { parseMacKeymapYaml } from "../../core/mac-keymap/parse.ts";
 import { setEncoderAssignment, setKeyAssignment } from "../../core/model/edit.ts";
 import { buildKeymapView } from "../../core/model/keymap-view.ts";
-import type { ApplyGateWithEvidence } from "../../core/validation/gate.ts";
+import { evaluateApplyGate, type ApplyGateWithEvidence } from "../../core/validation/gate.ts";
 import { createDiagnostic } from "../../core/validation/types.ts";
 import { parseVil } from "../../core/vil/parse.ts";
 import { EMPTY_LABELS, type WorkspaceLabels } from "../../workspace/labels.ts";
@@ -92,17 +93,20 @@ const fatal = createDiagnostic(
 );
 function withDiagnostics(
   diagnostics: readonly ReturnType<typeof createDiagnostic>[],
+  acknowledgedIds: readonly string[] = [],
 ): ApplyGateWithEvidence {
-  const fatalOnes = diagnostics.filter((diagnostic) => diagnostic.severity === "error");
-  const acknowledgeable = diagnostics.filter((diagnostic) => diagnostic.severity === "warning");
-  return {
-    allowed: fatalOnes.length + acknowledgeable.length === 0,
-    blocking: [...fatalOnes, ...acknowledgeable],
-    acknowledgeable,
-    fatal: fatalOnes,
-    evidence: { ...gate.evidence, diagnostics },
-  };
+  return evaluateApplyGate({ ...gate.evidence, diagnostics }, acknowledgedIds);
 }
+
+const acknowledgedGate = withDiagnostics([warning], [warning.id]);
+// 警告の承認で gate が開いたときと同じ経路（use-apply.ts の confirmation）で plan を作る。
+const confirmPlan = createApplyPlan(
+  createValidatedApplyInput(acknowledgedGate, {
+    keyboardUid: acknowledgedGate.evidence.context.keyboardUid,
+    values: new Map([...acknowledgedGate.evidence.desired.keys()].map((key) => [key, [0]])),
+    readAt: 0,
+  }),
+);
 
 const noop = (): void => {};
 
@@ -194,7 +198,18 @@ test(...snapshot("apply-diff", () => apply({ step: "diff" })));
 
 test(
   ...snapshot("apply-confirm-warning", () =>
-    apply({ step: "confirm", gate: withDiagnostics([warning]), acknowledged: [warning.id] }),
+    apply({ step: "confirm", gate: withDiagnostics([warning]) }),
+  ),
+);
+
+test(
+  ...snapshot("apply-confirm-acknowledged", () =>
+    apply({
+      step: "confirm",
+      gate: acknowledgedGate,
+      acknowledged: [warning.id],
+      state: { phase: "awaitingConfirmation", plan: confirmPlan },
+    }),
   ),
 );
 
