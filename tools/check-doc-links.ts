@@ -24,6 +24,9 @@ export type LinkProblem = {
 // Git が追跡する Markdown。検査対象の列挙と、リンク先の実在確認の両方に使う。
 function listTrackedMarkdown(root: string): string[] {
   // hook の実行中は GIT_DIR / GIT_INDEX_FILE が設定され、`-C` より優先されてしまう。
+  // `git commit <path>` の部分 commit では一時 index が差し替わるが、ここでは常に
+  // 実 index を見る。別 commit 用に stage 済みの文書も走査対象になり、部分 commit が
+  // その文書のリンク切れで止まり得る。壊れたリンクを通すより止まる側に倒す。
   const env = { ...process.env };
   for (const name of ["GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE"]) delete env[name];
   let out: string;
