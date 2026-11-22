@@ -31,6 +31,7 @@ LEVEL_LINE = re.compile(rf'^\s*(?:high|mid|low):\s*({PROVIDERS}):(\S+)')
 # 一致した行の provider の option だけを認め、ほかの provider の名前では effort を渡せない。
 PROVIDER_EFFORT_OPTION = {'claude': 'effort', 'codex': 'reasoningEffort', 'devin': 'thought_level'}
 # devin の model id は末尾に thought_level を持つ（swe-2-flash-medium、claude-fable-5-2-medium）。
+# claude-fable-5-2-medium が当たる devin 行は既定の表にはなく、上書きで devin 行を足した場合だけ。
 # devin の行は部分一致のままにし、claude と codex の行は後ろが版番号の続きのときだけ一致とする。
 LOOSE_PROVIDERS = {'devin'}
 VERSION_TAIL = re.compile(r'(?:-[\d.]+)*$')
@@ -100,6 +101,10 @@ def find_model(table, model):
             index = lowered.find(name)
             if index < 0:
                 continue
+            # xopus が opus 行に当たらないよう、name の前は先頭か区切り（非英数字）に限る。
+            # gpt-6.1-terra のように版番号を前に持つ id は - で続くので通る。
+            if index > 0 and lowered[index - 1].isalnum():
+                continue
             if provider not in LOOSE_PROVIDERS and not VERSION_TAIL.match(lowered, index + len(name)):
                 continue
             if best is None or len(name) > len(best[1]):
@@ -144,6 +149,9 @@ def check(tool_name, tool_input, table):
         return (f'model「{model}」は表にありません。既知の model: {", ".join(known_models(table))}。'
                 f'表にある model を明示して spawn し直してください（規則は {RULE}）。')
     provider, name, ranges = found
+    if tool_name == 'Agent' and provider != 'claude':
+        return (f'model「{model}」は {provider} の model で、Agent では使えません。'
+                f'Agent では claude の model と effort を明示してください（規則は {RULE}）。')
     if tool_name == 'Agent':
         option, raw_effort = 'effort', options
     else:

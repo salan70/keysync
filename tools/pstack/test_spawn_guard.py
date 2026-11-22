@@ -136,6 +136,18 @@ class DelegateTest(unittest.TestCase):
         self.assertIn('thought_level が未指定',
                       delegate('claude-fable-5-2-medium', {'effort': 'medium'}, table))
 
+    def test_name_must_start_at_a_boundary(self):
+        # xopus が opus 行に当たらないよう、name の前は先頭か区切りに限る。
+        self.assertIn('表にありません', delegate('xopus', {'effort': 'medium'}))
+        self.assertIn('表にありません', delegate('xterra', {'reasoningEffort': 'medium'}))
+        # gpt-6.1-terra のように版番号を前に持つ id は従来どおり当たる。
+        self.assertIsNone(delegate('gpt-6.1-terra', {'reasoningEffort': 'medium'}))
+
+    def test_agent_cannot_use_other_provider_model(self):
+        # Agent は claude 専用。codex の model を effort で呼んでも止まる。
+        self.assertIn('codex', agent(model='terra', effort='medium'))
+        self.assertIsNone(agent(model='sonnet', effort='medium'))
+
 
 class ForkTest(unittest.TestCase):
     def test_fork_is_blocked_even_with_model_and_effort(self):
