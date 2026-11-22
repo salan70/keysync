@@ -36,6 +36,17 @@ export const text = "import x from './not-an-import.ts'";
   );
 });
 
+test("動的 import は 2 つ目の引数があっても specifier を拾う", () => {
+  const refs = extractImports(`const a = import("./a.ts");
+const b = import("./b.ts", { with: { type: "json" } });
+const c = import("./c.ts", opts);
+`);
+  deepStrictEqual(
+    refs.map(({ specifier }) => specifier),
+    ["./a.ts", "./b.ts", "./c.ts"],
+  );
+});
+
 test("コメントの中の import は拾わず、文字列の中の // はコメントにしない", () => {
   const source = `// import a from "./a.ts";
 /* import b from "./b.ts";
@@ -71,6 +82,18 @@ test("core は node:、bare の組み込み、react、core の外を禁止し、
     'src/core/index.ts → src/core/chain/b.ts → src/core/chain/a.ts → path（src/core/chain/a.ts:3 の import "path": Node.js の組み込みを使わない）',
     'src/core/direct.ts → src/ui/x.ts（src/core/direct.ts:1 の import "../ui/x.ts": src/core の外へ到達しない）',
     'src/core/direct.ts → src/device/y.ts（src/core/direct.ts:2 の import "../../src/device/y.ts": src/core の外へ到達しない）',
+  ]);
+});
+
+test("core の動的 import は、オプション引数があっても禁止先を違反にする", () => {
+  const result = checkCoreBoundary(
+    sources({
+      "src/core/data.ts": `const doc = await import("node:fs", { with: { type: "json" } });`,
+    }),
+    [],
+  );
+  deepStrictEqual(result.violations, [
+    'src/core/data.ts → node:fs（src/core/data.ts:1 の import "node:fs": Node.js の組み込みを使わない）',
   ]);
 });
 
@@ -137,6 +160,19 @@ test("view は state の hook と device / server と接続層を禁止し、そ
     'src/ui/components/A.tsx → src/device/webhid.ts（src/ui/components/A.tsx:3 の import "../../device/webhid.ts": view は device モジュールを import しない）',
     'src/ui/components/A.tsx → src/ui/ApplyDialogContainer.tsx（src/ui/components/A.tsx:4 の import "../ApplyDialogContainer.tsx": view は 接続層（container と App）を import しない）',
     'src/ui/components/A.tsx → src/ui/App.tsx（src/ui/components/A.tsx:5 の import "../App.tsx": view は 接続層（container と App）を import しない）',
+  ]);
+});
+
+test("view の動的 import は、オプション引数があっても禁止先を違反にする", () => {
+  const result = checkViewConvention(
+    sources({
+      "src/ui/components/A.tsx": `const m = await import("../state/use-apply.ts", { eager: true });`,
+      "src/ui/state/use-apply.ts": ``,
+    }),
+    [],
+  );
+  deepStrictEqual(result.violations, [
+    'src/ui/components/A.tsx → src/ui/state/use-apply.ts（src/ui/components/A.tsx:1 の import "../state/use-apply.ts": view は 接続層の hook を import しない）',
   ]);
 });
 

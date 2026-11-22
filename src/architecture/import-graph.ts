@@ -52,9 +52,9 @@ export function stripComments(source: string): string {
 /** 文の先頭の `import` / `export` だけを数え、文字列の中に書かれた import 風の文を拾わない。 */
 const STATIC_IMPORT =
   /^[ \t]*(?:import|export)\s+(type\s+)?(?:[^"'`;]*?\s+from\s+)?(["'])([^"'\n]+)\2/gm;
-const DYNAMIC_IMPORT = /\bimport\s*\(\s*(["'])([^"'\n]+)\1\s*\)/g;
+const DYNAMIC_IMPORT = /\bimport\s*\(\s*(["'])([^"'\n]+)\1\s*(?:,[^)]*)?\)/g;
 
-/** `import ... from`、`import "x"`、`export ... from`、`import("x")` の specifier を取り出す。 */
+/** `import ... from`、`import "x"`、`export ... from`、`import("x", …)` の specifier を取り出す。 */
 export function extractImports(source: string): readonly ImportRef[] {
   const code = stripComments(source);
   const refs: ImportRef[] = [];
