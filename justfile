@@ -109,4 +109,4 @@ check-doc-links:
     pnpm exec tsx tools/check-doc-links.ts
 
 # 型検査とテストを全量で実行する（pre-push と同じ）
-verify: typecheck test
+verify: typecheck test test-tools

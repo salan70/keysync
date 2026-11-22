@@ -11,8 +11,14 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// 検査対象外の vendor 資産（.claude / .agents）。pre-commit の exclude と揃える。
-const VENDOR_PREFIXES = [".claude/", ".agents/"];
+// 検査対象外の vendor 資産。pre-commit の exclude と揃える。
+// .claude/rules や tools/pstack の上書きはリポジトリ管理なので対象のままにする。
+const VENDOR_PREFIXES = [
+  ".agents/",
+  ".claude/agents/",
+  ".claude/skills/",
+  "tools/pstack/upstream/",
+];
 
 export type LinkProblem = {
   file: string;

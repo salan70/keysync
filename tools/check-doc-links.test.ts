@@ -105,9 +105,31 @@ test("外部 URL・コードブロック・インラインコードは検査し�
   );
 });
 
-test("vendor 資産（.claude / .agents）は検査しない", () => {
-  withDocs({ ".claude/x.md": "[x](./none.md)\n", ".agents/y.md": "[y](./none.md)\n" }, (root) =>
-    assert.deepEqual(checkRoot(root), []),
+test("vendor 資産（.agents / .claude の skills・agents / pstack upstream）は検査しない", () => {
+  withDocs(
+    {
+      ".agents/y.md": "[y](./none.md)\n",
+      ".claude/agents/a.md": "[a](./none.md)\n",
+      ".claude/skills/s/SKILL.md": "[s](./none.md)\n",
+      "tools/pstack/upstream/u.md": "[u](./none.md)\n",
+    },
+    (root) => assert.deepEqual(checkRoot(root), []),
+  );
+});
+
+// .claude/rules や tools/pstack の上書きはリポジトリ管理の文書なので、切れたリンクは検出する。
+test("vendor ではない .claude / tools/pstack の文書は検査する", () => {
+  withDocs(
+    {
+      ".claude/rules/r.md": "[r](./none.md)\n",
+      "tools/pstack/overlays/o.md": "[o](./none.md)\n",
+      "tools/pstack/README.md": "[readme](./none.md)\n",
+    },
+    (root) =>
+      assert.deepEqual(
+        checkRoot(root).map((p) => p.file),
+        [".claude/rules/r.md", "tools/pstack/README.md", "tools/pstack/overlays/o.md"],
+      ),
   );
 });
 
