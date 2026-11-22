@@ -17,11 +17,12 @@
 
 - Devin の free モデルには同時に動くセッション数の rate limit がある。\
   上限と再投入の手順は `.claude/rules/pstack.md` の自律と費用に従う。
-- Devin の基本モデルは `swe-2-max` とするが、acpRegistry が `swe-2-max` を advertise していないため `delegate_task` では `swe-2-high` を使う。\
-  `swe-2-max` と `swe-2-flash` 系も free モデルの rate limit を受ける（2026-11 に実測）。\
-  切り替えで回避できるかは未検証である。
-- `devin` の行はユーザーが Devin を名指ししたときだけ使うため、rate limit の reset を待たないときは Devin に委譲せず、スレッドの provider で続ける。\
-  名指しの委譲をやめるだけで、モデルの切り替えを設定する必要はない。
+- Devin の基本モデルは `swe-2-max` とするが、`delegate_task` では選べない。\
+  詳細と水準ごとの割り当ては `.claude/rules/pstack-models.md` の `devin` の行の注記を参照する。\
+  `swe-2-flash` 系が free モデルの rate limit を受けるか、モデルの切り替えで回避できるかは未検証である。
+- `devin` の行はユーザーが Devin を名指ししたときだけ使う。\
+  rate limit の reset を待たない退避は、Devin を必須としない委譲を Devin に出さず、スレッドの provider で続けることである。\
+  Devin が必須の作業では、reset まで待つか、ブロックしたことを 1 行で伝えて止まる。
 
 ### Triggers
 

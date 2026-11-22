@@ -22,7 +22,8 @@ devin: mid=swe-2-high (medium-max, *medium), low=swe-2-flash (medium-max, *mediu
   難しさを理由に選ばない。
 - `devin` の行は、ユーザーが会話で Devin を名指ししたときだけ使う。\
   `high` のレベルは置かないので、`high` の作業はスレッドの provider で行う。\
-  Devin の基本モデルは `swe-2-max` とするが、acpRegistry が `swe-2-max` を advertise していないため `delegate_task` では `swe-2-high` を使う（2026-11 に実測）。\
+  Devin の基本モデルは `swe-2-max` とするが、acpRegistry が `swe-2-max` を advertise していないため `delegate_task` では `swe-2-max` を選べない（2026-11 に実測）。\
+  表の水準ごとの割り当て（`mid` は `swe-2-high`、`low` は `swe-2-flash`）は変えない。\
   swe-2 系の free モデルには同時に動くセッション数の rate limit があり、上限と再投入の手順は `.claude/rules/pstack.md` の自律と費用に従う。
 - effort の option の名前は provider ごとに違う。\
   Claude は `effort`、Codex は `reasoningEffort`、Devin は `thought_level` に値を渡す。
