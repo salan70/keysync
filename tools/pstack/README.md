@@ -1,7 +1,7 @@
 # pstack の取り込み
 
 上流の [cursor/plugins](https://github.com/cursor/plugins) の `pstack/` を、固定した commit から Skill として取り込む。\
-取り込む理由と範囲は ADR 0054、AI の実行時の hook は ADR 0055 にある。\
+取り込む理由と範囲は ADR 0055、AI の実行時の hook は ADR 0056 にある。\
 振る舞いの規則は `.claude/rules/pstack.md`、モデルの表は `.claude/rules/pstack-models.md` が受け持つ。
 
 ## 置き場所

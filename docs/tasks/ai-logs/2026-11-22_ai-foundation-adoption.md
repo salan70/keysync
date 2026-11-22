@@ -8,7 +8,7 @@ PR の作成は依頼に含まれない。
 
 ## 判断
 
-判断は ADR 0054（pstack の取り込み）と ADR 0055（AI の実行時の hook）にある。\
+判断は ADR 0055（pstack の取り込み）と ADR 0056（AI の実行時の hook）にある。\
 ADR に書いていない小さな判断は次のとおり。
 
 - Issue は「実機安全の規則を最上位に据える」としているので、指示の優先順位で実機操作の安全性を 1 位、ユーザーの指示を 2 位に置いた。\
@@ -37,7 +37,7 @@ ADR に書いていない小さな判断は次のとおり。
 - `python3 tools/pstack/pstack.py status` が `valid: true` を返す。
 - `just test-tools`（49 件）が Python 3.14 と macOS 標準の Python 3.9 の両方で通る。
 - `just lint`、`pnpm test`、`pnpm typecheck` が通る。
-- hook の実ランタイムでの動きは ADR 0055 の「確かめたこと」にある。\
+- hook の実ランタイムでの動きは ADR 0056 の「確かめたこと」にある。\
   T3 の実物の `delegate_task` と、Codex と Devin のスレッドからの spawn は確かめていない。
 - 確認の `claude -p` の SessionStart が、git の共通ディレクトリに `pstack-models.local.md` の雛形を作った。\
   git 管理外で、以後のセッションも同じファイルを読む。

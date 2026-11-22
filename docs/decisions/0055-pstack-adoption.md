@@ -56,7 +56,7 @@ bpj は Cursor の pstack（`cursor/plugins` の `pstack/`）を固定した com
 - **ほかは取り込まない。** `create-verification-skill` などの検証の Skill は、KeySync の検証が `just lint`、`pnpm test`、`pnpm typecheck` で足りるため。\
   `setup-pstack` と `poteto-help` は Cursor の全体の設定とプラグインの導入を前提にするため。\
   `unslop` と `technical-writing` は、日本語の推敲をユーザーの全体環境の `yomiyasu` に任せるため。
-- **fable と devin を表に置く。** 表に無いモデルは spawn の hook（ADR 0055）が止める。\
+- **fable と devin を表に置く。** 表に無いモデルは spawn の hook（ADR 0056）が止める。\
   ユーザーが名指ししたときに通すため、難しさで選ぶレベルとは分けて置いた。
 
 ## 影響

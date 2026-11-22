@@ -12,7 +12,7 @@ pre-commit と CI が見るのはファイルの差分だけである。\
 
 - **spawn のモデルの継承。** native の subagent と T3 の `delegate_task` は、model と effort を省くと親のモデルを継ぐ。\
   bpj では Opus の入力の 54% が、文脈が 20 万 token を超えた呼び出しで消費されていた。\
-  委譲の規則は ADR 0054 のモデルの表で決めたが、文章だけでは省いた spawn を止められない。
+  委譲の規則は ADR 0055 のモデルの表で決めたが、文章だけでは省いた spawn を止められない。
 - **nix の `path:` 参照。** `path:` は gitignore 対象の `node_modules` を含む worktree 全体を `/nix/store` へコピーし、内容が変わるたびにコピーが増える。
 
 ## 選択肢
