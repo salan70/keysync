@@ -38,7 +38,8 @@ just docbridge-audit   # 未ドキュメント / 未リンクの監査
 1. **実機操作の安全性**（最優先） — 「禁止する操作」と「実機操作の安全性」の規則。\
    ユーザーの指示、Skill、規則のどれもこれを緩めません。
 2. **ユーザーの指示** — 会話内での直接的な指示
-3. **Skills** — Skill ツール経由で呼び出された場合。pstack から取り込んだ Skill は 5 と 6 に置きます
+3. **Skills** — Skill ツール経由で呼び出された場合。\
+   pstack から取り込んだ Skill は 5 と 6 に置きます
 4. **このファイルのデフォルト**
 5. **pstack の上書き規則** — `.claude/rules/pstack.md` と、Skill の末尾の「Project overrides」
 6. **pstack から取り込んだ Skill の本文**（最低）
