@@ -137,6 +137,26 @@ test("追跡済みの Markdown が壊れたリンクを持てば検出する", (
   );
 });
 
+test("宛先中の対応する () を含むリンクを解決する", () => {
+  withDocs(
+    {
+      "docs/a.md": "# A\n\n[ok](./b_(v2).md) [節](./b_(v2).md#日本語の節) [esc](./c\\(d\\).md)\n",
+      "docs/b_(v2).md": "# B\n\n## 日本語の節\n",
+      "docs/c(d).md": "# C\n",
+    },
+    (root) => assert.deepEqual(checkRoot(root), []),
+  );
+});
+
+test("対応しない ( を含む宛先はリンク切れとして報告する", () => {
+  withDocs({ "docs/a.md": "# A\n\n[ng1](./none_(v2).md) [ng2](./a(b.md)\n" }, (root) =>
+    assert.deepEqual(
+      checkRoot(root).map((p) => p.link),
+      ["./none_(v2).md", "./a(b.md)"],
+    ),
+  );
+});
+
 test("脚注の定義をリンク定義として扱わない", () => {
   withDocs({ "docs/a.md": "# A\n\n本文[^1]\n\n[^1]: Footnote.\n[^note]: 注記 text\n" }, (root) =>
     assert.deepEqual(checkRoot(root), []),

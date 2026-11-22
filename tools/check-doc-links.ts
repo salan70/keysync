@@ -60,13 +60,58 @@ export function slugify(heading: string): string {
 // `_` による強調（`_x_` / `__x__`）。語中の `_`（snake_case）は強調ではない。
 const UNDERSCORE_EMPHASIS = /(^|[^\p{L}\p{N}_])(_{1,2})(?=\S)(.+?)(?<=\S)\2(?![\p{L}\p{N}_])/gu;
 
+// CommonMark でバックスラッシュのエスケープが外れる ASCII 記号。
+const ESCAPED_PUNCT = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
+
+// `](` の直後からリンク宛先を読み、宛先と読み終えた位置を返す。
+// <…> 形式か、エスケープ記号と対応する () を含む bare 形式（CommonMark の
+// link destination）。`file_(v2).md` のような宛先を最初の ) で切らない。
+// 対応しない ( は宛先に含めたまま返し、実在しないファイル名として報告させる。
+// 既知の制約: 複数行にまたがる宛先は未対応（呼び出し側が行単位で走査するため）。
+function readDest(line: string, start: number): { dest: string; end: number } | null {
+  if (line.charAt(start) === "<") {
+    const end = line.indexOf(">", start + 1);
+    return end === -1 ? null : { dest: line.slice(start + 1, end), end: end + 1 };
+  }
+  let depth = 0;
+  let i = start;
+  while (i < line.length) {
+    const ch = line.charAt(i);
+    if (ch === "\\") {
+      i += 2;
+      continue;
+    }
+    if (ch === "(") depth += 1;
+    else if (ch === ")") {
+      if (depth === 0) break;
+      depth -= 1;
+    } else if (/\s/.test(ch)) break;
+    i += 1;
+  }
+  if (i === start) return null;
+  return { dest: line.slice(start, i).replace(ESCAPED_PUNCT, "$1"), end: i };
+}
+
+// [text](dest) / ![text](dest) を表示テキスト text に置き換える。
+function stripInlineLinks(text: string): string {
+  let out = "";
+  let cursor = 0;
+  for (const m of text.matchAll(/!?\[([^\]]*)\]\(\s*/g)) {
+    const r = readDest(text, m.index + m[0].length);
+    if (r === null) continue;
+    // タイトル（` "…"`）を飛ばして閉じの `)` まで進める。
+    let end = r.end;
+    while (end < text.length && text.charAt(end) !== ")") end += 1;
+    if (text.charAt(end) !== ")") continue;
+    out += text.slice(cursor, m.index) + (m[1] ?? "");
+    cursor = end + 1;
+  }
+  return out + text.slice(cursor);
+}
+
 // 見出しの表示テキスト（リンク・画像・強調・コードの記号を外したもの）。
 function headingText(raw: string): string {
-  const text = raw
-    .replace(/\s+#+\s*$/, "")
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/<[^>]+>/g, "");
+  const text = stripInlineLinks(raw.replace(/\s+#+\s*$/, "")).replace(/<[^>]+>/g, "");
   // インラインコードの中の `_` は強調として外さない。
   return text
     .split(/(`[^`]*`)/)
@@ -187,8 +232,9 @@ function scan(source: string): Scanned {
     }
 
     const stripped = visible.replace(/`+[^`]*`+/g, (m) => " ".repeat(m.length));
-    for (const m of stripped.matchAll(/!?\[(?:[^\]\\]|\\.)*\]\(\s*(<[^>]*>|[^\s)]*)/g)) {
-      if (m[1] !== undefined) links.push({ line: index + 1, dest: m[1].replace(/^<|>$/g, "") });
+    for (const m of stripped.matchAll(/!?\[(?:[^\]\\]|\\.)*\]\(\s*/g)) {
+      const r = readDest(stripped, m.index + m[0].length);
+      if (r !== null) links.push({ line: index + 1, dest: r.dest });
     }
     // 脚注の定義（[^1]: 本文）はリンク定義ではない。
     const def = /^ {0,3}\[(?!\^)[^\]]+\]:\s*(<[^>]*>|\S+)/.exec(stripped);
