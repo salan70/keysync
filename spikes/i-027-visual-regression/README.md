@@ -19,9 +19,12 @@ nix build --impure --no-link --print-out-paths --expr '
   in pkgs.playwright-driver.browsers.override { withFirefox = false; withWebkit = false; withFfmpeg = false; }'
 
 # Playwright 本体（repository の外）
-mkdir -p "$TMPDIR/pw" && cd "$TMPDIR/pw"
-echo '{"name":"pw","private":true,"type":"module"}' > package.json
-npm i playwright@1.64.1 pngjs
+mkdir -p "$TMPDIR/pw"
+(
+  cd "$TMPDIR/pw"
+  echo '{"name":"pw","private":true,"type":"module"}' > package.json
+  npm i playwright@1.64.1 pngjs
+)
 ```
 
 ## 実行
