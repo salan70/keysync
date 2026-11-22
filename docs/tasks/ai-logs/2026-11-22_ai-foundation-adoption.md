@@ -41,3 +41,11 @@ ADR に書いていない小さな判断は次のとおり。
   T3 の実物の `delegate_task` と、Codex と Devin のスレッドからの spawn は確かめていない。
 - 確認の `claude -p` の SessionStart が、git の共通ディレクトリに `pstack-models.local.md` の雛形を作った。\
   git 管理外で、以後のセッションも同じファイルを読む。
+
+## 残課題
+
+- `just test-tools` の pre-push と CI への組み込みは、このブランチでは行わない。\
+  #27 の `verify` レシピと lint.yml を直すと rebase で衝突するため、ブランチが main に入ったあとで組み込み用のフォローアップ Issue を立てる。
+- #27・#29 との文字上の衝突は rebase で解消する。\
+  justfile の `test-tools` は `test:` の直後にあり #29 の `test-update-snapshots` と隣接し、\
+  `.pre-commit-config.yaml` の冒頭コメントは #27 の `default_stages` と隣接する。
