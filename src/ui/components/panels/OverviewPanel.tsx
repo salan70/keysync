@@ -6,7 +6,7 @@ import type { KeyboardDefinition } from "../../../core/definition/types.ts";
 import type { VilDocument } from "../../../core/vil/types.ts";
 import { boardMetrics, boardSize, keyBox } from "../../../render/geometry.ts";
 import { keycodeLabel, layerLabel, type WorkspaceLabels } from "../../../workspace/labels.ts";
-import { keycapTitle, keycodeDisplay, kindClass } from "../../keycode-display.tsx";
+import { keycapTitle, keycodeDisplay, kindClass } from "../keycode-display.tsx";
 import { overviewColumns } from "../../overview-layout.ts";
 import {
   buildOverviewModel,
