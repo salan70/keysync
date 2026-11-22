@@ -13,6 +13,16 @@
 - **Subagents** のモデルの既定と、agent の frontmatter の `model` は使わない。\
   モデルと effort は `.claude/rules/pstack-models.md` と git 管理外の上書きから決め、spawn のたびに明示する。
 
+### Devin の free モデルの rate limit
+
+- Devin の free モデルには同時に動くセッション数の rate limit がある。\
+  上限と再投入の手順は `.claude/rules/pstack.md` の自律と費用に従う。
+- Devin の基本モデルは `swe-2-max` とするが、acpRegistry が `swe-2-max` を advertise していないため `delegate_task` では `swe-2-high` を使う。\
+  `swe-2-max` と `swe-2-flash` 系も free モデルの rate limit を受ける（2026-11 に実測）。\
+  切り替えで回避できるかは未検証である。
+- `devin` の行はユーザーが Devin を名指ししたときだけ使うため、rate limit の reset を待たないときは Devin に委譲せず、スレッドの provider で続ける。\
+  名指しの委譲をやめるだけで、モデルの切り替えを設定する必要はない。
+
 ### Triggers
 
 - 作業に効く Playbook と Principle を選び、その leaf の Skill だけを読む。\
