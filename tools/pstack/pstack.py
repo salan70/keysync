@@ -208,8 +208,12 @@ def main():
     models = commands.add_parser('models', help='Manage the git-ignored model override shared by all worktrees')
     actions = models.add_subparsers(dest='action', required=True)
     actions.add_parser('show', help='Print the shared override, creating it from the template if missing')
-    actions.add_parser('path', help='Print the path of the shared override')
+    path_cmd = actions.add_parser('path', help='Print the path of the shared override')
+    path_cmd.add_argument('--global', action='store_true', dest='machine_global',
+                          help='Print the machine-wide override path without creating it')
     setter = actions.add_parser('set', help='Replace or add one "<name>: <value>" line in the shared override')
+    setter.add_argument('--global', action='store_true', dest='machine_global',
+                        help='Write the machine-wide override instead of the repository override')
     setter.add_argument('key')
     setter.add_argument('value', nargs='+')
     args = parser.parse_args()
@@ -218,9 +222,15 @@ def main():
             if args.action == 'show':
                 print(local_models.show(Path.cwd()), end='')
             elif args.action == 'path':
-                print(local_models.ensure(local_models.common_file(Path.cwd())))
+                if args.machine_global:
+                    print(local_models.machine_file())
+                else:
+                    print(local_models.ensure(local_models.common_file(Path.cwd())))
             else:
-                result = local_models.set_value(Path.cwd(), args.key, ' '.join(args.value))
+                if args.machine_global:
+                    result = local_models.set_global_value(args.key, ' '.join(args.value))
+                else:
+                    result = local_models.set_value(Path.cwd(), args.key, ' '.join(args.value))
                 print(json.dumps(result, indent=2, ensure_ascii=False))
             return 0
         if args.command == 'propose-update':

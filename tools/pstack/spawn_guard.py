@@ -69,6 +69,32 @@ def apply_level_models(table, override_text):
     return result
 
 
+def effective_override_text(*texts):
+    """低い層から高い層の順に受け取り、同じ key は最も高い層の行だけを、元の順序で全行残す。"""
+    layers = []
+    for text in texts:
+        layer = {}
+        for line in text.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith('#') or ':' not in stripped:
+                continue
+            layer.setdefault(stripped.split(':', 1)[0].strip(), []).append(stripped)
+        layers.append(layer)
+    order = []
+    for layer in layers:
+        order.extend(key for key in layer if key not in order)
+    lines = []
+    for key in order:
+        lines.extend(next(layer[key] for layer in reversed(layers) if key in layer))
+    return '\n'.join(lines) + ('\n' if lines else '')
+
+
+def apply_override(table, *texts):
+    """committed の表に、低い層から高い層の順の上書きを適用する。"""
+    override = effective_override_text(*texts)
+    return apply_level_models(merge_override(table, override), override)
+
+
 def normalize_effort(value):
     if not isinstance(value, str):
         return None
@@ -170,20 +196,29 @@ def check(tool_name, tool_input, table):
     return None
 
 
-def read_tables():
-    root = Path(__file__).resolve().parents[2]
+def read_tables(root=None, machine_global=None, repo_local=None):
+    root = Path(root) if root else Path(__file__).resolve().parents[2]
     table = parse_table((root / RULE).read_text(encoding='utf-8'))
+    texts = []
+    machine = Path(machine_global) if machine_global else Path.home() / '.config' / 'pstack' / 'pstack-models.md'
     try:
-        common = subprocess.run(
-            ['git', '-C', str(root), 'rev-parse', '--path-format=absolute', '--git-common-dir'],
-            check=True, capture_output=True, text=True).stdout.strip()
-        local = Path(common) / LOCAL_NAME
+        if machine.exists():
+            texts.append(machine.read_text(encoding='utf-8'))
+    except (OSError, UnicodeError):
+        pass  # 読めない共通ファイルは無視し、リポジトリの設定で検査を続ける
+    try:
+        if repo_local:
+            local = Path(repo_local)
+        else:
+            common = subprocess.run(
+                ['git', '-C', str(root), 'rev-parse', '--path-format=absolute', '--git-common-dir'],
+                check=True, capture_output=True, text=True).stdout.strip()
+            local = Path(common) / LOCAL_NAME
         if local.exists():
-            override = local.read_text(encoding='utf-8')
-            table = apply_level_models(merge_override(table, override), override)
-    except (subprocess.SubprocessError, OSError):
+            texts.append(local.read_text(encoding='utf-8'))
+    except (subprocess.SubprocessError, OSError, UnicodeError):
         pass
-    return table
+    return apply_override(table, *texts) if texts else table
 
 
 def main():

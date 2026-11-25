@@ -47,9 +47,13 @@ git diff --no-index tools/pstack/manifest.json <scratchpad>/manifest.json
 
 ## モデルの上書き
 
-git 管理外の上書きは、git の共通ディレクトリの `pstack-models.local.md` に 1 つだけ置き、すべての worktree が共有する。
+git 管理外の上書きは 2 枚ある。\
+リポジトリの上書きは git の共通ディレクトリの `pstack-models.local.md` に置き、すべての worktree が共有する。\
+マシン共通の上書きは `~/.config/pstack/pstack-models.md` に置く任意の preference で、このマシンのすべてのリポジトリに効き、同じ名前の行はリポジトリの上書きが勝つ。
 
 ```sh
-python3 tools/pstack/pstack.py models show               # 中身を表示する（無ければ雛形から作る）
-python3 tools/pstack/pstack.py models set provider codex # 1 行を書き換える
+python3 tools/pstack/pstack.py models show               # 両方の中身を表示する（リポジトリのほうが無ければ雛形から作る）
+python3 tools/pstack/pstack.py models set provider codex # リポジトリの上書きの 1 行を書き換える
+python3 tools/pstack/pstack.py models set --global mid devin:swe-2-high max # マシン共通の上書きの 1 行を書き換える
+python3 tools/pstack/pstack.py models path --global      # マシン共通の場所を表示する（ファイルは作らない）
 ```

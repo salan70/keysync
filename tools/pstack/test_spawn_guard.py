@@ -1,4 +1,6 @@
 import json
+import os
+import tempfile
 import subprocess
 import sys
 import unittest
@@ -217,10 +219,66 @@ class LevelOverrideTest(unittest.TestCase):
         self.assertIsNone(g.check('Agent', {'model': 'sonnet', 'effort': 'medium'}, table))
 
 
+class OverrideLayerTest(unittest.TestCase):
+    """committed、マシン共通、リポジトリの上書きを、key 単位で低い層から高い層へ解決する。"""
+
+    def test_machine_global_replaces_committed_provider_line(self):
+        override = 'devin: high=swe-2-1-medium (max-max, *max)\n'
+        table = g.apply_override(TABLE, override)
+        self.assertIn('swe-2-1-medium', table['devin'])
+        self.assertNotIn('swe-2-high', table['devin'])
+
+    def test_repo_local_replaces_machine_global_provider_line(self):
+        machine = 'devin: high=swe-2-1-medium (max-max, *max)\n'
+        local = 'devin: mid=swe-2-high (medium-max, *medium)\n'
+        table = g.apply_override(TABLE, machine, local)
+        self.assertIn('swe-2-high', table['devin'])
+        self.assertNotIn('swe-2-1-medium', table['devin'])
+
+    def test_repo_local_replaces_machine_global_level_line(self):
+        machine = 'mid: devin:swe-global max\n'
+        local = 'mid: devin:swe-local max\n'
+        table = g.apply_override(TABLE, machine, local)
+        self.assertIn('swe-local', table['devin'])
+        self.assertNotIn('swe-global', table.get('devin', {}))
+
+    def test_machine_global_key_survives_when_local_names_other_keys(self):
+        machine = 'devin: high=swe-2-1-medium (max-max, *max)\n'
+        local = 'ui: claude\n'
+        table = g.apply_override(TABLE, machine, local)
+        self.assertIn('swe-2-1-medium', table['devin'])
+
+
+class SameLevelTest(unittest.TestCase):
+    def test_same_key_keeps_all_lines_in_top_layer(self):
+        text = g.effective_override_text('mid: devin:a max\nmid: devin:b max\n')
+        self.assertEqual(text, 'mid: devin:a max\nmid: devin:b max\n')
+        table = g.apply_override(TABLE, 'mid: codex:gpt-6-astra medium\nmid: devin:swe-x medium\n')
+        self.assertIn('gpt-6-astra', table['codex'])
+        self.assertIn('swe-x', table['devin'])
+
+    def test_higher_layer_drops_all_lower_lines_of_same_key(self):
+        text = g.effective_override_text('mid: devin:a max\nmid: devin:b max\nui: claude\n', 'mid: devin:c max\n')
+        self.assertEqual(text, 'mid: devin:c max\nui: claude\n')
+
+
+class ReadTablesTest(unittest.TestCase):
+    def test_unreadable_machine_file_is_ignored(self):
+        with tempfile.TemporaryDirectory() as d:
+            machine = Path(d) / 'machine.md'
+            machine.write_bytes(b'\xff\xfe\x00')
+            local = Path(d) / 'local.md'
+            local.write_text('mid: devin:swe-local max\n')
+            table = g.read_tables(ROOT, machine, local)
+        self.assertIn('swe-local', table['devin'])
+
+
 class MainTest(unittest.TestCase):
     def run_main(self, stdin):
-        return subprocess.run([sys.executable, str(ROOT / 'tools/pstack/spawn_guard.py')],
-                              input=stdin, capture_output=True, text=True)
+        with tempfile.TemporaryDirectory() as home:
+            env = {**os.environ, 'HOME': home}
+            return subprocess.run([sys.executable, str(ROOT / 'tools/pstack/spawn_guard.py')],
+                                  input=stdin, capture_output=True, text=True, env=env)
 
     def test_broken_json_fails_open(self):
         r = self.run_main('{not json')
