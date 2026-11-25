@@ -47,8 +47,8 @@ git diff --no-index tools/pstack/manifest.json <scratchpad>/manifest.json
 
 ## モデルの上書き
 
-git 管理外の上書きは 2 枚ある。
-リポジトリの上書きは git の共通ディレクトリの `pstack-models.local.md` に置き、すべての worktree が共有する。
+git 管理外の上書きは 2 枚ある。\
+リポジトリの上書きは git の共通ディレクトリの `pstack-models.local.md` に置き、すべての worktree が共有する。\
 マシン共通の上書きは `~/.config/pstack/pstack-models.md` に置く任意の preference で、このマシンのすべてのリポジトリに効き、同じ名前の行はリポジトリの上書きが勝つ。
 
 ```sh

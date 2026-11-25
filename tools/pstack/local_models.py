@@ -12,12 +12,13 @@ GLOBAL_NAME = 'pstack-models.md'
 KEY = re.compile(r'[a-z][a-z0-9 ,.-]*')
 TEMPLATE = """\
 # pstack のモデルのローカル上書き。git 管理外で、すべての worktree が共有する。
-# 書いた行だけが .claude/rules/pstack-models.md の同じ名前の行を置き換える。会話中の利用者の指示はこのファイルより優先する。
-# provider: thread（スレッドを始めたモデルの provider）、claude、codex のいずれか。
-# cross-provider: on のときだけ、パネルともう一方の provider への委譲を使う。
+# 何も書かなければ、マシン共通（~/.config/pstack/pstack-models.md）、次に .claude/rules/pstack-models.md の値を使う。
+# 書いた行だけが、同じ名前の行を置き換える。会話中の利用者の指示はこのファイルより優先する。
+# 設定できる名前の例を次に示す（行頭の # を外して値を書く）。
+#   provider: thread（スレッドを始めたモデルの provider）、claude、codex のいずれか。
+#   cross-provider: on のときだけ、パネルともう一方の provider への委譲を使う。
+#   ui: UI を担当するモデル（例: claude:fable low）。
 # 変更は `python3 tools/pstack/pstack.py models set <名前> <値>` か、このファイルを直接直す。
-provider: thread
-cross-provider: off
 """
 GLOBAL_TEMPLATE = """\
 # pstack のモデルのマシン共通上書き。git 管理外で、このマシンのすべてのリポジトリに効く。
@@ -67,6 +68,8 @@ def show(checkout, target=None, machine_target=None):
     body = ''
     if machine.exists():
         body += GLOBAL_HEADER.format(path=machine) + machine.read_text(encoding='utf-8')
+        if not body.endswith('\n'):
+            body += '\n'
     return body + HEADER.format(path=target) + target.read_text(encoding='utf-8')
 
 

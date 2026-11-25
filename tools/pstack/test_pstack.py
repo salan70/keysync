@@ -161,11 +161,15 @@ class LocalModelsTest(unittest.TestCase):
         subprocess.run(['git', '-C', str(main), 'worktree', 'add', '-q', str(other)], check=True)
         local_models.set_value(other, 'provider', 'codex')
         self.assertEqual(local_models.common_file(main), local_models.common_file(other))
-        self.assertIn('\nprovider: codex\n', local_models.show(main))
+        machine = self.root / 'machine' / local_models.GLOBAL_NAME
+        self.assertIn('\nprovider: codex\n', local_models.show(main, machine_target=machine))
 
     def test_show_creates_the_template_and_keeps_existing_lines(self):
         machine = self.root / 'machine' / local_models.GLOBAL_NAME
-        self.assertIn('provider: thread', local_models.show(self.root, self.target, machine))
+        shown = local_models.show(self.root, self.target, machine)
+        self.assertIn('Local model override', shown)
+        self.assertTrue(all(line.startswith('#') for line in local_models.TEMPLATE.splitlines() if line))
+        self.assertNotRegex(local_models.TEMPLATE, r'(?m)^[a-z-]+:')
         self.target.write_text('provider: claude\n')
         self.assertTrue(local_models.show(self.root, self.target, machine).endswith('\nprovider: claude\n'))
 
@@ -180,6 +184,13 @@ class LocalModelsTest(unittest.TestCase):
         shown = local_models.show(self.root, self.target, machine)
         self.assertLess(shown.index('swe-2-1-medium'), shown.index('swe-2-high'))
         self.assertLess(shown.index('Machine-wide'), shown.index('Local model override'))
+
+    def test_show_separates_machine_global_without_trailing_newline(self):
+        machine = self.root / 'machine' / local_models.GLOBAL_NAME
+        machine.parent.mkdir()
+        machine.write_text('provider: codex')
+        shown = local_models.show(self.root, self.target, machine)
+        self.assertIn('provider: codex\n# Local model override', shown)
 
     def test_set_global_creates_comments_only_template(self):
         machine = self.root / 'machine' / local_models.GLOBAL_NAME
