@@ -36,12 +36,15 @@ devin: mid=swe-2-high (medium-max, *medium), low=swe-2-flash (medium-max, *mediu
 
 ## 上書き
 
-上書きは、git の共通ディレクトリにある `pstack-models.local.md` に書く。\
-git 管理外で、すべての worktree が共有する。\
-Claude Code では SessionStart の hook が中身を文脈に足し、ほかの agent は `python3 tools/pstack/pstack.py models show` で表示する。
+上書きは 2 枚ある。\
+マシン共通は `~/.config/pstack/pstack-models.md` に書く任意の preference で、このマシンのすべてのリポジトリに効く。\
+リポジトリの上書きは、git の共通ディレクトリにある `pstack-models.local.md` に書く。\
+どちらも git 管理外で、リポジトリのほうはすべての worktree が共有する。\
+Claude Code では SessionStart の hook が両方の中身を文脈に足し、ほかの agent は `python3 tools/pstack/pstack.py models show` で表示する。
 
 上書きの行は、この表の同じ名前の行を丸ごと置き換える。\
-優先順位は、会話でのユーザーの選択、上書き、この表の順とする。
+優先順位は、会話でのユーザーの選択、リポジトリの上書き、マシン共通の上書き、この表の順とする。\
+マシン共通の上書きは PR に含めず、クラウドやほかのマシンに無ければこの表の既定へ戻る。
 
 ## レベルの選び方
 

@@ -164,9 +164,31 @@ class LocalModelsTest(unittest.TestCase):
         self.assertIn('\nprovider: codex\n', local_models.show(main))
 
     def test_show_creates_the_template_and_keeps_existing_lines(self):
-        self.assertIn('provider: thread', local_models.show(self.root, self.target))
+        machine = self.root / 'machine' / local_models.GLOBAL_NAME
+        self.assertIn('provider: thread', local_models.show(self.root, self.target, machine))
         self.target.write_text('provider: claude\n')
-        self.assertTrue(local_models.show(self.root, self.target).endswith('\nprovider: claude\n'))
+        self.assertTrue(local_models.show(self.root, self.target, machine).endswith('\nprovider: claude\n'))
+
+    def test_show_puts_machine_global_before_local_and_does_not_create_it(self):
+        machine = self.root / 'machine' / local_models.GLOBAL_NAME
+        shown = local_models.show(self.root, self.target, machine)
+        self.assertFalse(machine.exists())
+        self.assertNotIn('Machine-wide', shown)
+        machine.parent.mkdir()
+        machine.write_text('devin: high=swe-2-1-medium (max-max, *max)\n')
+        self.target.write_text('devin: high=swe-2-high (max-max, *max)\n')
+        shown = local_models.show(self.root, self.target, machine)
+        self.assertLess(shown.index('swe-2-1-medium'), shown.index('swe-2-high'))
+        self.assertLess(shown.index('Machine-wide'), shown.index('Local model override'))
+
+    def test_set_global_creates_comments_only_template(self):
+        machine = self.root / 'machine' / local_models.GLOBAL_NAME
+        result = local_models.set_global_value('devin', 'high=swe-2-1-medium (max-max, *max)', machine)
+        text = machine.read_text()
+        self.assertEqual(result['line'], 'devin: high=swe-2-1-medium (max-max, *max)')
+        self.assertIn('devin: high=swe-2-1-medium (max-max, *max)\n', text)
+        self.assertNotIn('provider: thread', text)
+        self.assertTrue(all(line.startswith('#') or not line for line in text.splitlines()[:4]))
 
     def test_set_replaces_or_appends_one_line(self):
         local_models.set_value(self.root, 'ui', 'claude:fable  low', self.target)

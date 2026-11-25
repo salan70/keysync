@@ -13,7 +13,7 @@
 - `.cursor/skills/`、`~/.cursor/skills/`、`pstack/skills/` は `.claude/skills/` を指す。\
   `pstack/docs/` は `tools/pstack/upstream/docs/` を指す。\
   Claude Code でのツール名は `tools/pstack/upstream/docs/harness/claude-code.md` で読み替える。
-- モデルは `.claude/rules/pstack-models.md` と git 管理外の上書きから決める。\
+- モデルは `.claude/rules/pstack-models.md`、任意のマシン共通の上書き（`~/.config/pstack/pstack-models.md`）、リポジトリの上書きから決める。\
   `~/.cursor/rules/pstack-models.mdc` と Skill に書かれた slug は使わない。
 - cloud agent は使わない。\
   worker はすべて手元で動かし、`environment: "cloud"` と `cloud_base_branch` は無視し、分離が要る worker には別の worktree を渡す。

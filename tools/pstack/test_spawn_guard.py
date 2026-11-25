@@ -217,6 +217,36 @@ class LevelOverrideTest(unittest.TestCase):
         self.assertIsNone(g.check('Agent', {'model': 'sonnet', 'effort': 'medium'}, table))
 
 
+class OverrideLayerTest(unittest.TestCase):
+    """committed、マシン共通、リポジトリの上書きを、key 単位で低い層から高い層へ解決する。"""
+
+    def test_machine_global_replaces_committed_provider_line(self):
+        override = 'devin: high=swe-2-1-medium (max-max, *max)\n'
+        table = g.apply_override(TABLE, override)
+        self.assertIn('swe-2-1-medium', table['devin'])
+        self.assertNotIn('swe-2-high', table['devin'])
+
+    def test_repo_local_replaces_machine_global_provider_line(self):
+        machine = 'devin: high=swe-2-1-medium (max-max, *max)\n'
+        local = 'devin: mid=swe-2-high (medium-max, *medium)\n'
+        table = g.apply_override(TABLE, machine, local)
+        self.assertIn('swe-2-high', table['devin'])
+        self.assertNotIn('swe-2-1-medium', table['devin'])
+
+    def test_repo_local_replaces_machine_global_level_line(self):
+        machine = 'mid: devin:swe-global max\n'
+        local = 'mid: devin:swe-local max\n'
+        table = g.apply_override(TABLE, machine, local)
+        self.assertIn('swe-local', table['devin'])
+        self.assertNotIn('swe-global', table.get('devin', {}))
+
+    def test_machine_global_key_survives_when_local_names_other_keys(self):
+        machine = 'devin: high=swe-2-1-medium (max-max, *max)\n'
+        local = 'ui: claude\n'
+        table = g.apply_override(TABLE, machine, local)
+        self.assertIn('swe-2-1-medium', table['devin'])
+
+
 class MainTest(unittest.TestCase):
     def run_main(self, stdin):
         return subprocess.run([sys.executable, str(ROOT / 'tools/pstack/spawn_guard.py')],

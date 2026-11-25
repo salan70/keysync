@@ -69,6 +69,27 @@ def apply_level_models(table, override_text):
     return result
 
 
+def effective_override_text(*texts):
+    """低い層から高い層の順に受け取り、同じ key は高い層の行だけを残す。"""
+    order, lines = [], {}
+    for text in texts:
+        for line in text.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith('#') or ':' not in stripped:
+                continue
+            key = stripped.split(':', 1)[0].strip()
+            if key not in lines:
+                order.append(key)
+            lines[key] = stripped
+    return '\n'.join(lines[key] for key in order) + ('\n' if order else '')
+
+
+def apply_override(table, *texts):
+    """committed の表に、低い層から高い層の順の上書きを適用する。"""
+    override = effective_override_text(*texts)
+    return apply_level_models(merge_override(table, override), override)
+
+
 def normalize_effort(value):
     if not isinstance(value, str):
         return None
@@ -170,20 +191,26 @@ def check(tool_name, tool_input, table):
     return None
 
 
-def read_tables():
-    root = Path(__file__).resolve().parents[2]
+def read_tables(root=None, machine_global=None, repo_local=None):
+    root = Path(root) if root else Path(__file__).resolve().parents[2]
     table = parse_table((root / RULE).read_text(encoding='utf-8'))
+    texts = []
+    machine = Path(machine_global) if machine_global else Path.home() / '.config' / 'pstack' / 'pstack-models.md'
+    if machine.exists():
+        texts.append(machine.read_text(encoding='utf-8'))
     try:
-        common = subprocess.run(
-            ['git', '-C', str(root), 'rev-parse', '--path-format=absolute', '--git-common-dir'],
-            check=True, capture_output=True, text=True).stdout.strip()
-        local = Path(common) / LOCAL_NAME
+        if repo_local:
+            local = Path(repo_local)
+        else:
+            common = subprocess.run(
+                ['git', '-C', str(root), 'rev-parse', '--path-format=absolute', '--git-common-dir'],
+                check=True, capture_output=True, text=True).stdout.strip()
+            local = Path(common) / LOCAL_NAME
         if local.exists():
-            override = local.read_text(encoding='utf-8')
-            table = apply_level_models(merge_override(table, override), override)
+            texts.append(local.read_text(encoding='utf-8'))
     except (subprocess.SubprocessError, OSError):
         pass
-    return table
+    return apply_override(table, *texts) if texts else table
 
 
 def main():
