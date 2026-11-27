@@ -151,6 +151,24 @@ class DelegateTest(unittest.TestCase):
         self.assertIsNone(agent(model='sonnet', effort='medium'))
 
 
+class FableTest(unittest.TestCase):
+    OVERRIDE = 'claude: named=fable (low-high, *medium), sonnet=sonnet (low-high, *medium)\ncodex: named=claude-fable-5-2 (low-high, *medium)\n'
+
+    def table(self):
+        return g.apply_override(TABLE, self.OVERRIDE)
+
+    def test_override_reregisters_fable_but_still_blocked(self):
+        table = self.table()
+        self.assertIsNotNone(g.find_model(table, 'fable'))
+        for model in ('fable', 'claude-fable-5-2', 'Fable'):
+            self.assertIn('Fable', g.check('Agent', {'model': model, 'effort': 'medium'}, table))
+            self.assertIn('Fable', delegate(model, {'effort': 'medium'}, table=table))
+            self.assertIn('Fable', delegate(model, {'reasoningEffort': 'medium'}, table=table))
+
+    def test_non_fable_unaffected(self):
+        self.assertIsNone(g.check('Agent', {'model': 'sonnet', 'effort': 'medium'}, self.table()))
+
+
 class ForkTest(unittest.TestCase):
     def test_fork_is_blocked_even_with_model_and_effort(self):
         tool_input = {'subagent_type': 'fork', 'prompt': 'x', 'model': 'haiku', 'effort': 'low'}

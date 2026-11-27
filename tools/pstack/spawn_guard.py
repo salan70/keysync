@@ -156,6 +156,12 @@ def extract(tool_name, tool_input):
     return None
 
 
+def is_fable(model):
+    """Fable は上書きで表に再登録されても使わない。"""
+    lowered = model.strip().lower()
+    return lowered == 'fable' or lowered.startswith('fable-') or lowered.startswith('claude-fable-')
+
+
 def check(tool_name, tool_input, table):
     """止める理由（日本語）を返す。通すなら None。"""
     tool_input = tool_input if isinstance(tool_input, dict) else {}
@@ -170,6 +176,10 @@ def check(tool_name, tool_input, table):
     if not isinstance(model, str) or not model.strip():
         return (f'model が未指定です。継承に任せず、model を明示してください。'
                 f'既知の model: {", ".join(known_models(table))}。{fix}')
+    if is_fable(model):
+        return (f'model「{model}」（Fable）は使えません。上書きに残っていても選ばず、'
+                f'既知の model: {", ".join(known_models(table))}。'
+                f'表にある別の model を明示して spawn し直してください（規則は {RULE}）。')
     found = find_model(table, model)
     if found is None:
         return (f'model「{model}」は表にありません。既知の model: {", ".join(known_models(table))}。'

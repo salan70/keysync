@@ -12,6 +12,8 @@
   多くは `disable-model-invocation` を持つので、`Skill` ツールで呼ばずにファイルを直接読む。
 - **Subagents** のモデルの既定と、agent の frontmatter の `model` は使わない。\
   モデルと effort は `.claude/rules/pstack-models.md` と git 管理外の上書きから決め、spawn のたびに明示する。
+- `/setup-pstack` が書き込むファイル（`~/.claude/rules/pstack-models.md` や `~/.cursor/rules/pstack-models.mdc`）にも、Fable（`fable`、`claude-fable-*`）を使わない規則を残す。\
+  panel の seat や、利用者が名指しした場合の例外も、この本文の Fable の記述より先にこの規則を適用する。
 
 ### Devin の free モデルの rate limit
 
