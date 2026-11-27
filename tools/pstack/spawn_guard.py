@@ -30,8 +30,8 @@ LEVEL_LINE = re.compile(rf'^\s*(?:high|mid|low):\s*({PROVIDERS}):(\S+)')
 # orchestrator_capabilities の option id。Claude は effort、Codex は reasoningEffort、Devin は thought_level。
 # 一致した行の provider の option だけを認め、ほかの provider の名前では effort を渡せない。
 PROVIDER_EFFORT_OPTION = {'claude': 'effort', 'codex': 'reasoningEffort', 'devin': 'thought_level'}
-# devin の model id は末尾に thought_level を持つ（swe-2-flash-medium、claude-fable-5-2-medium）。
-# claude-fable-5-2-medium が当たる devin 行は既定の表にはなく、上書きで devin 行を足した場合だけ。
+# devin の model id は末尾に thought_level を持つ（swe-2-flash-medium、claude-opus-4-7-medium）。
+# claude-opus-4-7-medium が当たる devin 行は既定の表にはなく、上書きで devin 行を足した場合だけ。
 # devin の行は部分一致のままにし、claude と codex の行は後ろが版番号の続きのときだけ一致とする。
 LOOSE_PROVIDERS = {'devin'}
 VERSION_TAIL = re.compile(r'(?:-[\d.]+)*$')
@@ -117,7 +117,7 @@ def find_model(table, model):
     """model が一致した行の (provider, name, ranges) を返す。複数一致では長い name を優先する。
 
     claude と codex の行は、name の後ろが版番号の続き（-5-2 など）だけで終わるときだけ一致とする。
-    そうしないと devin の claude-fable-5-2-medium が claude の fable 行を名乗り、
+    そうしないと devin の claude-opus-4-7-medium が claude の opus 行を名乗り、
     claude の option（effort）で止めずに通ってしまう。
     """
     lowered = model.lower()

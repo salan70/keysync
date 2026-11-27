@@ -202,10 +202,10 @@ class LocalModelsTest(unittest.TestCase):
         self.assertTrue(all(line.startswith('#') or not line for line in text.splitlines()[:4]))
 
     def test_set_replaces_or_appends_one_line(self):
-        local_models.set_value(self.root, 'ui', 'claude:fable  low', self.target)
+        local_models.set_value(self.root, 'ui', 'claude:opus  low', self.target)
         local_models.set_value(self.root, 'small edits', 'codex:terra medium', self.target)
         lines = self.target.read_text().splitlines()
-        self.assertEqual([l for l in lines if l.startswith('ui:')], ['ui: claude:fable low'])
+        self.assertEqual([l for l in lines if l.startswith('ui:')], ['ui: claude:opus low'])
         self.assertEqual(lines[-1], 'small edits: codex:terra medium')
         self.assertTrue(lines[0].startswith('#'))
 
