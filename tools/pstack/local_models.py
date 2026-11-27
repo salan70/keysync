@@ -17,7 +17,7 @@ TEMPLATE = """\
 # 設定できる名前の例を次に示す（行頭の # を外して値を書く）。
 #   provider: thread（スレッドを始めたモデルの provider）、claude、codex のいずれか。
 #   cross-provider: on のときだけ、パネルともう一方の provider への委譲を使う。
-#   ui: UI を担当するモデル（例: claude:fable low）。
+#   ui: UI を担当するモデル（例: claude:opus low）。
 # 変更は `python3 tools/pstack/pstack.py models set <名前> <値>` か、このファイルを直接直す。
 """
 GLOBAL_TEMPLATE = """\

@@ -44,7 +44,7 @@ class ParseTest(unittest.TestCase):
     def test_real_rule_file(self):
         table = g.parse_table((ROOT / g.RULE).read_text(encoding='utf-8'))
         self.assertIn('opus', table['claude'])
-        self.assertIn('fable', table['claude'])
+        self.assertNotIn('fable', table['claude'])
         self.assertIn('luna', table['codex'])
         self.assertIn('swe-2-high', table['devin'])
 
@@ -123,20 +123,20 @@ class DelegateTest(unittest.TestCase):
         self.assertIn('thought_level が未指定', delegate('swe-2-high', {'effort': 'high'}))
         self.assertIn('thought_level が未指定', delegate('swe-2-high', {'reasoningEffort': 'high'}))
 
-    def test_devin_fable_not_claimed_by_claude_row(self):
-        # devin の model id は末尾に thought_level を持つ。claude の fable 行と option を名乗らせない。
-        self.assertIn('表にありません', delegate('claude-fable-5-2-medium', {'effort': 'medium'}))
-        self.assertIn('表にありません', delegate('claude-fable-5-2-medium', {'thought_level': 'medium'}))
+    def test_devin_opus_not_claimed_by_claude_row(self):
+        # devin の model id は末尾に thought_level を持つ。claude の opus 行と option を名乗らせない。
+        self.assertIn('表にありません', delegate('claude-opus-4-7-medium', {'effort': 'medium'}))
+        self.assertIn('表にありません', delegate('claude-opus-4-7-medium', {'thought_level': 'medium'}))
 
-    def test_devin_row_fable_uses_thought_level(self):
-        # devin の行に claude-fable-5-2 があれば、devin の option（thought_level）を読む。
+    def test_devin_row_opus_uses_thought_level(self):
+        # devin の行に claude-opus-4-7 があれば、devin の option（thought_level）を読む。
         table = g.merge_override(
             TABLE,
             'devin: mid=swe-2-high (medium-max, *medium), low=swe-2-flash (medium-max, *medium),'
-            ' named=claude-fable-5-2 (low-max, *medium)\n')
-        self.assertIsNone(delegate('claude-fable-5-2-medium', {'thought_level': 'medium'}, table))
+            ' named=claude-opus-4-7 (low-max, *medium)\n')
+        self.assertIsNone(delegate('claude-opus-4-7-medium', {'thought_level': 'medium'}, table))
         self.assertIn('thought_level が未指定',
-                      delegate('claude-fable-5-2-medium', {'effort': 'medium'}, table))
+                      delegate('claude-opus-4-7-medium', {'effort': 'medium'}, table))
 
     def test_name_must_start_at_a_boundary(self):
         # xopus が opus 行に当たらないよう、name の前は先頭か区切りに限る。
@@ -149,6 +149,24 @@ class DelegateTest(unittest.TestCase):
         # Agent は claude 専用。codex の model を effort で呼んでも止まる。
         self.assertIn('codex', agent(model='terra', effort='medium'))
         self.assertIsNone(agent(model='sonnet', effort='medium'))
+
+
+class FableTest(unittest.TestCase):
+    OVERRIDE = 'claude: named=fable (low-high, *medium), sonnet=sonnet (low-high, *medium)\ncodex: named=claude-fable-5-2 (low-high, *medium)\n'
+
+    def table(self):
+        return g.apply_override(TABLE, self.OVERRIDE)
+
+    def test_override_reregisters_fable_but_still_blocked(self):
+        table = self.table()
+        self.assertIsNotNone(g.find_model(table, 'fable'))
+        for model in ('fable', 'claude-fable-5-2', 'Fable'):
+            self.assertIn('Fable', g.check('Agent', {'model': model, 'effort': 'medium'}, table))
+            self.assertIn('Fable', delegate(model, {'effort': 'medium'}, table=table))
+            self.assertIn('Fable', delegate(model, {'reasoningEffort': 'medium'}, table=table))
+
+    def test_non_fable_unaffected(self):
+        self.assertIsNone(g.check('Agent', {'model': 'sonnet', 'effort': 'medium'}, self.table()))
 
 
 class ForkTest(unittest.TestCase):

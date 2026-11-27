@@ -1,6 +1,7 @@
 # pstack の Skill を固定版で取り込み、上書きをリポジトリで持つ
 
-状態: 採用
+状態: 採用\
+注記: Fable の扱い（`named` 枠）は後の変更で廃止し、現在は使わない。現行の規則は `.claude/rules/pstack-models.md` を参照する。
 
 2026-11-22 に、baseball_player_journey（以下 bpj）で整備した AI の運用の基盤を KeySync へ入れる形を決めた（Issue #26）。\
 調査と計画は Issue #26 にまとめてある。

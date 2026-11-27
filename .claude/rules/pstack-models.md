@@ -11,15 +11,19 @@ provider は、スレッドを始めたモデルの provider とする（Claude 
 書式は `レベル=モデル (effort の下限-上限, *既定)` で、行の先頭の provider 名を変えない。
 
 ```text
-claude: high=opus (low-high, *medium), mid=sonnet (low-high, *medium), low=haiku (low-max, *xhigh), named=fable (low-high, *medium)
+claude: high=opus (low-high, *medium), mid=sonnet (low-high, *medium), low=haiku (low-max, *xhigh)
 codex: high=sol (low-xhigh, *high), mid=terra (low-high, *medium), low=luna (low-max, *xhigh)
 devin: mid=swe-2-high (medium-max, *medium), low=swe-2-flash (medium-max, *medium)
 ```
 
 - 版を書かないモデル名（opus、sonnet、sol など）は、その系統の最新版を指す。\
   T3 Code では、スレッドごとに 1 回 `orchestrator_capabilities` の `search` に系統名を渡して解決する。
-- `named=fable` は、ユーザーがその作業で fable を名指ししたときだけ使う。\
-  難しさを理由に選ばない。
+- `fable` と `claude-fable-*` は使えない。\
+  advertise されていても選ばず、ほかの model がなければ使えないと 1 行で伝えて止まる。\
+  利用者が Fable を名指ししたときも、代わりの model を勝手に選ばず、使えないことを伝える。
+- 上書き（マシン共通、ローカル）に Fable が残っていても、その行は使わず、下位の設定で続ける。\
+  利用者には上書きの更新を 1 行で求める。\
+  `spawn_guard.py` は、上書きに関係なく Fable の model を拒否する。
 - `devin` の行は、ユーザーが会話で Devin を名指ししたときだけ使う。\
   `high` のレベルは置かないので、`high` の作業はスレッドの provider で行う。\
   Devin の基本モデルは `swe-2-max` とするが、acpRegistry が `swe-2-max` を advertise していないため `delegate_task` では `swe-2-max` を選べない（2026-11 に実測）。\
